@@ -45,7 +45,6 @@ const BaseOptions = [
 ] as SideBarBaseProps[]
 export default function SideBar(props: SidebarProps) {
     const user = useContext(UserContext);
-
     return <div className=" h-screen w-[15%] bg-[#f0eeec] flex flex-col justify-between border-r-1 border-[#9a9a98] py-5 left-0 top-0">
         <div className=" w-full flex flex-col">
             <div className="flex w-full flex-row justify-between px-5">

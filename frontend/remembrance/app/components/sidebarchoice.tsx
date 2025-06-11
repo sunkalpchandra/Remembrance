@@ -20,7 +20,7 @@ export default function SideBarChoice(props : SideBarChoiceProps ) {
             {
                 props.tag != undefined && <div style = {{
                     backgroundColor: props.tagcolor
-                }} className = {` px-2 rounded-md mx-5 text-white text-center align-middle text-xs`}>{props.tag}</div>
+                }} className = {` px-2 rounded-md mx-2 text-white text-center align-middle text-[8px]`}>{props.tag}</div>
             }
             <img src = {props.iconPath} className = "w-[1vw] aspect-square"></img>
         </div>

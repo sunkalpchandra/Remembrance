@@ -1,5 +1,6 @@
 "use client"
 import { useState } from "react"
+import { IBM } from "../lib/fonts"
 
 
 interface OvalButton {
@@ -13,7 +14,7 @@ interface OvalButton {
 
 export default function OvalButton(props : OvalButton) {
     const [hover, setHover] = useState(false);
-    return <div className = "relative border-[#dedddb] rounded-full flex items-center gap-2 p-1 border-1 shadow-black shadow-2xs cursor-pointer hover:bg-[#DEDEDE]" onClick = {props.onClick}
+    return <div className = "relative border-[#dedddb] rounded-full flex items-center gap-2 p-1 border-1 shadow-black shadow-2xs cursor-pointer px-2 hover:bg-[#DEDEDE]" onClick = {props.onClick}
     onMouseLeave = {() => {
         setHover(false);
     }}
@@ -22,7 +23,7 @@ export default function OvalButton(props : OvalButton) {
      }}
     >
         <img src = {props.imgURL} alt = {props.imgAlt} className = "aspect-square w-[0.8vw] " ></img>
-        <p className = "text-xs"> {props.text}</p>
+        <p className = {`text-xs ${IBM.className}`}> {props.text}</p>
         {//TODO change font
         }
         {hover && <div  className = {`absolute ${props.popUpAbove ? "bottom-full" : "top-full"} right-[50%] translate-x-[50%]  flex flex-row items-center text-center`} style = {{

@@ -6,7 +6,7 @@ export type User =  {
 
 
 export interface ConversationMessage {
-    message: string,
+    text: string,
     sentByUser: boolean
 }
 export interface Conversation {

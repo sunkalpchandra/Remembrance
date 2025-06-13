@@ -13,7 +13,7 @@ interface CircleButtonProps {
 
 export default function CircleButton(props : CircleButtonProps) {
     const [hover, setHover] = useState(false);
-    return <div className = {`relative border-[#dedddb] rounded-full flex items-center p-1 border-1 shadow-black shadow-2xs cursor-pointer   hover:bg-[#DEDEDE] ${props.black ? "bg-black hover:bg-gray-800 border-0 shadow-none": "" }`}onClick = {props.onClick}
+    return <div className = {`relative border-[#dedddb] rounded-full flex items-center p-1 border-1 shadow-black shadow-2xs cursor-pointer transition-colors duration-300   hover:bg-[#DEDEDE] ${props.black ? "bg-black hover:bg-gray-800 border-0 shadow-none": "" }`}onClick = {props.onClick}
     onMouseLeave = {() => {
         setHover(false);
     }}

@@ -1,3 +1,4 @@
+"use client"
 import { useContext } from "react"
 import type { SideBarChoiceProps } from "./sidebarchoice"
 import SideBarChoice from "./sidebarchoice"
@@ -12,17 +13,20 @@ interface SidebarProps {
 const SideBarOptions = [
     {
         text: "New chat",
-        iconPath: "/chat.svg"
+        iconPath: "/chat.svg",
+        link:"/"
     },
     {
         text: "Repository",
         iconPath: "/repo.svg",
+        link: "/repository",
         tag: "beta",
         tagcolor: "#629DAD"
     },
     {
         text: "Family Care",
         iconPath: "/family.svg",
+        link: "/care",
         tag: "coming soon",
          tagcolor: "#4B4D4E"
     }
@@ -46,7 +50,7 @@ const BaseOptions = [
 ] as SideBarBaseProps[]
 export default function SideBar(props: SidebarProps) {
     const user = useContext(UserContext);
-    return <div className=" h-screen w-[13%] bg-[#f0eeec] flex flex-col justify-between border-r-1 border-[#9a9a98] py-5 left-0 top-0">
+    return <div className=" h-screen min-w-[13vw] max-w-[13vw] grow bg-[#f0eeec] flex flex-col justify-between border-r-1 border-[#9a9a98] py-5 left-0 top-0">
         <div className=" w-full flex flex-col">
             <div className="flex w-full flex-row justify-between px-5">
                 <img src="/rlogo.svg" alt="" className="w-[9%]" /><img src="/sidebar.svg" alt="" className="w-[15%]" />

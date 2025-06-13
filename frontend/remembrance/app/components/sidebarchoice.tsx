@@ -3,6 +3,7 @@
 export interface SideBarChoiceProps {
     text : string
     iconPath : string
+    link: string
     tag? : string
     tagcolor: string
     selected: boolean
@@ -12,7 +13,7 @@ export default function SideBarChoice(props : SideBarChoiceProps ) {
         backgroundColor: props.selected ? "#DEDEDE" : ""
     }} onClick = {
         () => {
-            //todo swap route
+            window.location.href = props.link
         }
     }>
         <p>{props.text}</p>

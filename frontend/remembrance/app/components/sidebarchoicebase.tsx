@@ -9,7 +9,7 @@ export interface SideBarBaseProps {
 export function BaseSideBar(props : SideBarBaseProps) {
 
 
-    return <div className = "w-full flex flex-row p-2 justify-between hover:bg-[#DEDEDE]">
+    return <div className = "w-full flex flex-row p-2 justify-between hover:bg-[#DEDEDE] transition-colors duration-300">
                 <img src={props.iconURL} alt="" />
         <p>{props.text}</p>
 

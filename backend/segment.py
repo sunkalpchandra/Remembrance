@@ -19,7 +19,7 @@ def segment_memories(text: str, max_sentences_per_chunk: int = 2):
         is_last = (i == len(sentences) - 1)
         is_transition = sentence_text.lower().startswith((
             "after", "then", "later", "afterwards", "suddenly"
-        ))
+        )) 
 
         if len(current_chunk) >= max_sentences_per_chunk or is_transition or is_last:
             memory_units.append(" ".join(current_chunk))

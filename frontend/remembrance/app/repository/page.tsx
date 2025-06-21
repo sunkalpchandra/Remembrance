@@ -157,7 +157,6 @@ export default function Page() {
                         return <p onClick={() => {
                             setCurrent(e)
                         }
-
                         } className="pl-10 px-3 hover:bg-[#DEDEDE] w-full cursor-pointer" key={i}>{e.name}</p>
                     })
                 }

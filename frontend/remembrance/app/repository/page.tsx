@@ -1,10 +1,13 @@
 "use client"
-import { memo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import SideBar from "../components/sidebar";
 import { MemoriesRepo, Memory, Topic } from "../lib/types";
 import { send } from "process";
 import { poppins } from "../lib/fonts";
-import ReactMarkdown from "react-markdown";
+import Editor from "../components/mdEditor";
+import { MDXEditor, MDXEditorMethods } from "@mdxeditor/editor";
+
+
 //Filler data for testing
 const Memone: Memory = {
     name: 'Memory one',
@@ -31,19 +34,21 @@ const fillerData: MemoriesRepo = {
 
     memories: {
         name: 'root',
-        contents: [
+        children: [
             {
                 name: 'family',
-                contents: [
+                children: [
                     {
                         name: 'Dad',
-                        contents: [
+                        children: [
                             Memone
                         ]
                     },
                     {
                         name: 'Mom',
-                        contents: [
+                        
+                        content: "Lorum Ispum",
+                        children: [
                             Memone,
                             memtow
                         ]
@@ -52,16 +57,16 @@ const fillerData: MemoriesRepo = {
             },
             {
                 name: 'family2',
-                contents: [
+                children: [
                     {
                         name: 'Dad2',
-                        contents: [
+                        children: [
                             three
                         ]
                     },
                     {
                         name: 'Mom2',
-                        contents: [
+                        children: [
                             three,
                             three
                         ]
@@ -79,7 +84,7 @@ function FlattenRepo(repo: MemoriesRepo) {
     if (repo == undefined) {
         return []
     }
-    let output = FlattenRepoRecurse(repo.memories.contents);
+    let output = FlattenRepoRecurse(repo.memories.children);
     let seen: Record<string, boolean> = {
 
     }
@@ -98,8 +103,8 @@ function FlattenRepoRecurse(add: Array<Memory | Topic>) {
     let out: Array<Memory | Topic> = []
     for (let v of add) {
         out.push(v)
-        if ('contents' in v) {
-            out.push(...FlattenRepoRecurse(v.contents))
+        if ('children' in v) {
+            out.push(...FlattenRepoRecurse(v.children))
         }
     }
     return out
@@ -111,37 +116,55 @@ function FlattenRepoRecurse(add: Array<Memory | Topic>) {
 export default function Page() {
     const [repo, setRepo] = useState(fillerData);
     function GetPath(mem: Memory | Topic) {
+        function isTopic(obj: any): obj is Topic {
+            return obj && Array.isArray(obj.children);
+        }
         function Recurse(on: Topic): null | Array<Topic | Memory> {
-            for (let v of on.contents) {
+            for (let v of on.children) {
                 if (v == mem) {
-                    return [v]
+                    return [v];
                 }
-                if ('contents' in v) {
-                    let out = Recurse(v)
+                if (isTopic(v)) {
+                    let out = Recurse(v);
                     if (out != null) {
-                        return [v, ...out]
+                        return [v, ...out];
                     }
                 }
             }
             return null;
         }
-        for (let v of repo.memories.contents) {
+        for (let v of repo.memories.children) {
             if (v == mem) {
-                return [v]
+                return [v];
             }
-            if ('contents' in v) {
-                let out = Recurse(v)
+            if (isTopic(v)) {
+                let out = Recurse(v);
                 if (out != null) {
-                    return [v, ...out]
+                    return [v, ...out];
                 }
             }
-
         }
     }
+    const editorRef = useRef(null as MDXEditorMethods | null);
     const [current, setCurrent] = useState(null as Memory | Topic | null);
     const [width, setWidth] = useState(50);
     const resizeParent = useRef(null as any as HTMLDivElement);
     const [editingSummary, setEditingSummary] = useState(false);
+    useEffect(() => {
+        if(editorRef.current){
+            editorRef.current.setMarkdown(current?.content || "")
+        }
+    }, [current])
+    function updateRepo(current: Memory | Topic, newValue :Memory | Topic ) {
+        let cpRepo = {...repo}
+        for(let v of FlattenRepo(cpRepo)){
+            if(v.name == current.name){
+                Object.assign(v, current)
+            }
+        }
+        setRepo(cpRepo)
+    }
+
     return <div className="flex w-screen h-screen flex-row items-center text-black">
         <SideBar selected={1}></SideBar>
         <div className="h-screen w-[20%] flex justify-start  flex-col pt-2">
@@ -193,9 +216,20 @@ export default function Page() {
                         setEditingSummary(!editingSummary)
                     }}><div className="text-xl pr-3  ">❗</div>{<p className="text-[#B2B0AB]">{current && !('contents' in current) ? (current as Memory).summary : ""}</p>}
                     </div>
-                    <ReactMarkdown className="w-[80%]">
-                        {current && !('contents' in current) ? (current as Memory).content : ""}
-                    </ReactMarkdown>
+                    <Editor editorRef = {editorRef} change = {
+                        (e) => {
+                            console.log(e);
+                            if(current == null){
+                                return
+                            }
+                            let copy = {...current}
+                            copy.content = e;
+                            setCurrent({...copy});
+                            updateRepo(current, copy)
+                        }
+                    } markdown = {
+                        current?.content || ""
+                    }></Editor>
                 </div>
             </div>
             <div className="h-screen p-0.5 cursor-col-resize bg-black" onMouseDown={(e) => {

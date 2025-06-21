@@ -24,7 +24,8 @@ export interface MemoriesRepo {
 }
 export interface Topic {
     name: string,
-    contents: Array<Memory | Topic>
+    children: Array<Memory | Topic>,
+    content?: string 
 }
 export interface Memory {
     symbol: string

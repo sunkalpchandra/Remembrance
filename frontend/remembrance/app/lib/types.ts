@@ -1,3 +1,5 @@
+import { Console } from "console"
+
 export type User =  {
     name : string,
     email : string,
@@ -37,3 +39,15 @@ export interface Memory {
 // export interface Person {
 //     name: string
 // }
+
+
+
+export interface Command {
+    name: string
+    summary: string
+    params: CommandParamater[]
+    run( params : String[]) : String
+}
+export interface CommandParamater {
+    name: string
+}

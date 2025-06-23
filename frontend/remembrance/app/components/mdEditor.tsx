@@ -15,11 +15,12 @@ interface EditorProps {
  */
 const Editor: FC<EditorProps> = ({ markdown, editorRef , change}) => {
   return (
-    <MDXEditor className = "w-full h-full"
+    <MDXEditor className = "w-[80%] h-full"
       onChange={change}
       ref={editorRef}
       markdown={markdown}
       plugins={[headingsPlugin(), listsPlugin(), quotePlugin(), thematicBreakPlugin()]}
+      trim = {false}
     />
   );
 };

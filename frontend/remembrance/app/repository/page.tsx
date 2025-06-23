@@ -1,11 +1,12 @@
 "use client"
 import { memo, useEffect, useRef, useState } from "react";
 import SideBar from "../components/sidebar";
-import { MemoriesRepo, Memory, Topic } from "../lib/types";
+import { Command, MemoriesRepo, Memory, Topic } from "../lib/types";
 import { send } from "process";
 import { poppins } from "../lib/fonts";
 import Editor from "../components/mdEditor";
 import { MDXEditor, MDXEditorMethods } from "@mdxeditor/editor";
+import { All_Commands } from "../lib/commands";
 
 
 //Filler data for testing
@@ -46,7 +47,7 @@ const fillerData: MemoriesRepo = {
                     },
                     {
                         name: 'Mom',
-                        
+
                         content: "Lorum Ispum",
                         children: [
                             Memone,
@@ -77,8 +78,18 @@ const fillerData: MemoriesRepo = {
     }
 }
 //end filler data
+function decodeHTMLEntities(str: string) {
+    const txt = document.createElement("textarea");
+    txt.innerHTML = str;
+    return txt.value;
+}
 
+const commands: Command[] = [
 
+]
+for (let v of All_Commands) {
+    commands.push(new v());
+}
 //returns a list of every topic and memory in the repo
 function FlattenRepo(repo: MemoriesRepo) {
     if (repo == undefined) {
@@ -115,6 +126,7 @@ function FlattenRepoRecurse(add: Array<Memory | Topic>) {
 
 export default function Page() {
     const [repo, setRepo] = useState(fillerData);
+    const old = useRef("");
     function GetPath(mem: Memory | Topic) {
         function isTopic(obj: any): obj is Topic {
             return obj && Array.isArray(obj.children);
@@ -150,15 +162,17 @@ export default function Page() {
     const [width, setWidth] = useState(50);
     const resizeParent = useRef(null as any as HTMLDivElement);
     const [editingSummary, setEditingSummary] = useState(false);
+    const [command, setCommand] = useState("");
+    const [commandIndex, setCommandIndex] = useState(0);
     useEffect(() => {
-        if(editorRef.current){
+        if (editorRef.current) {
             editorRef.current.setMarkdown(current?.content || "")
         }
     }, [current])
-    function updateRepo(current: Memory | Topic, newValue :Memory | Topic ) {
-        let cpRepo = {...repo}
-        for(let v of FlattenRepo(cpRepo)){
-            if(v.name == current.name){
+    function updateRepo(current: Memory | Topic, newValue: Memory | Topic) {
+        let cpRepo = { ...repo }
+        for (let v of FlattenRepo(cpRepo)) {
+            if (v.name == current.name) {
                 Object.assign(v, current)
             }
         }
@@ -209,28 +223,141 @@ export default function Page() {
                         <img src="sidebar.svg" alt="" className="w-[1.3vw] cursor-pointer" />
                     </div>
                 </div>
-                <div className="h-[90%] flex flex-col items-start pl-5">
+                {current && <div className="h-[90%] flex flex-col items-start pl-5">
                     <h1 className=" text-6xl">{current && !('contents' in current) ? (current as Memory).symbol : ""}</h1>
                     <h1 className={"text-6xl pt-6 font-bold " + poppins.className}>{current?.name}</h1>
-                    <div className="w-[80%] bg-[#f5f5f5] rounded-xl p-5 flex flex-row items-start" onDoubleClick = {() => {
-                        setEditingSummary(!editingSummary)
-                    }}><div className="text-xl pr-3  ">❗</div>{<p className="text-[#B2B0AB]">{current && !('contents' in current) ? (current as Memory).summary : ""}</p>}
-                    </div>
-                    <Editor editorRef = {editorRef} change = {
+                    <div className="w-[80%] bg-[#f5f5f5] rounded-xl p-5 flex flex-row items-start" onDoubleClick={() => {
+                        setEditingSummary(!editingSummary);
+                    }}><div className="text-xl pr-3  ">❗</div>{editingSummary ? <input type="text" value={current && !('contents' in current) ? (current as Memory).summary : ""} onChange={(e) => {
+                        if (current == null) {
+                            return
+                        }
+                        if (!("summary" in current)) {
+                            return;
+                        }
+                        let copy = { ...current }
+                        copy.summary = e.target.value;
+                        setCurrent({ ...copy });
+                        updateRepo(current, copy)
+                    }} onKeyDown={
                         (e) => {
-                            console.log(e);
-                            if(current == null){
+                            if (e.key == "Enter") {
+                                setEditingSummary(false)
+                            }
+                        }
+                    }></input> : <p className="text-[#B2B0AB]">{current && !('contents' in current) ? (current as Memory).summary : ""}</p>}
+                    </div>
+                    <div className=" relative" onKeyDownCapture={(e) => {
+                        let indices = []
+                        for (let i = 0; i < commands.length; i++) {
+                            if (("/" + commands[i].name).toLowerCase().includes(command.split(" ")[0].toLowerCase())) {
+                                indices.push(i)
+                            }
+                        }
+                        if (indices.length == 0) {
+                            setCommandIndex(0)
+                            return;
+                        }
+
+                        let indicesIndex = indices.indexOf(commandIndex);
+                        if (indicesIndex == -1) {
+                            setCommandIndex(indices[0])
+                            return
+                        }
+                        if (e.key == "ArrowUp") {
+                            let next = indicesIndex - 1;
+                            if (next < 0) {
+                                setCommandIndex(indices[indices.length - 1]);
+                            }
+                            else {
+                                setCommandIndex(indices[next])
+                            }
+                        }
+                        if (e.key == "ArrowDown") {
+                            setCommandIndex(indices[indicesIndex + 1 % indices.length])
+                        }
+
+
+
+                        if ((e.key == "Enter" || e.key == "Space" || e.key == "Tab") && command != "" && (!command.includes(" "))) {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            let selectedCommand = commands[commandIndex];
+                            let txt = editorRef.current?.getMarkdown()
+                            if (txt == undefined) {
+                                console.warn("null on editor ref ")
                                 return
                             }
-                            let copy = {...current}
-                            copy.content = e;
-                            setCurrent({...copy});
-                            updateRepo(current, copy)
+                            let add = ("/" + selectedCommand.name).substring(command.length)
+                            editorRef.current?.insertMarkdown(add + " ");
+                            setCommand(add)
                         }
-                    } markdown = {
-                        current?.content || ""
-                    }></Editor>
-                </div>
+                    }
+                    }>
+                        {command != "" && <ol className="absolute z-[500] bg-white bottom-5 border-2 border-black rounded-md  max-h-[20vh] overflow-y-scroll" style={{
+                        }}>
+                            {
+                                commands.map((e: Command, i) => {
+                                    if (command != "") {
+                                        console.log(e.name, command.split(" ")[0])
+                                        let all = command.split(" ");
+                                        if (all.length > e.params.length) {
+                                            console.log("skippinglen" + e.name + " " + e.params.length, all.length)
+                                            return <></>
+                                        }
+                                        else {
+                                            let name = "/" + e.name;
+                                            if (!name.toLowerCase().includes(command.split(" ")[0].toLowerCase())) {
+                                                console.log("skipping" + e.name)
+                                                return <></>
+                                            }
+                                            return <div className={`flex flex-col border-gray-500 p-2 ${i == commandIndex && "bg-[#DEDEDE]"}`}>
+                                                <h2>{e.name}</h2>
+                                                <div className="text-[#B2B0AB] text-xs">{e.summary}</div>
+                                            </div>
+                                        }
+                                    }
+                                    return <></>
+                                })
+                            }
+                        </ol>}
+                        <Editor editorRef={editorRef} change={
+                            (e) => {
+                                if (e.length > old.current.length) {
+                                    //added
+                                    let added = decodeHTMLEntities(e.substring(old.current.length));
+                                    console.log(added);
+                                    if (command != "") {
+
+                                        setCommand(command + added);
+                                    }
+                                    else {
+                                        if (added.includes("/")) {
+                                            setCommand(added.substring(added.indexOf("/")))
+                                        }
+                                    }
+                                }
+                                else {
+                                    //deleted
+                                    let deleted = old.current.substring(e.length)
+                                    if (command != "" && deleted.includes("/")) {
+                                        setCommand("");
+                                    }
+                                    else if (command != "") {
+                                        setCommand(command.substring(0, command.length - deleted.length))
+                                    }
+                                }
+                                let copy = { ...current }
+                                copy.content = e;
+                                setCurrent({ ...copy });
+                                updateRepo(current, copy);
+                                old.current = e;
+                            }
+                        } markdown={
+                            current?.content || ""
+                        }></Editor>
+                    </div>
+                </div>}
             </div>
             <div className="h-screen p-0.5 cursor-col-resize bg-black" onMouseDown={(e) => {
                 let start = e.clientX;

@@ -1,7 +1,0 @@
-{
-  "python.envFile": "${workspaceFolder}/.env",
-  "python.analysis.extraPaths": ["./backend"],
-  "python.testing.pytestArgs": ["tests"],
-  "python.testing.pytestEnabled": true,
-  "python.testing.unittestEnabled": false
-}

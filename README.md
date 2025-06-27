@@ -1,4 +1,4 @@
-# remembrance-1
+# Remembrance v1.0
 
 Remembrance is a platform designed to help users capture, organize, and revisit important memories or events. 
 

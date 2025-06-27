@@ -1,8 +1,8 @@
 # Remembrance v1.0
 
-Remembrance is a platform designed to help users capture, organize, and revisit important memories or events. 
+*Remembrance* is a platform designed to help users capture, organize, and revisit important memories or events. 
 
-With Remembrance, you can:
+With *Remembrance*, you can:
 1. Create new memory entries with titles, descriptions, and media attachments.
 2. Categorize memories by topic, person, or event for easy browsing.
 3. Talk with emotionally intelligent LLM that helps you with reminiscence therapy

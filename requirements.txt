@@ -1,4 +1,0 @@
-spacy==3.8.7
-pytest==8.2.1
-transformers
-torch

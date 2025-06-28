@@ -193,6 +193,7 @@ export default function Page() {
                     FlattenRepo(repo).map((e, i) => {
                         return <p onClick={() => {
                             setCurrent(e)
+                            setCommand("")
                         }
                         } className="pl-10 px-3 hover:bg-[#DEDEDE] w-full cursor-pointer" key={i}>{e.name}</p>
                     })

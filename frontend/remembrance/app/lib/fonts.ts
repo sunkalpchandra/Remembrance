@@ -1,5 +1,5 @@
 
-import { Geist, Geist_Mono, Hedvig_Letters_Sans, Hedvig_Letters_Serif, IBM_Plex_Mono, Poppins } from "next/font/google";
+import { Geist, Geist_Mono, Hedvig_Letters_Sans, Hedvig_Letters_Serif, IBM_Plex_Mono, Manrope, Poppins } from "next/font/google";
 export const poppins = Poppins({
   weight: ['400', '600']
 })
@@ -9,5 +9,9 @@ export const IBM = IBM_Plex_Mono({
   subsets: ['latin']
 })
 export const hedvig = Hedvig_Letters_Serif({
+  weight: '400'
+})
+
+export const ManRope = Manrope({
   weight: '400'
 })

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Conversation, ConversationMessage } from "@/app/lib/types";
 import CircleButton from "@/app/components/circlebutton";
 import OvalButton from "@/app/components/ovalbutton";
-import { IBM } from "./lib/fonts";
+import { IBM, ManRope } from "./lib/fonts";
 import { HumanMessage } from "./components/messages/humanmessage";
 import { BotMessage } from "./components/messages/botmessage";
 
@@ -43,7 +43,6 @@ export default function Home() {
     newconversation.messages = [...newconversation?.messages, message]
     SetConversation({ ...newconversation })
   }
-  const [suggestion, SetSuggestion] = useState("Suggestion");
   const [conversation, SetConversation] = useState(undefined as Conversation | undefined);
   const textInput = useRef(null as any as HTMLTextAreaElement);
   useEffect(() => {
@@ -54,11 +53,12 @@ export default function Home() {
     if (last?.sentByUser) {
       sendBotMessage();
     }
+    //TODO scroll to bottom
   }, [conversation])
   return <div className="w-screen flex flex-row bg-[##f9f8f6]">
     <SideBar selected={0}></SideBar>
     <div className=" grow h-screen flex flex-col-reverse gap-5 ">
-      <div className="mx-2 border-2 border-[#A3A3A3] rounded-xl bg-white flex flex-col mb-2 ">
+      {conversation != undefined && <div className="mx-2 border-2 border-[#A3A3A3] rounded-xl bg-white flex flex-col mb-2 ">
         <div className="w-full ">
           <textarea className="w-full pt-5 px-2 " placeholder="Illustrate your memories based on your people you love..." ref={textInput} onKeyUp={(e) => {
             if (e.key == "Enter" && !e.shiftKey) {
@@ -94,33 +94,35 @@ export default function Home() {
             <img src="/arrow-up.svg" className="w-5 " alt="Send" />
           </button>
         </div>
-      </div>
+      </div>}
       <div className="grow w-full flex items-center flex-col justify-center p-2">
         {
           conversation == undefined ?
             <div>
               <h1 className="text-6xl">Welcome to Remembrance</h1>
 
-              <div className="w-full border-[#afaead] border-1 mt-5 text-lg px-2 shadow-xs shadow-[#00000071] flex flex-row items-center justify-between">
-                <div className={`relative ${IBM.className}`}>
-                  {suggestion}
-                </div>
+              <div className={` ${ManRope.className} gap-2 w-full border-[#afaead] border-1 mt-5 text-lg px-2 shadow-xs rounded-full flex flex-row items-center justify-between`}>
+                <CircleButton imgURL={"/paperclip.svg"}  onClick={function (e: any): void {
+                  //TODO
+                  console.error("file upload no implmented")
+                }} imgAlt={"File"} hoverText={"Choose a file to upload"} popUpAbove
+                imgClassName = "m-1 "></CircleButton>
+                <input type="text" id="FirstMessage" placeholder="Turn your complex thoughts into simple graphs..." className={`relative w-full ${ManRope.className}`}>
+                </input>
                 <div className=" flex flex-row my-1 gap-2">
-                  <CircleButton imgAlt="refresh" imgURL="/refresh.svg" hoverText="suggest me again" onClick={() => {
-                    SetSuggestion("random new " + Math.random())
-                  }}></CircleButton>
-                  <CircleButton imgAlt="Use" imgURL="arrow-up-right.svg" hoverText="use this message" onClick={() => {
+                  <CircleButton black imgAlt="Send" imgURL="arrow-up.svg" hoverText="Start Conversation" onClick={() => {
                     let newconversation: Conversation | undefined = conversation;
                     newconversation = {
                       name: "Unamed",
                       date: new Date(),
                       messages: [{
                         sentByUser: true,
-                        text: suggestion
+                        text: (document.getElementById("FirstMessage") as HTMLInputElement)?.value || ""
                       }]
                     }
                     SetConversation(newconversation);
-                  }}></CircleButton>
+                  }}
+                  imgClassName = "w-[2vw] p-0.5"></CircleButton>
                 </div>
               </div>
 
@@ -132,7 +134,20 @@ export default function Home() {
                     return <HumanMessage message={e} key={i + e.text}></HumanMessage>
                   }
                   else {
-                    return <BotMessage message={e} time={40} botName={"remeberance"} key={i + e.text} ></BotMessage>
+                    return <BotMessage message={e} time={40} botName={"remeberance"} key={i + e.text} suggestions = {[
+                      {
+                        person: "father",
+                        name: "Perfers to store family-centric lorum is p um as  as d a sd",
+                        href: "/todo",
+                        color: "#4DB960"
+                      },
+                      {
+                        person: "mother",
+                        name: "short",
+                        href: "/todo",
+                        color: "#4DB960"
+                      }
+                    ]} ></BotMessage>
                   }
                 })
               }

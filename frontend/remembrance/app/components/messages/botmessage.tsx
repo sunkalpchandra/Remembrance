@@ -4,13 +4,16 @@ import { useEffect, useRef } from "react"
 import CircleButton from "../circlebutton"
 import { IBM } from "@/app/lib/fonts"
 import MultiButton from "../multibutton"
+import MemoryWidget, { MemoryWidgetProps } from "../memorywidget"
+
 
 
 
 interface BotProps {
     message: ConversationMessage,
     time: number,
-    botName: string
+    botName: string,
+    suggestions: MemoryWidgetProps[]
 }
 
 export function BotMessage(props: BotProps) {
@@ -25,7 +28,6 @@ export function BotMessage(props: BotProps) {
         let int = setInterval(() => {
             let progress = (new Date().getTime() - start.current.getTime()) / ((props.time + 1) * 1000) * 100
             progressbar.current.style.width = progress + "%";
-            console.log(progress)
             if (progress > 100) {
                 clearTimeout(int);
             }
@@ -59,16 +61,23 @@ export function BotMessage(props: BotProps) {
                     () => {
                         console.log("thumbs up")
                         //TODO 
-                                            throw new Error("Function not implemented.")
+                        throw new Error("Function not implemented.")
                     },
                     () => {
                         console.log("thumbs down")
-                    throw new Error("Function not implemented.")
+                        throw new Error("Function not implemented.")
                     }
                 ]}></MultiButton>
                 <CircleButton imgURL={"/clock.svg"} onClick={function (e: any): void {
                     throw new Error("Function not implemented.")
                 }} imgAlt={"reset timer"} hoverText={"restart time "} black></CircleButton>
+            </div>
+            <div className = "flex flex-row ">
+                {
+                    props.suggestions.map((e, i) => {
+                        return <MemoryWidget {...e} key = {i}></MemoryWidget>
+                    })
+                }
             </div>
         </div>
     </div>

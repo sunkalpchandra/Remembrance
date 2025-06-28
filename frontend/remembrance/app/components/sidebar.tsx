@@ -72,7 +72,7 @@ export default function SideBar(props: SidebarProps) {
                 }
             </div>
             {!collapsed && <div className = {`border-t-1 border-[#d9d9d9] flex flex-row justify-between px-2 items-center ${IBM.className}`}>
-                <div className = "flex flex-col pt-2"><p>{user.name}</p> <p className = " text-xs text-[#787776]"> {user.email}</p></div>
+                <div className = "flex flex-col pt-2"><p>{user?.displayName}</p> <p className = " text-xs text-[#787776]"> {user?.email}</p></div>
                 <img src="/up.svg" alt="expand" className = "w-[2vw]" />
             </div>}
         </div>

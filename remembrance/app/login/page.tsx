@@ -12,6 +12,8 @@ import {
 } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { FaGoogle } from "react-icons/fa";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/backend/firebaseConfig";
 
 const Login = () => {
   const router = useRouter();
@@ -21,9 +23,9 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        router.push("/");
+        await checkIfNewUser(user);
       }
     });
     return () => unsubscribe();
@@ -39,6 +41,8 @@ const Login = () => {
     setError("");
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
+      const user = await auth.currentUser;
+      await checkIfNewUser(user);
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -52,7 +56,8 @@ const Login = () => {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      router.push("/");
+      const user = auth.currentUser;
+      await checkIfNewUser(user);
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -65,6 +70,19 @@ const Login = () => {
       handleEmailLogin();
     }
   };
+
+  const checkIfNewUser = async(user: any) => {
+    if (user) {
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists() || !userSnap.data()?.username) {
+        router.push("/onboarding");
+      } else {
+        router.push("/");
+      }
+    }
+  }
 
   return (
     <div className="min-h-screen w-screen flex overflowx-hidden max-w-full">

@@ -1,4 +1,4 @@
-# Remembrance v1.0
+# Remembrance v1.0 by Reteena
 
 *Remembrance* is a platform designed to help users capture, organize, and revisit important memories or events. 
 

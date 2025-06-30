@@ -24,7 +24,7 @@ const SideBarOptions = [
         tagcolor: "#000000"
     },
     {
-        text: "Dash board",
+        text: "Dashboard",
         iconPath: "/family.svg",
         link: "/dashboard",
         tag: "beta",

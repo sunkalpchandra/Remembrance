@@ -9,11 +9,13 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   onAuthStateChanged,
+  createUserWithEmailAndPassword
 } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { FaGoogle } from "react-icons/fa";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/backend/firebaseConfig";
+import { create } from "domain";
 
 const Login = () => {
   const router = useRouter();
@@ -21,6 +23,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<"login" | "signup">("login");
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -40,7 +43,12 @@ const Login = () => {
     setLoading(true);
     setError("");
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      if (mode === "login") {
+        await signInWithEmailAndPassword(auth, email.trim(), password);
+      } else {
+        await createUserWithEmailAndPassword(auth, email.trim(), password);
+      }
+
       const user = await auth.currentUser;
       await checkIfNewUser(user);
     } catch (error: any) {
@@ -151,7 +159,7 @@ const Login = () => {
                   disabled={loading}
                   className="w-full rounded-md border border-black px-8 py-2 bg-[#D9D9D9] hover:bg-[#C9C9C9] disabled:bg-gray-200 disabled:cursor-not-allowed shadow-lg hover:shadow-neutral-400 transition-all font-medium"
                 >
-                  {loading ? "Signing in..." : "Login"}
+                  {loading ? (mode === "login" ? "Signing in..." : "Creating account...") : (mode === "login" ? "Login": "Sign Up")}
                 </button>
 
                 <button
@@ -165,9 +173,9 @@ const Login = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mt-4">
-                <span className="text-gray-600">Don't have an account?</span>
-                <button className="text-blue-600 hover:text-blue-800 underline text-left transition-colors">
-                  Sign Up Now
+                <span className="text-gray-600">{mode === "login" ? "Don't have an account?" : "Already have an account?"}</span>
+                <button onClick={() => setMode(mode === "login" ? "signup" : "login")} className="text-blue-600 hover:text-blue-800 underline text-left transition-colors">
+                  {mode === "login" ? "Sign Up Now": "Login Instead"}
                 </button>
                 <span className="text-gray-600">Forgot your password?</span>
                 <button className="text-blue-600 hover:text-blue-800 underline text-left transition-colors">

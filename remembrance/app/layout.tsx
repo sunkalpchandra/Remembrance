@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { User } from "./lib/types";
-import UserCotextProvider, { UserContext } from "./components/usercontext";
+import UserContextProvider, { UserContext } from "./components/usercontext";
 import { poppins } from "./lib/fonts";
 
 export const metadata: Metadata = {
@@ -17,10 +17,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${poppins.className}`}
-      >
-       <UserCotextProvider> {children}</UserCotextProvider>
+      <body className={`${poppins.className}`}>
+       <UserContextProvider> {children}</UserContextProvider>
       </body>
     </html>
   );

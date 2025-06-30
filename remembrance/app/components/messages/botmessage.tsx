@@ -5,9 +5,7 @@ import CircleButton from "../circlebutton"
 import { IBM } from "@/app/lib/fonts"
 import MultiButton from "../multibutton"
 import MemoryWidget, { MemoryWidgetProps } from "../memorywidget"
-
-
-
+import axios from "axios";
 
 interface BotProps {
     message: ConversationMessage,
@@ -60,7 +58,7 @@ export function BotMessage(props: BotProps) {
                 ]} callBacks={[
                     () => {
                         console.log("thumbs up")
-                        //TODO 
+                        //TODO
                         throw new Error("Function not implemented.")
                     },
                     () => {

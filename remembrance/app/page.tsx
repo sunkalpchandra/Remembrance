@@ -7,8 +7,15 @@ import OvalButton from "@/app/components/ovalbutton";
 import { IBM, ManRope } from "./lib/fonts";
 import { HumanMessage } from "./components/messages/humanmessage";
 import { BotMessage } from "./components/messages/botmessage";
+import axios from "axios";
+import { auth } from "@/backend/firebaseConfig";
+import { onAuthStateChanged, User } from "firebase/auth";
 
 export default function Home() {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  // const User = auth.currentUser;
+
+  const [user, setUser] = useState<User>();
 
   function sendHumanMessage(msg: string) {
     let newconversation = conversation
@@ -31,28 +38,77 @@ export default function Home() {
     //spread here to ensure a rerender
     SetConversation({ ...newconversation });
   }
-  function sendBotMessage() {
-    let newconversation = conversation;
-    let message: ConversationMessage = {
-      sentByUser: false,
-      text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
-    }
-    if (newconversation == undefined) {
+  async function sendBotMessage() {
+    if (!conversation) {
       return;
     }
-    newconversation.messages = [...newconversation?.messages, message]
-    SetConversation({ ...newconversation })
+
+    const lastUserMsg = conversation.messages.at(-1)?.text;
+    if (!lastUserMsg) {
+      return;
+    }
+
+    try {
+      const response = await axios.post("http://localhost:5000/query", {
+        query: lastUserMsg,
+        user_id: user?.uid // use authed user user_id
+      });
+
+      const message = {
+        sentByUser: false,
+        text: response.data?.result_return || "No response given from server"
+      };
+
+      SetConversation({
+        ...conversation,
+        messages: [...conversation.messages, message]
+      });
+    } catch (err) {
+      console.error("Error: ", err);
+      SetConversation({
+        ...conversation,
+        messages: [...conversation.messages, {
+          sentByUser: false,
+          text: "Sorry, there was an error generating a response from our model."
+        }]
+      });
+    }
+    // let newconversation = conversation;
+    // let message: ConversationMessage = {
+    //   sentByUser: false,
+    //   text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+    // }
+    // if (newconversation == undefined) {
+    //   return;
+    // }
+    // newconversation.messages = [...newconversation?.messages, message]
+    // SetConversation({ ...newconversation })
   }
   const [conversation, SetConversation] = useState(undefined as Conversation | undefined);
   const textInput = useRef(null as any as HTMLTextAreaElement);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser)
+      }
+    });
+
+    return () => unsubscribe();
+  }, [])
+
   useEffect(() => {
     if (conversation == undefined) {
-      return
+      return;
     }
     let last = conversation.messages.at(-1)
     if (last?.sentByUser) {
       sendBotMessage();
     }
+
+    setTimeout(() => {
+      scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100)
     //TODO scroll to bottom
   }, [conversation])
   return <div className="w-screen flex flex-row bg-[##f9f8f6]">
@@ -151,6 +207,7 @@ export default function Home() {
                   }
                 })
               }
+              <div ref={scrollRef}></div>
             </div>
         }
       </div>

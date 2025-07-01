@@ -7,8 +7,6 @@ With *Remembrance*, you can:
 2. Categorize memories by topic, person, or event for easy browsing.
 3. Talk with emotionally intelligent LLM that helps you with reminiscence therapy
 
-![Group 68](https://github.com/user-attachments/assets/2bad61f5-a9dc-4fde-9b38-268df34a0b4f)
-![Group 69](https://github.com/user-attachments/assets/db8859f3-2eea-49fd-ac19-10d5f11cda13)
 ![r-login1](https://github.com/user-attachments/assets/cecd33fd-6c12-4711-9684-ad940442b94a)
 ![r-login2](https://github.com/user-attachments/assets/0045abbc-4afe-4762-832e-9d683e857710)
 ![r-landing](https://github.com/user-attachments/assets/94b98e0b-375a-4bea-b9cb-b6a596e5477e)

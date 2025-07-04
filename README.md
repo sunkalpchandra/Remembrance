@@ -7,9 +7,13 @@ With *Remembrance*, you can:
 2. Categorize memories by topic, person, or event for easy browsing.
 3. Talk with emotionally intelligent LLM that helps you with reminiscence therapy
 
-![r-login1](https://github.com/user-attachments/assets/e9eb41db-8e46-4116-abac-ccbf57bc6b48)
-![r-login2](https://github.com/user-attachments/assets/3112e793-5b98-4750-8b3d-b1a08d01a55a)
-![r-landing](https://github.com/user-attachments/assets/7a5bca14-82fa-4562-870f-7cee9661b36a)
-![r-landing-1](https://github.com/user-attachments/assets/1304e757-8c93-4704-afbe-c6d21a463956)
-![r-chat](https://github.com/user-attachments/assets/bf92cb50-82fe-477e-86bf-a86428d7350f)
-![r-docs](https://github.com/user-attachments/assets/548e6ed3-5037-4a94-a5f1-6ff1a06cb42a)
+![r-login1](https://github.com/user-attachments/assets/cecd33fd-6c12-4711-9684-ad940442b94a)
+![r-login2](https://github.com/user-attachments/assets/0045abbc-4afe-4762-832e-9d683e857710)
+![r-landing](https://github.com/user-attachments/assets/94b98e0b-375a-4bea-b9cb-b6a596e5477e)
+![r-landing-1](https://github.com/user-attachments/assets/cc553173-e146-4ea2-b04a-4bf03a8981b9)
+![r-chat](https://github.com/user-attachments/assets/aa5e5eef-fbef-4693-9fbb-8dca36a47bc4)
+![r-docs](https://github.com/user-attachments/assets/2f1373ae-714c-4f15-a9a9-9f783fdc0739)
+![r-settings (personal profile)](https://github.com/user-attachments/assets/1bcac33f-7096-42ea-b639-61534d827a24)
+![r-settings (billing)](https://github.com/user-attachments/assets/d2ed9d27-52f6-4cc9-9935-66c964a8a369)
+![r-settings (billing)-1](https://github.com/user-attachments/assets/40db3042-1580-4103-8390-c52782c63be7)
+

@@ -243,7 +243,7 @@
 
 import os
 import asyncio
-from google.adk.agents import Agent
+from google.adk.agents import Agent, LlmAgent
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.genai import types
@@ -255,8 +255,9 @@ import contextvars
 import threading
 
 # Environment variables
-google_api_key = os.environ.get("GOOGLE_API_KEY")
-memo_api_key = os.environ.get("MEMO_API_KEY")
+# google_api_key = os.environ.get("GOOGLE_API_KEY", "AIzaSyCCuDi-_ZuCEM7CO3lMlaQxj7LonLvrgbc")
+google_api_key = "AIzaSyBQt40S0vWI6ubBfLbqi2AlfFyRjxKZdb0"
+memo_api_key = os.environ.get("MEMO_API_KEY", "m0-DnaBPdlvNR4SbN3NZ4WH0Uc9N7MapzAWDSmGen8p")
 
 # Initialize Mem0 client
 mem0_client = MemoryClient(api_key=memo_api_key)
@@ -351,7 +352,7 @@ def retrieve_user_info(query: str, **kwargs) -> dict:
         return {"status": "error", "message": f"Failed to retrieve: {str(e)}"}
 
 # Updated agent with better instructions and explicit tool usage
-memory_agent = Agent(
+memory_agent = LlmAgent(
     name="healthcare_assistant",
     model="gemini-1.5-flash",
     description="Helping patients with memory issues log and retrieve their personal memories",

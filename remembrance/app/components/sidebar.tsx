@@ -43,16 +43,16 @@ function SideBarChatList({userId}: {userId: string | any}) {
         }
     }, [userId]);
 
-    return (
-        <div className="pt-4 px-4 flex flex-col gap-2">
-            <p className="font-bold text-xs text-gray-600 mb-2">Previous Chats</p>
-            {chats.map((chat) => (
-                <div key={chat.id} className="cursor-pointer text-sm text-black truncate hover:underline" onClick={() => router.push(`/chat/${chat.id}`)}>
-                    {chat.name || "Untitled"}
-                </div>
-            ))}
-        </div>
-    )
+    // return (
+    //     <div className="pt-4 px-4 flex flex-col gap-2">
+    //         <p className="font-bold text-xs text-gray-600 mb-2">Previous Chats</p>
+    //         {chats.map((chat) => (
+    //             <div key={chat.id} className="cursor-pointer text-sm text-black truncate hover:underline">
+    //                 {chat.name || "Untitled"}
+    //             </div>
+    //         ))}
+    //     </div>
+    // )
 }
 
 const BaseOptions = [
@@ -84,7 +84,7 @@ export default function SideBar(props: SidebarProps) {
 
                         return <SideBarChoice key = {i} {...SideBarOptions[i]} collapsed={collapsed} selected = {(i == props.selected)}></SideBarChoice>
                     }) }
-                    <SideBarChatList userId={user?.uid} />
+                    {/* <SideBarChatList userId={user?.uid} /> */}
                 </div>
             </div>
             <div className = "flex flex-col">

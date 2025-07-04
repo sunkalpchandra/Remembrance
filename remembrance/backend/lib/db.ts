@@ -8,7 +8,7 @@ export async function saveConversation(userID: string, conversation: any, conver
 }
 
 export async function getConversationsForUser(userId: string) {
-    const snapshot = await getDocs(collection(db, "useres", userId, "conversations")); // conversationId
+    const snapshot = await getDocs(collection(db, "users", userId, "conversations")); // conversationId
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
 

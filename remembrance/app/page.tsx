@@ -11,12 +11,11 @@ import axios from "axios";
 import { auth } from "@/backend/firebaseConfig";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { useParams } from "next/navigation";
-import { saveConversation, getConversationById } from "@/backend/lib/db";
+// import { saveConversation, getConversationById } from "@/backend/lib/db";
 import { v4 as uuidv4 } from "uuid";
 
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  // const User = auth.currentUser;
 
   const [user, setUser] = useState<User | any>();
   const params = useParams();
@@ -24,11 +23,11 @@ export default function Home() {
 
   useEffect(() => {
     if (conversationId && user) {
-      getConversationById(user.uid, conversationId).then((c) => {
-        if (c) {
-          SetConversation(c as Conversation);
-        }
-      })
+      // getConversationById(user.uid, conversationId).then((c) => {
+      //   if (c) {
+      //     SetConversation(c as Conversation);
+      //   }
+      // })
     }
   }, [conversationId, user]);
 
@@ -53,7 +52,7 @@ export default function Home() {
     //spread here to ensure a rerender
     SetConversation({ ...newconversation });
     if (conversationId) {
-      saveConversation(user.uid, newconversation, conversationId);
+      // saveConversation(user.uid, newconversation, conversationId);
     }
   }
   async function sendBotMessage() {
@@ -95,6 +94,7 @@ export default function Home() {
     
   }
   const [conversation, SetConversation] = useState(undefined as Conversation | undefined);
+  const [ConversationId, setConversationId] = useState<string | undefined>(undefined);
   const textInput = useRef(null as any as HTMLTextAreaElement);
 
   useEffect(() => {
@@ -177,16 +177,23 @@ export default function Home() {
                 </input>
                 <div className=" flex flex-row my-1 gap-2">
                   <CircleButton black imgAlt="Send" imgURL="arrow-up.svg" hoverText="Start Conversation" onClick={() => {
+                    const firstMessage = (document.getElementById("FirstMessage") as HTMLInputElement)?.value || "";
+                    if (!firstMessage.trim()) return;
+                    const newId = uuidv4();
+
                     let newconversation: Conversation | undefined = conversation;
                     newconversation = {
-                      name: "Unamed",
+                      name: "Untitled",
                       date: new Date(),
                       messages: [{
                         sentByUser: true,
-                        text: (document.getElementById("FirstMessage") as HTMLInputElement)?.value || ""
+                        text: firstMessage
                       }]
                     }
                     SetConversation(newconversation);
+                    // setConversationId(newId);
+                    // saveConversation(user.uid, newconversation, newId);
+                    // router.ps
                   }}
                   imgClassName = "w-[2vw] p-0.5"></CircleButton>
                 </div>

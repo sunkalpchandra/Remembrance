@@ -1,6 +1,6 @@
 "use client"
 import SideBar from "@/app/components/sidebar"
-import { useEffect, useRef, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import type { Conversation, ConversationMessage } from "@/app/lib/types";
 import CircleButton from "@/app/components/circlebutton";
 import OvalButton from "@/app/components/ovalbutton";
@@ -10,12 +10,27 @@ import { BotMessage } from "./components/messages/botmessage";
 import axios from "axios";
 import { auth } from "@/backend/firebaseConfig";
 import { onAuthStateChanged, User } from "firebase/auth";
+import { useParams } from "next/navigation";
+import { saveConversation, getConversationById } from "@/backend/lib/db";
+import { v4 as uuidv4 } from "uuid";
 
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // const User = auth.currentUser;
 
-  const [user, setUser] = useState<User>();
+  const [user, setUser] = useState<User | any>();
+  const params = useParams();
+  const conversationId = params?.id as string | undefined;
+
+  useEffect(() => {
+    if (conversationId && user) {
+      getConversationById(user.uid, conversationId).then((c) => {
+        if (c) {
+          SetConversation(c as Conversation);
+        }
+      })
+    }
+  }, [conversationId, user]);
 
   function sendHumanMessage(msg: string) {
     let newconversation = conversation
@@ -37,6 +52,9 @@ export default function Home() {
     }
     //spread here to ensure a rerender
     SetConversation({ ...newconversation });
+    if (conversationId) {
+      saveConversation(user.uid, newconversation, conversationId);
+    }
   }
   async function sendBotMessage() {
     if (!conversation) {
@@ -50,7 +68,8 @@ export default function Home() {
 
     try {
       const response = await axios.post("http://localhost:5000/query", {
-        query: lastUserMsg,
+        // query: lastUserMsg, ==> testing for functionality
+        query: conversation.messages, // adding in all data
         user_id: user?.uid // use authed user user_id
       });
 
@@ -73,16 +92,7 @@ export default function Home() {
         }]
       });
     }
-    // let newconversation = conversation;
-    // let message: ConversationMessage = {
-    //   sentByUser: false,
-    //   text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
-    // }
-    // if (newconversation == undefined) {
-    //   return;
-    // }
-    // newconversation.messages = [...newconversation?.messages, message]
-    // SetConversation({ ...newconversation })
+    
   }
   const [conversation, SetConversation] = useState(undefined as Conversation | undefined);
   const textInput = useRef(null as any as HTMLTextAreaElement);
@@ -191,18 +201,18 @@ export default function Home() {
                   }
                   else {
                     return <BotMessage message={e} time={40} botName={"remeberance"} key={i + e.text} suggestions = {[
-                      {
-                        person: "father",
-                        name: "Perfers to store family-centric lorum is p um as  as d a sd",
-                        href: "/todo",
-                        color: "#4DB960"
-                      },
-                      {
-                        person: "mother",
-                        name: "short",
-                        href: "/todo",
-                        color: "#4DB960"
-                      }
+                      // {
+                      //   person: "father",
+                      //   name: "Perfers to store family-centric lorum is p um as  as d a sd",
+                      //   href: "/todo",
+                      //   color: "#4DB960"
+                      // },
+                      // {
+                      //   person: "mother",
+                      //   name: "short",
+                      //   href: "/todo",
+                      //   color: "#4DB960"
+                      // }
                     ]} ></BotMessage>
                   }
                 })

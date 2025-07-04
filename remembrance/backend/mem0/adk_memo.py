@@ -255,8 +255,8 @@ import contextvars
 import threading
 
 # Environment variables
-google_api_key = os.environ.get("GOOGLE_API_KEY", "AIzaSyCCuDi-_ZuCEM7CO3lMlaQxj7LonLvrgbc")
-memo_api_key = os.environ.get("MEMO_API_KEY", "m0-DnaBPdlvNR4SbN3NZ4WH0Uc9N7MapzAWDSmGen8p")
+google_api_key = os.environ.get("GOOGLE_API_KEY")
+memo_api_key = os.environ.get("MEMO_API_KEY")
 
 # Initialize Mem0 client
 mem0_client = MemoryClient(api_key=memo_api_key)

@@ -30,7 +30,14 @@ export function BotMessage(props: BotProps) {
                 clearTimeout(int);
             }
         }, 60)
-    }, [])
+    }, []);
+
+    useEffect(() => {
+        const el = progressbar.current;
+        if (!el) return;
+        el.style.opacity = "1";
+    }, []);
+
     return <div className="text-[#7E7E7E] flex flex-row items-start w-[80%] gap-5 ">
         <BotProfile name="R E">
         </BotProfile>

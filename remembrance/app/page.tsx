@@ -11,8 +11,8 @@ import axios from "axios";
 import { auth } from "@/backend/firebaseConfig";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { useParams } from "next/navigation";
-// import { saveConversation, getConversationById } from "@/backend/lib/db";
 import { v4 as uuidv4 } from "uuid";
+import { getConversationById, saveConversation } from "@/backend/lib/db";
 
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -20,16 +20,27 @@ export default function Home() {
   const [user, setUser] = useState<User | any>();
   const params = useParams();
   const conversationId = params?.id as string | undefined;
+  const [conversation, SetConversation] = useState(undefined as Conversation | undefined);
+  const [ConversationId, setConversationId] = useState<string | undefined>(undefined);
+  const textInput = useRef(null as any as HTMLTextAreaElement);
+
 
   useEffect(() => {
     if (conversationId && user) {
-      // getConversationById(user.uid, conversationId).then((c) => {
-      //   if (c) {
-      //     SetConversation(c as Conversation);
-      //   }
-      // })
+      getConversationById(user.uid, conversationId).then((c) => {
+        if (c) {
+          SetConversation({...c as Conversation});
+          setConversationId(conversationId);
+        }
+      })
     }
   }, [conversationId, user]);
+
+  useEffect(() => {
+    if (ConversationId && user.uid && conversation) {
+        saveConversation(user.uid, {...conversation}, ConversationId);
+    }
+  }, [conversation, conversationId, user]);
 
   function sendHumanMessage(msg: string) {
     let newconversation = conversation
@@ -51,9 +62,6 @@ export default function Home() {
     }
     //spread here to ensure a rerender
     SetConversation({ ...newconversation });
-    if (conversationId) {
-      // saveConversation(user.uid, newconversation, conversationId);
-    }
   }
   async function sendBotMessage() {
     if (!conversation) {
@@ -66,6 +74,7 @@ export default function Home() {
     }
 
     try {
+      // if (!conversation.messages) {}
       const response = await axios.post("http://localhost:5000/query", {
         // query: lastUserMsg, ==> testing for functionality
         query: conversation.messages, // adding in all data
@@ -93,9 +102,6 @@ export default function Home() {
     }
     
   }
-  const [conversation, SetConversation] = useState(undefined as Conversation | undefined);
-  const [ConversationId, setConversationId] = useState<string | undefined>(undefined);
-  const textInput = useRef(null as any as HTMLTextAreaElement);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -105,7 +111,7 @@ export default function Home() {
     });
 
     return () => unsubscribe();
-  }, [])
+  }, []);
 
   useEffect(() => {
     if (conversation == undefined) {
@@ -123,6 +129,20 @@ export default function Home() {
   }, [conversation])
   return <div className="w-screen flex flex-row bg-[##f9f8f6]">
     <SideBar selected={0}></SideBar>
+    {/* {conversation && (
+      <input
+        value={conversation.name}
+        onChange={((e: any) => {
+          const newConv = {...conversation, name: e.target.value};
+          SetConversation(newConv);
+          if (ConversationId && user?.uid) {
+            saveConversation(user.uid, newConv, ConversationId);
+          }}
+        )}
+        className="text-xl font-bold p-2 border-b"
+      />
+
+    )} */}
     <div className=" grow h-screen flex flex-col-reverse gap-5 ">
       {conversation != undefined && <div className="mx-2 border-2 border-[#A3A3A3] rounded-xl bg-white flex flex-col mb-2 ">
         <div className="w-full ">
@@ -179,7 +199,6 @@ export default function Home() {
                   <CircleButton black imgAlt="Send" imgURL="arrow-up.svg" hoverText="Start Conversation" onClick={() => {
                     const firstMessage = (document.getElementById("FirstMessage") as HTMLInputElement)?.value || "";
                     if (!firstMessage.trim()) return;
-                    const newId = uuidv4();
 
                     let newconversation: Conversation | undefined = conversation;
                     newconversation = {
@@ -190,10 +209,10 @@ export default function Home() {
                         text: firstMessage
                       }]
                     }
+                    const newId: string = uuidv4();
+                    setConversationId(newId);                    
                     SetConversation(newconversation);
-                    // setConversationId(newId);
-                    // saveConversation(user.uid, newconversation, newId);
-                    // router.ps
+                    saveConversation(user.uid, newconversation, newId);
                   }}
                   imgClassName = "w-[2vw] p-0.5"></CircleButton>
                 </div>
@@ -208,18 +227,6 @@ export default function Home() {
                   }
                   else {
                     return <BotMessage message={e} time={40} botName={"remeberance"} key={i + e.text} suggestions = {[
-                      // {
-                      //   person: "father",
-                      //   name: "Perfers to store family-centric lorum is p um as  as d a sd",
-                      //   href: "/todo",
-                      //   color: "#4DB960"
-                      // },
-                      // {
-                      //   person: "mother",
-                      //   name: "short",
-                      //   href: "/todo",
-                      //   color: "#4DB960"
-                      // }
                     ]} ></BotMessage>
                   }
                 })

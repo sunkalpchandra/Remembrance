@@ -6,7 +6,8 @@ import { BaseSideBar, type SideBarBaseProps } from "./sidebarchoicebase"
 import { UserContext } from "@/app/components/usercontext"
 import { IBM } from "../lib/fonts"
 import { useRouter } from "next/navigation"
-import { getConversationsForUser } from "@/backend/lib/db";
+import { getConversationById, getConversationsForUser, saveConversation } from "@/backend/lib/db";
+import { useParams } from "next/navigation"
 
 interface SidebarProps {
     selected: number
@@ -33,26 +34,78 @@ const SideBarOptions = [
     }
 ] as SideBarChoiceProps[]
 
-function SideBarChatList({userId}: {userId: string | any}) {
-    const [chats, setChats] = useState<{id: string, name: string}[]>([]);
-    const router = useRouter();
+function SideBarChatList({ userId }: { userId: string | any }) {
+  const [chats, setChats] = useState<{ id: string, name: string }[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState<string>("");
+  const router = useRouter();
+  const params = useParams();
+  const currentId = params.id;
 
-    useEffect(() => {
-        if (userId) {
-            getConversationsForUser(userId).then((data: any) => setChats(data));
-        }
-    }, [userId]);
+  useEffect(() => {
+    if (!userId) return;
+    getConversationsForUser(userId).then((data: any) => {
+      if (Array.isArray(data)) {
+        setChats(data);
+      }
+    });
+  }, [userId]);
 
-    // return (
-    //     <div className="pt-4 px-4 flex flex-col gap-2">
-    //         <p className="font-bold text-xs text-gray-600 mb-2">Previous Chats</p>
-    //         {chats.map((chat) => (
-    //             <div key={chat.id} className="cursor-pointer text-sm text-black truncate hover:underline">
-    //                 {chat.name || "Untitled"}
-    //             </div>
-    //         ))}
-    //     </div>
-    // )
+  const handleRename = async (id: string, newName: string) => {
+    const updatedChats = chats.map(chat =>
+      chat.id === id ? { ...chat, name: newName } : chat
+    );
+    setChats(updatedChats);
+    setEditingId(null);
+
+    const convo = await getConversationById(userId, id);
+    if (convo) {
+      convo.name = newName;
+      await saveConversation(userId, convo, id);
+    }
+  };
+
+  return (
+    <div className="pt-4 px-4 flex flex-col gap-2">
+      <p className="font-bold text-xs text-gray-600 mb-2">Previous Chats</p>
+      {chats.map((chat) => (
+        <div key={chat.id} className={`group flex items-center gap-2`}>
+          {editingId === chat.id ? (
+            <input
+              autoFocus
+              value={editingName}
+              onChange={(e) => setEditingName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRename(chat.id, editingName);
+                if (e.key === "Escape") setEditingId(null);
+              }}
+              onBlur={() => setEditingId(null)}
+              className="w-full text-sm bg-white border border-gray-300 rounded px-1"
+            />
+          ) : (
+            <div
+              className={`cursor-pointer text-sm truncate grow ${
+                chat.id === currentId ? "bg-gray-300 font-bold px-1 rounded" : ""
+              }`}
+              onClick={() => router.push(`/chat/${chat.id}`)}
+              title={chat.name}
+            >
+              {chat.name || "Untitled"}
+            </div>
+          )}
+          <img
+            src="/edit.svg"
+            alt="Edit"
+            className="w-3 h-3 opacity-0 group-hover:opacity-100 cursor-pointer"
+            onClick={() => {
+              setEditingId(chat.id);
+              setEditingName(chat.name || "");
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 const BaseOptions = [
@@ -84,7 +137,9 @@ export default function SideBar(props: SidebarProps) {
 
                         return <SideBarChoice key = {i} {...SideBarOptions[i]} collapsed={collapsed} selected = {(i == props.selected)}></SideBarChoice>
                     }) }
-                    {/* <SideBarChatList userId={user?.uid} /> */}
+                    <div className="overflow-y-auto max-h-[60vh]">
+                        <SideBarChatList userId={user?.uid} />
+                    </div>
                 </div>
             </div>
             <div className = "flex flex-col">

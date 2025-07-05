@@ -294,6 +294,30 @@ def save_user_info(information: str, **kwargs) -> dict:
     except Exception as e:
         print(f"[ERROR] Exception in save_user_info: {e}")
         return {"status": "error", "message": f"Failed to save: {str(e)}"}
+    
+def delete_user_info(query: str, **kwargs) -> dict:
+    user_id = kwargs.get("user_id") or current_user_id_var.get() or getattr(thread_local, 'user_id', None)
+    if not user_id:
+        return {"status": "error", "message": "user_id is missing"}
+    
+    try:
+        print(f"[DEBUG] DELETE_USER_INFO called for user_id: {user_id}: {query}")
+        response = mem0_client.delete(
+            messages=[
+                {
+                    "role": "user",
+                    "content": query
+                }
+            ],
+            user_id=user_id
+        )
+
+        print(f"[DEBUG] Mem0 delete response: {response}")
+        return {"status": "deleted", "details": response, "message": f"Successfully deleted: {query}"}
+
+    except Exception as e:
+        print(f"[ERROR] Exception in delete_user_info: {e}")
+        return {"status": "error", "message": f"Failed to delete: {str(e)}"}
 
 def retrieve_user_info(query: str, **kwargs) -> dict:
     """Retrieve user information from memory"""
@@ -386,7 +410,7 @@ You: [Call retrieve_user_info("birthday")] Then respond based on the results.
 ALWAYS use the tools - don't just acknowledge information without saving it!
 
 Always respond in a warm, supportive tone and help users feel confident about managing their memories.""",
-    tools=[save_user_info, retrieve_user_info],
+    tools=[save_user_info, retrieve_user_info, delete_user_info],
 )
 
 session_service = InMemorySessionService()
@@ -571,6 +595,10 @@ def test_memory():
             
         elif action == "retrieve":
             result = retrieve_user_info(content, user_id=user_id)
+            return jsonify(result)
+        
+        elif action == "delete":
+            result = delete_user_info(content, user_id=user_id)
             return jsonify(result)
             
         else:

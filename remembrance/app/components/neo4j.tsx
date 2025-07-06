@@ -1,15 +1,14 @@
 "use client";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import { ForceGraph2D } from "react-force-graph";
 
-const forceGraph2D = dynamic(() => import("react-force-graph").then(mod => mod.ForceGraph2D), {ssr: false})
+const ForceGraph2D = dynamic(() => import("react-force-graph").then(mod => mod.ForceGraph2D), {ssr: false})
 
 const Neo4jGraph = ({userId}: {userId: string}) => {
     const [graph, setGraph] = useState({nodes: [], links: []});
 
     useEffect(() => {
-        fetch("localhost:5000/user/${user_id}/graph")
+        fetch(`localhost:5000/user/${userId}/graph`)
             .then(res => res.json())
             .then(data => setGraph(data))
             .catch(err => console.error("Failed to fetch graph: ", err))

@@ -157,7 +157,7 @@ def get_memory_from_user(user_id: str) -> Memory:
         "graph_store": {
             "provider": "neo4j",
             "config": {
-                "url": "neo4j+s://xxx",
+                "url": "neo4j+s://f7d48e64.databases.neo4j.io",
                 "username": "neo4j",
                 "password": "eDowrXJqPWvDhpardPp4XqAkObxb1vp-Yhttyln9LLg",
                 "database": f"userdb_{user_id}"
@@ -346,7 +346,7 @@ def get_user_graph(user_id: str):
     try: 
         from neo4j import GraphDatabase
 
-        uri = "neo4js://xxx"
+        uri = "neo4j+s://f7d48e64.databases.neo4j.io"
         username = "neo4j"
         password = "eDowrXJqPWvDhpardPp4XqAkObxb1vp-Yhttyln9LLg"
         database = f"userdb_{user_id}"

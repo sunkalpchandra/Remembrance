@@ -1,253 +1,10 @@
-# import os
-# import asyncio
-# from google.adk.agents import Agent
-# from google.adk.sessions import InMemorySessionService
-# from google.adk.runners import Runner
-# from google.genai import types
-# from mem0 import MemoryClient
-# from flask import Flask, request, jsonify
-# from flask_cors import CORS
-# import uuid
-# import contextvars
-# # import nest_asyncio
-
-# # nest_asyncio.apply()
-
-# #  from dotenv import load_dotenv
-
-# # os.environ.get("GOOGLE_API_KEY")
-
-# # google_api_key = "AIzaSyCCuDi-_ZuCEM7CO3lMlaQxj7LonLvrgbc"
-
-# google_api_key = os.environ.get("GOOGLE_API_KEY", "AIzaSyCCuDi-_ZuCEM7CO3lMlaQxj7LonLvrgbc")
-# memo_api_key = os.environ.get("MEMO_API_KEY", "m0-DnaBPdlvNR4SbN3NZ4WH0Uc9N7MapzAWDSmGen8p")
-# # memo_api_key = "none"
-
-# mem0_client = MemoryClient(api_key=memo_api_key)
-
-# app_name = "memory_alzheimers_assistant_app"
-
-# # current_user_id = None
-# current_user_id_var = contextvars.ContextVar("current_user_id", default=None)
-
-# def save_user_info(information: str, **kwargs) -> dict:
-#     """Save user information to memory"""
-#     global current_user_id
-#     user_id = kwargs.get("user_id") or current_user_id_var.get()
-#     if not user_id:
-#         return {"status": "error", "message": "user_id is missing"}
-    
-#     try:
-#         print(f"[DEBUG] trying to save user_id={user_id}: {information}")
-#         response = mem0_client.add(
-#             [
-#                 {
-#                     "role": "user",
-#                     "content": information
-#                 }
-#             ],
-#             user_id=user_id,
-#             run_id="healthcare_session",
-#             metadata={"type": "client_information"},
-#             version="v2"
-#         )
-#         # print("[TOOL CALL] save_user_info was triggered")
-#         print(f"[DEBUG], mem0 response: {response}")
-#         return {"status": "saved", "details": response}
-#     except Exception as e:
-#         print(f"[ERROR] exception in save_user_info: {e}")
-#         return {"status": "error", "message": f"Failed to save: {str(e)}"}
-    
-# def retrieve_user_info(query: str, **kwargs) -> dict:
-#     """Retrieve user information from memory"""
-#     global current_user_id
-#     user_id = kwargs.get("user_id") or current_user_id_var.get()
-#     if not user_id:
-#         return {"status": "error", "message": "user_id is missing"}
-    
-#     try:
-#         results = mem0_client.search(
-#             query,
-#             user_id=user_id,
-#             limit=5,
-#             # threshold=0.7,
-#             # output_format="v1.1",
-#         )
-
-#         if results and len(results) > 0:
-#             memories = [memory["memory"] for memory in results.get('results', [])]
-#             return {
-#                 "status": "success",
-#                 "memories": memories,
-#                 "count": len(memories)
-#             }
-#         else:
-#             return {
-#                 "status": "no_results",
-#                 "memories": [],
-#                 "count": 0
-#             }
-#     except Exception as e:
-#         return {"status": "error", "message": f"Failed to retrieve: {str(e)}"}
-
-# memory_agent = Agent(
-#     name="healthcare_assistant",
-#     model="gemini-1.5-flash",
-#     description="Helping patients with memory issues log and retrieve their personal memories",
-#     instruction="""You are a compassionate memory assistant for people with Alzheimer's or memory difficulties. 
-
-# Your main functions are:
-# 1. When users share personal information, experiences, or important details about their life, family, or routines, save this information using the save_user_info function.
-# 2. When users ask questions or need to recall something, search their saved memories using retrieve_user_info function.
-# 3. Always be patient, kind, and encouraging in your responses.
-# 4. Help users organize their thoughts and memories in a clear, accessible way.
-# 5. If you find relevant memories, present them in a helpful context.
-
-# Examples of information to save:
-# - Family members' names and relationships
-# - Important dates and events
-# - Daily routines and preferences
-# - Medical information shared by the user
-# - Personal interests and hobbies
-
-# Always respond in a warm, supportive tone and help users feel confident about managing their memories.""",
-#     tools=[save_user_info, retrieve_user_info],
-# )
-
-# session_service = InMemorySessionService()
-# app = Flask(__name__)
-# CORS(app)
-
-# async def process_query_async(messages:str, user_id: str):
-#     """Async function to handle the agent processing"""
-#     current_user_id_var.set(user_id)
-#     # global current_user_id
-#     current_user_id = user_id
-    
-#     session_id = f"session_{uuid.uuid4().hex[:8]}"
-    
-#     session = await session_service.create_session(
-#         app_name=app_name,
-#         user_id=user_id,
-#         session_id=session_id
-#     )
-
-#     runner = Runner(
-#         agent=memory_agent,
-#         app_name=app_name,
-#         session_service=session_service,
-#         # session=session,
-#         # tool_kwargs={"user_id": user_id}
-#     )
-
-#     if isinstance(messages, list) and messages:
-#         content_parts = [
-#             types.Content(
-#                 role = "user" if msg.get("sentByUser", False) else "model",
-#                 parts=[types.Part(text=msg["text"])]
-#             )
-#             for msg in messages
-#         ]
-#         new_message = content_parts[-1]
-#         history = content_parts[:-1]
-
-#     elif isinstance(messages, str):
-#         new_message = types.Content(role="user", parts=[types.Part(text=messages)])
-#         history = []
-
-#     else:
-#         raise ValueError("No valid messages provided.")
-    
-#     final_result = None
-#     async for chunk in runner.run_async(
-#         user_id=user_id,
-#         session_id=session_id,
-#         new_message=new_message,
-#         # history=history
-#     ):
-#         if chunk.is_final_response() and chunk.content and chunk.content.parts:
-#             final_result = chunk.content.parts[0].text
-#         # final_result = chunk
-#     # result = await runner.run_async(user_id=user_id, session_id=session_id, new_message=query)
-#     return final_result, session_id
-
-# @app.route("/query", methods=["POST"])
-# def handle_query():
-#     """Handle user queries with memory capabilities"""
-#     try:
-#         data = request.json
-#         if not data:
-#             return jsonify({"status": "error", "message": "No JSON data provided"}), 400
-            
-#         query = data.get("query")
-#         messages = data.get("messages")
-#         user_id = data.get("user_id")
-#         print(f"User ID: {user_id}")
-
-#         if not user_id or (not messages and not query):
-#             return jsonify({"status": "error", "message": "Missing messages or user_id"}), 400
-#         loop = asyncio.new_event_loop()
-#         asyncio.set_event_loop(loop)            
-#         # result, session_id = loop.run_until_complete(process_query_async(messages or query, user_id))
-#         result, session_id = asyncio.run(process_query_async(messages or query, user_id))
-#         loop.close()
-            
-#         return jsonify({
-#             "status": "success",
-#             "result_return": result.text if hasattr(result, "text") else str(result),
-#             "session_id": session_id
-#         })
-        
-#     except Exception as e:
-#         print(f"Error processing query: {str(e)}")  # For debugging
-#         return jsonify({
-#             "status": "error",
-#             "message": f"Server error: {str(e)}"
-#         }), 500
-
-# @app.route("/health", methods=["GET"])
-# def health_check():
-#     """Health check endpoint"""
-#     return jsonify({
-#         "status": "healthy", 
-#         "service": "memory_assistant",
-#         "version": "1.0"
-#     })
-
-# @app.route(f"/user/<user_id>/memories", methods=["GET"])
-# def get_user_memories(user_id):
-#     """Get all memories for a specific user"""
-#     try:
-#         data = request.json
-#         # This is a placeholder endpoint
-#         results = retrieve_user_info("", user_id=user_id)
-#         return jsonify(results)
-        
-#     except Exception as e:
-#         return jsonify({
-#             "status": "error",
-#             "message": str(e)
-#         }), 500
-
-# if __name__ == "__main__":
-#     # Check for required environment variables
-#     required_vars = ["GOOGLE_API_KEY"]  # MEMO_API_KEY is optional due to fallback
-#     missing_vars = [var for var in required_vars if not os.environ.get(var)]
-    
-#     if missing_vars:
-#         print(f"Warning: Missing environment variables: {', '.join(missing_vars)}")
-    
-#     print("Starting Memory Assistant API server...")
-#     print(f"Server will run on http://localhost:5000")
-#     app.run(debug=True, host="0.0.0.0", port=5000)
-
 import os
 import asyncio
 from google.adk.agents import Agent, LlmAgent
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.genai import types
-from mem0 import MemoryClient
+from mem0 import MemoryClient, Memory
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import uuid
@@ -270,6 +27,11 @@ current_user_id_var = contextvars.ContextVar("current_user_id", default=None)
 def save_user_info(information: str, **kwargs) -> dict:
     """Save user information to memory"""
     user_id = kwargs.get("user_id") or current_user_id_var.get() or getattr(thread_local, 'user_id', None)
+    memory = get_memory_from_user(user_id)
+    
+    if information:
+        return memory.add(information)
+
     if not user_id:
         return {"status": "error", "message": "user_id is missing"}
     
@@ -297,6 +59,9 @@ def save_user_info(information: str, **kwargs) -> dict:
     
 def delete_user_info(query: str, **kwargs) -> dict:
     user_id = kwargs.get("user_id") or current_user_id_var.get() or getattr(thread_local, 'user_id', None)
+    memory = get_memory_from_user(user_id)
+    if query:
+        memory.delete(query)
     if not user_id:
         return {"status": "error", "message": "user_id is missing"}
     
@@ -322,6 +87,10 @@ def delete_user_info(query: str, **kwargs) -> dict:
 def retrieve_user_info(query: str, **kwargs) -> dict:
     """Retrieve user information from memory"""
     user_id = kwargs.get("user_id") or current_user_id_var.get() or getattr(thread_local, 'user_id', None)
+    memory = get_memory_from_user(user_id)
+    if query:
+        memory.search(query)
+
     if not user_id:
         return {"status": "error", "message": "user_id is missing"}
     
@@ -374,6 +143,37 @@ def retrieve_user_info(query: str, **kwargs) -> dict:
     except Exception as e:
         print(f"[ERROR] Exception in retrieve_user_info: {e}")
         return {"status": "error", "message": f"Failed to retrieve: {str(e)}"}
+    
+def get_memory_from_user(user_id: str) -> Memory:
+    user_config = {
+        "llm": {
+            "provider": "gemini",
+            "config": {
+                "model": "gemini-1.5-flash",
+                "temperature": 0.2,
+                "max_tokens": 2000,
+            }
+        },
+        "graph_store": {
+            "provider": "neo4j",
+            "config": {
+                "url": "neo4j+s://xxx",
+                "username": "neo4j",
+                "password": "eDowrXJqPWvDhpardPp4XqAkObxb1vp-Yhttyln9LLg",
+                "database": f"userdb_{user_id}"
+            },
+            "llm" : {
+                "provider": "gemini",
+                "config": {
+                    "model": "gemini-1.5-flash",
+                    "temperature": 0.0,
+                }
+            }
+        }
+    }
+
+    mem = Memory.from_config(config_dict=user_config)
+    return mem
 
 # Updated agent with better instructions and explicit tool usage
 memory_agent = LlmAgent(
@@ -539,6 +339,45 @@ def handle_query():
             "status": "error",
             "message": f"Server error: {str(e)}"
         }), 500
+    
+
+@app.route("/user/<user_id>/graph", methods=["GET"])
+def get_user_graph(user_id: str):
+    try: 
+        from neo4j import GraphDatabase
+
+        uri = "neo4js://xxx"
+        username = "neo4j"
+        password = "eDowrXJqPWvDhpardPp4XqAkObxb1vp-Yhttyln9LLg"
+        database = f"userdb_{user_id}"
+
+        driver = GraphDatabase.driver(uri=uri, auth=(username, password))
+        session = driver.session(database=database)
+
+        query = "MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100"
+
+        results = session.run(query)
+        graph = {"nodes": [], "links": []}
+        seen_nodes = set()
+
+        for record in results:
+            for node in [record["n"], record["m"]]:
+                node_id = str(node.id)
+                if node_id not in seen_nodes:
+                    graph["nodes"].append({"id": node_id, "label": node.get("name", node.labels)})
+                    seen_nodes.add(node_id)
+
+            graph["links"].append({
+                "source": str(record["n"].id),
+                "target": str(record["m"].id),
+                "type": record["r"].type
+            })
+
+        session.close()
+        return jsonify(graph)  
+    except Exception as e:
+        print(f"Error: {e}")
+
 
 @app.route("/health", methods=["GET"])
 def health_check():

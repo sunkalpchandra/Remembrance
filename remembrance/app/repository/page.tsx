@@ -7,6 +7,9 @@ import { poppins } from "../lib/fonts";
 import Editor from "../components/mdEditor";
 import { MDXEditor, MDXEditorMethods } from "@mdxeditor/editor";
 import { All_Commands } from "../lib/commands";
+import Neo4jGraph from "../components/neo4j";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { auth } from "@/backend/firebaseConfig";
 
 
 //Filler data for testing
@@ -121,9 +124,6 @@ function FlattenRepoRecurse(add: Array<Memory | Topic>) {
     return out
 }
 
-
-
-
 export default function Page() {
     const [repo, setRepo] = useState(fillerData);
     const old = useRef("");
@@ -164,6 +164,7 @@ export default function Page() {
     const [editingSummary, setEditingSummary] = useState(false);
     const [command, setCommand] = useState("");
     const [commandIndex, setCommandIndex] = useState(0);
+    const [user, setUser] = useState<User | any>();
     useEffect(() => {
         if (editorRef.current) {
             editorRef.current.setMarkdown(current?.content || "")
@@ -178,6 +179,16 @@ export default function Page() {
         }
         setRepo(cpRepo)
     }
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+        if (firebaseUser) {
+            setUser(firebaseUser)
+        }
+        });
+
+        return () => unsubscribe();
+    }, []);
 
     return <div className="flex w-screen h-screen flex-row items-center text-black">
         <SideBar selected={1}></SideBar>
@@ -381,6 +392,9 @@ export default function Page() {
                 width: (1 - (width)) + "%",
                 flexGrow: 1 - (width / 100)
             }}></div>
+                <div className="h-full w-full">
+                    <Neo4jGraph userId={user.uid} />
+                </div>
         </div>
     </div>
 }

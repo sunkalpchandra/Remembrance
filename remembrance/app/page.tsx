@@ -1,6 +1,6 @@
 "use client"
 import SideBar from "@/app/components/sidebar"
-import { use, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Conversation, ConversationMessage } from "@/app/lib/types";
 import CircleButton from "@/app/components/circlebutton";
 import OvalButton from "@/app/components/ovalbutton";
@@ -23,7 +23,6 @@ export default function Home() {
   const [conversation, SetConversation] = useState(undefined as Conversation | undefined);
   const [ConversationId, setConversationId] = useState<string | undefined>(undefined);
   const textInput = useRef(null as any as HTMLTextAreaElement);
-
 
   useEffect(() => {
     if (conversationId && user) {

@@ -10,18 +10,26 @@ from flask_cors import CORS
 import uuid
 import contextvars
 import threading
+import pprint
+import openai
+
+print(f"OPENAI Client: {openai}")
 
 # Environment variables
-google_api_key = os.environ.get("GOOGLE_API_KEY", "AIzaSyBQt40S0vWI6ubBfLbqi2AlfFyRjxKZdb0")
-# google_api_key = "AIzaSyBQt40S0vWI6ubBfLbqi2AlfFyRjxKZdb0"
-memo_api_key = os.environ.get("MEMO_API_KEY", "m0-DnaBPdlvNR4SbN3NZ4WH0Uc9N7MapzAWDSmGen8p")
+openai_api_key = os.environ.get("OPENAI_API_KEY") # need to replace this, they default to openai for graph so I had to instatiate this, otherwise find a better impl for gemini
+google_api_key = os.environ.get("GOOGLE_API_KEY")
+memo_api_key = os.environ.get("MEMO_API_KEY")
+
+# openai.api_key = None
+
+def error_on_call(*args, **kwargs):
+    raise RuntimeError("OpenAI API was called. This should not occur.")
 
 # Initialize Mem0 client
 mem0_client = MemoryClient(api_key=memo_api_key)
 
 app_name = "memory_alzheimers_assistant_app"
 
-# Context variable for user ID
 current_user_id_var = contextvars.ContextVar("current_user_id", default=None)
 
 def save_user_info(information: str, **kwargs) -> dict:
@@ -30,7 +38,7 @@ def save_user_info(information: str, **kwargs) -> dict:
     memory = get_memory_from_user(user_id)
     
     if information:
-        return memory.add(information)
+        return memory.add(information, user_id=user_id)
 
     if not user_id:
         return {"status": "error", "message": "user_id is missing"}
@@ -38,7 +46,6 @@ def save_user_info(information: str, **kwargs) -> dict:
     try:
         print(f"[DEBUG] SAVE_USER_INFO called for user_id={user_id}: {information}")
         
-        # Use the correct format for mem0 v2 API
         response = mem0_client.add(
             messages=[
                 {
@@ -47,7 +54,7 @@ def save_user_info(information: str, **kwargs) -> dict:
                 }
             ],
             user_id=user_id,
-            metadata={"type": "client_information", "app": app_name}
+            metadata={"type": "client_information", "app": app_name, "userId": user_id}
         )
         
         print(f"[DEBUG] Mem0 save response: {response}")
@@ -89,7 +96,7 @@ def retrieve_user_info(query: str, **kwargs) -> dict:
     user_id = kwargs.get("user_id") or current_user_id_var.get() or getattr(thread_local, 'user_id', None)
     memory = get_memory_from_user(user_id)
     if query:
-        memory.search(query)
+        memory.search(query, user_id=user_id)
 
     if not user_id:
         return {"status": "error", "message": "user_id is missing"}
@@ -98,7 +105,6 @@ def retrieve_user_info(query: str, **kwargs) -> dict:
         print(f"[DEBUG] RETRIEVE_USER_INFO called for user_id={user_id}, query: '{query}'")
         
         # Try different search approaches
-        # First, try with the specific query
         results = mem0_client.search(
             query=query,
             user_id=user_id,
@@ -107,10 +113,8 @@ def retrieve_user_info(query: str, **kwargs) -> dict:
         
         print(f"[DEBUG] Mem0 search response: {results}")
         
-        # If no results with specific query, try broader search
         if not results or 'results' not in results or len(results['results']) == 0:
             print(f"[DEBUG] No results for specific query, trying broader search...")
-            # Try getting all memories for this user
             try:
                 all_memories = mem0_client.get_all(user_id=user_id)
                 print(f"[DEBUG] All memories for user: {all_memories}")
@@ -144,38 +148,69 @@ def retrieve_user_info(query: str, **kwargs) -> dict:
         print(f"[ERROR] Exception in retrieve_user_info: {e}")
         return {"status": "error", "message": f"Failed to retrieve: {str(e)}"}
     
+memory_cache = {}
+
+neo4jUrl = os.environ.get("NEO4JURL")
+neo4jUsername = os.environ.get("NEO4JUSERNAME")
+neo4jPassword = os.environ.get("NEO4JPASSWORD")
+neo4jDb = os.environ.get("NEO4JDB")
+    
 def get_memory_from_user(user_id: str) -> Memory:
+    if user_id in memory_cache:
+        return memory_cache[user_id]
+    
     user_config = {
+        # "embedding_model": {
+        #     "provider": "google",
+        #     "config": {
+        #         "model": "models/embedding-001",
+        #         "api_key": google_api_key
+        #     }
+        # },
         "llm": {
             "provider": "gemini",
             "config": {
                 "model": "gemini-1.5-flash",
                 "temperature": 0.2,
+                "api_key": google_api_key,
                 "max_tokens": 2000,
+                "top_p": 1.0,
             }
         },
         "graph_store": {
             "provider": "neo4j",
             "config": {
-                "url": "neo4j+s://f7d48e64.databases.neo4j.io",
-                "username": "neo4j",
-                "password": "eDowrXJqPWvDhpardPp4XqAkObxb1vp-Yhttyln9LLg",
-                "database": f"userdb_{user_id}"
+                "url": neo4jUrl,
+                "username": neo4jUsername,
+                "password": neo4jPassword,
+                "database": f"userdb_{user_id}",
+                "default_node_properties": {
+                    "userId": user_id
+                }
             },
             "llm" : {
                 "provider": "gemini",
                 "config": {
                     "model": "gemini-1.5-flash",
                     "temperature": 0.0,
+                    "api_key": google_api_key,   
                 }
             }
-        }
+        },
+        # "vector_store": {
+        #     "provider": "qdrant",
+        #     "config": {
+        #         "path": f"./temp/qdrant_{user_id}"
+        #     }
+        # }
     }
+
+    pprint.pprint(user_config)
 
     mem = Memory.from_config(config_dict=user_config)
     return mem
 
-# Updated agent with better instructions and explicit tool usage
+# TODO: Fix system prompt
 memory_agent = LlmAgent(
     name="healthcare_assistant",
     model="gemini-1.5-flash",
@@ -215,14 +250,12 @@ Always respond in a warm, supportive tone and help users feel confident about ma
 
 session_service = InMemorySessionService()
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Thread-local storage for user context
 thread_local = threading.local()
 
 async def process_query_async(messages, user_id: str):
     """Async function to handle the agent processing"""
-    # Set user context in multiple ways to ensure it's available
     current_user_id_var.set(user_id)
     thread_local.user_id = user_id
     
@@ -237,17 +270,14 @@ async def process_query_async(messages, user_id: str):
             session_id=session_id
         )
 
-        # Create runner with explicit tool context
         runner = Runner(
             agent=memory_agent,
             app_name=app_name,
             session_service=session_service,
         )
 
-        # Process messages
         if isinstance(messages, list) and messages:
             # Only use the latest message, not the full history
-            # This prevents confusion from old conversation context
             latest_message = messages[-1]
             new_message = types.Content(
                 role="user" if latest_message.get("sentByUser", False) else "model",
@@ -264,12 +294,11 @@ async def process_query_async(messages, user_id: str):
         
         final_result = None
         
-        # Process the query with explicit user context
         async for chunk in runner.run_async(
             user_id=user_id,
             session_id=session_id,
             new_message=new_message,
-            # tool_kwargs={"user_id": user_id}  # Explicitly pass user_id to tools
+            # tool_kwargs={"user_id": user_id} 
         ):
         
             print(f"[DEBUG] Chunk received: {chunk}")
@@ -315,8 +344,8 @@ def handle_query():
         asyncio.set_event_loop(loop)
         
         try:
-            result, session_id = loop.run_until_complete(process_query_async(messages or query, user_id))
-            
+            # result, session_id = loop.run_until_complete(process_query_async(messages or query, user_id))
+            result, session_id = asyncio.run(process_query_async(messages or query, user_id))
             response_text = result
             if hasattr(result, "text"):
                 response_text = result.text
@@ -340,43 +369,74 @@ def handle_query():
             "message": f"Server error: {str(e)}"
         }), 500
     
+def safe_dict(items):
+    result = {}
+    for k, v in items:
+        if isinstance(v, (str, int, float, bool)) or v is None:
+            result[k] = v
+        else:
+            result[k] = str(v)
+
+    return result
 
 @app.route("/user/<user_id>/graph", methods=["GET"])
 def get_user_graph(user_id: str):
-    try: 
-        from neo4j import GraphDatabase
+    from neo4j import GraphDatabase
 
-        uri = "neo4j+s://f7d48e64.databases.neo4j.io"
-        username = "neo4j"
-        password = "eDowrXJqPWvDhpardPp4XqAkObxb1vp-Yhttyln9LLg"
-        database = f"userdb_{user_id}"
+    uri = neo4jUrl
+    username = neo4jUsername
+    password = neo4jPassword
+    database = neo4jDb
 
-        driver = GraphDatabase.driver(uri=uri, auth=(username, password))
-        session = driver.session(database=database)
+    try:
+        with GraphDatabase.driver(uri=uri, auth=(username, password)) as driver:
+            with driver.session(database=database) as session:
 
-        query = "MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100"
+                query = """
+                MATCH (u:User {userId: $user_id})-[:HAS_MEMORY]->(m:Memory)
+                RETURN u, m
+                """
 
-        results = session.run(query)
-        graph = {"nodes": [], "links": []}
-        seen_nodes = set()
+                results = session.run(query, user_id=user_id)
+                graph = {"nodes": [], "links": []}
+                seen_nodes = set()
 
-        for record in results:
-            for node in [record["n"], record["m"]]:
-                node_id = str(node.id)
-                if node_id not in seen_nodes:
-                    graph["nodes"].append({"id": node_id, "label": node.get("name", node.labels)})
-                    seen_nodes.add(node_id)
+                for record in results:
+                    user_node = record["u"]
+                    mem_node = record["m"]
 
-            graph["links"].append({
-                "source": str(record["n"].id),
-                "target": str(record["m"].id),
-                "type": record["r"].type
-            })
+                    # Add user node if not seen
+                    user_id_str = str(user_node.id)
+                    if user_id_str not in seen_nodes:
+                        graph["nodes"].append({
+                            "id": user_id_str,
+                            "label": user_node.get("name", "User"),
+                            "properties": safe_dict(user_node.items())
+                        })
+                        seen_nodes.add(user_id_str)
 
-        session.close()
-        return jsonify(graph)  
+                    # Add memory node if not seen
+                    mem_id_str = str(mem_node.element_id)
+                    if mem_id_str not in seen_nodes:
+                        graph["nodes"].append({
+                            "id": mem_id_str,
+                            "label": mem_node.get("summary", mem_node.get("content", "Memory"))[:20],
+                            "properties": safe_dict(mem_node.items())
+                        })
+                        seen_nodes.add(mem_id_str)
+
+                    # Add link from user to memory
+                    graph["links"].append({
+                        "source": user_id_str,
+                        "target": mem_id_str,
+                        "type": "HAS_MEMORY"
+                    })
+
+                return jsonify(graph)
+
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"[ERROR] in /graph: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/health", methods=["GET"])
@@ -447,7 +507,6 @@ def test_memory():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    # Check for required environment variables
     required_vars = ["GOOGLE_API_KEY", "MEMO_API_KEY"]
     missing_vars = [var for var in required_vars if not os.environ.get(var)]
     

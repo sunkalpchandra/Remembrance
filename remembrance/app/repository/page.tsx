@@ -126,6 +126,8 @@ function FlattenRepoRecurse(add: Array<Memory | Topic>) {
 
 export default function Page() {
     const [repo, setRepo] = useState(fillerData);
+    const [selectedNode, setSelectedNode] = useState<string | null>(null);
+
     const old = useRef("");
     function GetPath(mem: Memory | Topic) {
         function isTopic(obj: any): obj is Topic {
@@ -404,8 +406,28 @@ export default function Page() {
                         flexGrow: 1 - (width / 100)
                     }}></div>
                         <div className="h-full w-full">
-                            <Neo4jGraph userId={user.uid} />
+                            <Neo4jGraph 
+                                userId={user.uid} 
+                                onNodeClick={(node) => {
+                                    if (node?.properties?.content) {
+                                        setSelectedNode(node.properties.content);
+                                    }
+                                    else if (node?.properties?.name) {
+                                        setSelectedNode(`User: ${node.properties.name}`);
+                                    }
+                                    else {
+                                        setSelectedNode("No content found for this node.")
+                                    }
+                                }}
+                            />
                         </div>
+                        {selectedNode && (
+                            <div className="absolute bottom-10 right-10 max-w-md p-4 bg-white shadow-xl border rounded-lg z-50">
+                                <h2 className="font-semibold mb-2 text-lg">Selected Node</h2>
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedNode}</p>
+                            </div>
+                        )}
+
                 </div>
             </div>
         )

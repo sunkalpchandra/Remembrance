@@ -1,9 +1,7 @@
-
 import type { Metadata } from "next";
 import "./globals.css";
 import { User } from "./lib/types";
 import UserContextProvider, { UserContext } from "./components/usercontext";
-import { poppins } from "./lib/fonts";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -17,8 +15,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${poppins.className}`} suppressHydrationWarning>
-       <UserContextProvider> {children}</UserContextProvider>
+      <body suppressHydrationWarning>
+        <UserContextProvider> {children}</UserContextProvider>
       </body>
     </html>
   );

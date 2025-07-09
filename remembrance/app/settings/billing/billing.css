@@ -1,0 +1,16 @@
+.custom-list li {
+  /* list-style-image: url('@/public/checkmark.svg'); */
+    
+    padding: 0 0 0 14px;
+    list-style: none;
+    background-image: url('@/public/checkmark.svg');
+    background-repeat: no-repeat;
+    background-position: left center;
+    background-size: 10px;
+}
+
+.custom-list li::marker {
+  font-size: 1.5rem;
+}
+
+ 

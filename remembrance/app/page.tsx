@@ -1,10 +1,10 @@
 "use client";
 import SideBar from "@/app/components/sidebar";
 import { useEffect, useRef, useState } from "react";
-import type { Conversation, ConversationMessage } from "@/app/lib/types";
+import type { Conversation } from "@/app/lib/types";
 import CircleButton from "@/app/components/circlebutton";
 import OvalButton from "@/app/components/ovalbutton";
-import { IBM, ManRope } from "./lib/fonts";
+import { ManRope } from "./lib/fonts";
 import { HumanMessage } from "./components/messages/humanmessage";
 import { BotMessage } from "./components/messages/botmessage";
 import axios from "axios";
@@ -93,9 +93,17 @@ export default function Home() {
         text: response.data?.result_return || "No response given from server",
       };
 
+      const memorySnippet = response.data?.memories || [];
+
       SetConversation({
         ...conversation,
-        messages: [...conversation.messages, message],
+        messages: [...conversation.messages, message, 
+          ...memorySnippet.map((memory: string) => ({
+            sentByUser: false,
+            text: memory,
+            isMemorySnippet: true,
+          }))
+        ],
       });
     } catch (err) {
       console.error("Error: ", err);

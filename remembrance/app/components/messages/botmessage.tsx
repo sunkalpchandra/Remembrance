@@ -5,7 +5,6 @@ import CircleButton from "../circlebutton"
 import { IBM } from "@/app/lib/fonts"
 import MultiButton from "../multibutton"
 import MemoryWidget, { MemoryWidgetProps } from "../memorywidget"
-import axios from "axios";
 
 interface BotProps {
     message: ConversationMessage,
@@ -18,6 +17,7 @@ export function BotMessage(props: BotProps) {
 
     const progressbar = useRef(null as any as HTMLDivElement)
     const start = useRef(new Date());
+    
     useEffect(() => {
         if (progressbar == null) {
             return
@@ -77,11 +77,16 @@ export function BotMessage(props: BotProps) {
                     throw new Error("Function not implemented.")
                 }} imgAlt={"reset timer"} hoverText={"restart time "} black></CircleButton>
             </div>
-            <div className = "flex flex-row ">
+            <div className = "flex flex-row gap-2 mt-2">
                 {
-                    props.suggestions.map((e, i) => {
-                        return <MemoryWidget {...e} key = {i}></MemoryWidget>
-                    })
+                    props.suggestions.length > 0 && (
+                        <p className="text-sm text-gray-500 ml-1 mb-1">Memory Retrieved from Pass Convos: </p>
+                    )
+                }
+                {
+                    props.suggestions.map((suggestion, i) => (
+                        <MemoryWidget {...suggestion} key={i} />
+                    ))
                 }
             </div>
         </div>

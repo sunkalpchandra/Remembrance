@@ -11,19 +11,17 @@ import uuid
 import contextvars
 import threading
 import pprint
-import openai
+# import openai
+from dotenv import load_dotenv
 
-print(f"OPENAI Client: {openai}")
+load_dotenv()
+
+# print(f"OPENAI Client: {openai}")
 
 # Environment variables
-openai_api_key = os.environ.get("OPENAI_API_KEY") # need to replace this, they default to openai for graph so I had to instatiate this, otherwise find a better impl for gemini
-google_api_key = os.environ.get("GOOGLE_API_KEY")
-memo_api_key = os.environ.get("MEMO_API_KEY")
-
-# openai.api_key = None
-
-def error_on_call(*args, **kwargs):
-    raise RuntimeError("OpenAI API was called. This should not occur.")
+os.environ.get("OPENAI_API_KEY") # need to replace this, they default to openai for graph so I had to instatiate this (to get rid of the error for not parsing through gemini, soem underlying feature in Mem0 relies on Openai instead of specific LLM provider)
+google_api_key = os.getenv("MEMO_API_KEY")
+memo_api_key = os.getenv("GOOGLE_API_KEY")
 
 # Initialize Mem0 client
 mem0_client = MemoryClient(api_key=memo_api_key)
@@ -90,6 +88,8 @@ def delete_user_info(query: str, **kwargs) -> dict:
     except Exception as e:
         print(f"[ERROR] Exception in delete_user_info: {e}")
         return {"status": "error", "message": f"Failed to delete: {str(e)}"}
+    
+request_memory_results = {}
 
 def retrieve_user_info(query: str, **kwargs) -> dict:
     """Retrieve user information from memory"""
@@ -130,6 +130,7 @@ def retrieve_user_info(query: str, **kwargs) -> dict:
         
         if results and 'results' in results and len(results['results']) > 0:
             memories = [memory["memory"] for memory in results['results']]
+            request_memory_results[user_id] = memories
             return {
                 "status": "success",
                 "memories": memories,
@@ -150,27 +151,27 @@ def retrieve_user_info(query: str, **kwargs) -> dict:
     
 memory_cache = {}
 
-neo4jUrl = os.environ.get("NEO4JURL")
-neo4jUsername = os.environ.get("NEO4JUSERNAME")
-neo4jPassword = os.environ.get("NEO4JPASSWORD")
-neo4jDb = os.environ.get("NEO4JDB")
+neo4jUrl = os.getenv("NEO4JURL")
+neo4jUsername = os.getenv("NEO4JUSERNAME")
+neo4jPassword = os.getenv("NEO4JPASSWORD")
+neo4jDb = os.getenv("NEO4JDB")
     
 def get_memory_from_user(user_id: str) -> Memory:
     if user_id in memory_cache:
         return memory_cache[user_id]
     
     user_config = {
-        # "embedding_model": {
-        #     "provider": "google",
-        #     "config": {
-        #         "model": "models/embedding-001",
-        #         "api_key": google_api_key
-        #     }
-        # },
+        "embedding_model": {
+            "provider": "google",
+            "config": {
+                "model": "models/embedding-001",
+                "api_key": google_api_key
+            }
+        },
         "llm": {
             "provider": "gemini",
             "config": {
-                "model": "gemini-1.5-flash",
+                "model": "gemini-2.0-flash-lite-001",
                 "temperature": 0.2,
                 "api_key": google_api_key,
                 "max_tokens": 2000,
@@ -191,7 +192,7 @@ def get_memory_from_user(user_id: str) -> Memory:
             "llm" : {
                 "provider": "gemini",
                 "config": {
-                    "model": "gemini-1.5-flash",
+                    "model": "gemini-2.0-flash-lite-001",
                     "temperature": 0.0,
                     "api_key": google_api_key,   
                 }
@@ -213,7 +214,7 @@ def get_memory_from_user(user_id: str) -> Memory:
 # TODO: Fix system prompt
 memory_agent = LlmAgent(
     name="healthcare_assistant",
-    model="gemini-1.5-flash",
+    model="gemini-2.0-flash-lite-001",
     description="Helping patients with memory issues log and retrieve their personal memories",
     instruction="""You are a compassionate memory assistant for people with Alzheimer's or memory difficulties. 
 
@@ -273,7 +274,7 @@ async def process_query_async(messages, user_id: str):
         runner = Runner(
             agent=memory_agent,
             app_name=app_name,
-            session_service=session_service,
+            session_service=session_service
         )
 
         if isinstance(messages, list) and messages:
@@ -310,10 +311,12 @@ async def process_query_async(messages, user_id: str):
             if chunk.is_final_response() and chunk.content and chunk.content.parts:
                 final_result = chunk.content.parts[0].text
                 # break
+
+        memories = request_memory_results.get(user_id, [])
         
         print(f"[DEBUG] Final result: {final_result}")
-        return final_result, session_id
-        
+        return final_result, session_id, memories
+            
     except Exception as e:
         print(f"[ERROR] Exception in process_query_async: {e}")
         import traceback
@@ -345,7 +348,7 @@ def handle_query():
         
         try:
             # result, session_id = loop.run_until_complete(process_query_async(messages or query, user_id))
-            result, session_id = asyncio.run(process_query_async(messages or query, user_id))
+            result, session_id, memories = asyncio.run(process_query_async(messages or query, user_id))
             response_text = result
             if hasattr(result, "text"):
                 response_text = result.text
@@ -356,7 +359,8 @@ def handle_query():
                 "status": "success",
                 "result_return": str(response_text),
                 "session_id": session_id,
-                "user_id": user_id
+                "user_id": user_id,
+                "memories": memories
             })
             
         finally:
@@ -508,7 +512,7 @@ def test_memory():
 
 if __name__ == "__main__":
     required_vars = ["GOOGLE_API_KEY", "MEMO_API_KEY"]
-    missing_vars = [var for var in required_vars if not os.environ.get(var)]
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
     
     if missing_vars:
         print(f"Warning: Missing environment variables: {', '.join(missing_vars)}")

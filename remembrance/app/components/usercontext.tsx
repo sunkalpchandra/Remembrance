@@ -31,8 +31,16 @@ export default function UserContextProvider({ children }: { children: ReactNode 
   }, [user, isAuthChecked, router]);
 
   if (!isAuthChecked) {
-    return <div className="p-10 text-center">Checking authentication...</div>;
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-white dark:bg-black">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 border-4 border-black dark:border-white border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-500 dark:text-gray-400">Loading your session…</p>
+        </div>
+      </div>
+    );
   }
+
 
   return <UserContext.Provider value={user}>{children}</UserContext.Provider>;
 }

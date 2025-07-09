@@ -124,12 +124,19 @@ const Login = () => {
               </div>
 
               <div className="space-y-2">
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Password
-                </label>
+                <div className="flex justify-between">
+                  <label
+                    htmlFor="password"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Password
+                  </label>
+                  <div className="flex items-center gap-x-2 text-gray-600">
+                    <button className=" transition-colors text-[12.5px]">
+                      Forgot your password?
+                    </button>
+                  </div>
+                </div>
                 <input
                   type="password"
                   id="password"
@@ -151,44 +158,20 @@ const Login = () => {
                       disabled={loading}
                       variant="tiltingShadow"
                       size="minimal"
+                      className="w-full"
                     >
                       {loading
                         ? mode === "login"
                           ? "Signing in..."
                           : "Creating account..."
                         : mode === "login"
-                          ? "Login"
+                          ? "Continue"
                           : "Sign Up"}
                       {!loading && <FaArrowRight className="size-4" />}
                     </Button>
-                    <div className="flex flex-col gap-y-2 text-sm">
-                      <div className="flex items-center gap-x-2">
-                        <span className="text-gray-600">
-                          {mode === "login"
-                            ? "Don't have an account?"
-                            : "Already have an account?"}
-                        </span>
-                        <button
-                          onClick={() =>
-                            setMode(mode === "login" ? "signup" : "login")
-                          }
-                          className=" underline transition-colors"
-                        >
-                          {mode === "login" ? "Sign Up Now" : "Login Instead"}
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-x-2">
-                        <span className="text-gray-600">
-                          Forgot your password?
-                        </span>
-                        <button className=" underline transition-colors">
-                          Reset
-                        </button>
-                      </div>
-                    </div>
                   </div>
                 </div>
-
+                <div className="or font-bold"> OR </div>
                 <button
                   onClick={handleGoogleLogin}
                   disabled={loading}
@@ -202,6 +185,23 @@ const Login = () => {
                   />
                   Sign in with Google
                 </button>
+              </div>
+              <div className="flex items-center flex-col gap-y-2 text-sm">
+                <div className="flex items-center gap-x-2">
+                  <span className="text-gray-600">
+                    {mode === "login"
+                      ? "Don't have an account?"
+                      : "Already have an account?"}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setMode(mode === "login" ? "signup" : "login")
+                    }
+                    className=" underline transition-colors"
+                  >
+                    {mode === "login" ? "Sign Up Now" : "Login Instead"}
+                  </button>
+                </div>
               </div>
             </div>
             <div className="absolute bottom-5 left-10 font-medium text-[15px] text-[#a8a7a6]">

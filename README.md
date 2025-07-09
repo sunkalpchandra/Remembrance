@@ -2,6 +2,8 @@
 
 *Remembrance* is a platform designed to help users capture, organize, and revisit important memories or events. 
 
+FIGMA ACCESS: https://www.figma.com/design/585d1DnvJvIePAbmIJrSGp/Reteena?node-id=0-1&t=1fyKc41dxLJ5RQy9-1
+
 With *Remembrance*, you can:
 1. Create new memory entries with titles, descriptions, and media attachments.
 2. Categorize memories by topic, person, or event for easy browsing.

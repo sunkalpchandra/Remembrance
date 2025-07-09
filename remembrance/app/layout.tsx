@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { User } from "./lib/types";
-import UserContextProvider, { UserContext } from "./components/usercontext";
+import UserContextProvider from "./components/usercontext";
 
 export const metadata: Metadata = {
   title: "Create Next App",

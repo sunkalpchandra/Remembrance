@@ -14,7 +14,7 @@ interface OvalButton {
 
 export default function OvalButton(props : OvalButton) {
     const [hover, setHover] = useState(false);
-    return <div className = "relative border-[#dedddb] rounded-full flex items-center gap-2 p-1 border-1 shadow-black shadow-2xs cursor-pointer px-2 hover:bg-[#DEDEDE]" onClick = {props.onClick}
+    return <div className = "relative border-[#dedddb] rounded-full flex items-center gap-2 p-1 border-1 shadow-black/20 shadow-md cursor-pointer px-2 hover:bg-[#DEDEDE]" onClick = {props.onClick}
     onMouseLeave = {() => {
         setHover(false);
     }}

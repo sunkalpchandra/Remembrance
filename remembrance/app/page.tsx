@@ -181,7 +181,7 @@ export default function Home() {
               ></textarea>
             </div>
             <div className="w-full flex flex-row justify-between items-end">
-              <div className="flex-row m-3 flex  gap-1">
+              <div className="flex-row m-3 justify-center flex  gap-1">
                 <CircleButton
                   imgURL={"/paperclip.svg"}
                   onClick={function (e: any): void {
@@ -202,9 +202,20 @@ export default function Home() {
                   hoverText={"Choose memory"}
                   text={"remembrance-1"}
                 ></OvalButton>
+                
                
               </div>
-              <button
+              <div className="flex  items-center ">
+              
+                <button
+                  className="p-2 rounded-full bg-black m-1"
+                  onClick={async () => {
+                    console.error("microphone no implmented");
+                  }}
+                >
+                  <img src="/microphone.svg" className="w-5 " alt="Send" />
+                </button>
+                <button
                 className="p-2 rounded-full bg-black m-3"
                 onClick={async () => {
                   if (textInput.current.value != "") {
@@ -214,7 +225,10 @@ export default function Home() {
                 }}
               >
                 <img src="/arrow-up.svg" className="w-5 " alt="Send" />
-              </button>
+                </button>
+              </div>
+
+              
             </div>
           </div>
         )}
@@ -296,7 +310,7 @@ export default function Home() {
                       time={40}
                       botName={"remembrance"}
                       key={i + e.text}
-                      suggestions={[{title:"father",memoryText:"prefers store to family centric"},{title:"father",memoryText:"prefers store to family centric"},{title:"father",memoryText:"prefers store to family centric"}]}
+                      suggestions={[{title:"father",memoryText:"prefers store to family centric lorem ipsum "},{title:"father",memoryText:"prefers store to family centric lorem ipsum "},{title:"father",memoryText:"prefers store to family centric lorem ipsum "}]}
                     ></BotMessage>
                   );
                 }

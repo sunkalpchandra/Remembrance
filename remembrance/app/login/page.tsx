@@ -9,6 +9,7 @@ import {
   signInWithPopup,
   onAuthStateChanged,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/backend/firebaseConfig";
@@ -85,6 +86,29 @@ const Login = () => {
     }
   };
 
+  const resetPassword = async () => {
+    if (!email.trim()) {
+      alert("Please enter your email to reset your password");
+    }
+    else {
+      try {
+      sendPasswordResetEmail(auth, email.trim(), {
+        url: "localhost:3000/", // next navigation not supported here because firebase is an external email from server side
+        handleCodeInApp: false,
+      })
+        .then(() => {
+          alert("Check your email!");
+        })
+        .catch((error) => {
+          console.log("Error: ", error);
+          alert(error);
+        })
+    } catch (error: any) {
+      console.log("Error sending password reset email: ", error);
+      alert(error.message);
+    }
+  }
+}
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       handleEmailLogin();
@@ -136,7 +160,7 @@ const Login = () => {
                     </label>
                     {mode == "login" ? (
                       <div className="flex items-center gap-x-2 text-gray-600">
-                        <button className=" transition-colors text-[12.5px]">
+                        <button  onClick={resetPassword} className=" transition-colors text-[12.5px]">
                           Forgot your password?
                         </button>
                       </div>

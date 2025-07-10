@@ -38,7 +38,7 @@ export default function UserContextProvider({
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-white text-black">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 border-4 border-black border-t-transparent rounded-full animate-spin" />
+          <div className="h-6 w-6 border-4 border-gray-600 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Firing up the neurons...
           </p>

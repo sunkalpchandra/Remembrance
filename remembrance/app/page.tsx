@@ -98,12 +98,14 @@ export default function Home() {
 
       SetConversation({
         ...conversation,
-        messages: [...conversation.messages, message, 
+        messages: [
+          ...conversation.messages,
+          message,
           ...memorySnippet.map((memory: string) => ({
             sentByUser: false,
             text: memory,
             isMemorySnippet: true,
-          }))
+          })),
         ],
       });
     } catch (err) {
@@ -238,7 +240,7 @@ export default function Home() {
                 <input
                   type="text"
                   id="FirstMessage"
-                  placeholder="Turn your complex thoughts into simple graphs..."
+                  placeholder="Relive anything by asking"
                   className={`relative w-full ${ManRope.className}`}
                 ></input>
                 <div className=" flex flex-row my-1 gap-2">

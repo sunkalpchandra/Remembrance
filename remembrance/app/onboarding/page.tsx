@@ -32,20 +32,36 @@ const Onboarding = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <div className="p-6 bg-white shadow-md rounded-md w-full max-w-md">
-        <h1 className="text-xl font-semibold mb-4">Set your username</h1>
-        <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="e.g. alex"
-          className="w-full p-2 border border-gray-300 rounded-md mb-4"
-        />
-        {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
+      <div className="p-6 w-full items-center flex flex-col max-w-md">
+        <h1 className="text-xl flex font-normal mb-4">
+          What would you like to be called?
+        </h1>
+        <div className="flex flex-col items-baseline w-full">
+          <input
+            value={username}
+            onChange={(e) => {
+              setUsername(e.target.value);
+              if (e.target.value.length > 20 || e.target.value.length < 3) {
+                setError("Nicknames must be between 3 and 20 characters long.");
+              } else {
+                setError("");
+              }
+            }}
+            placeholder=""
+            className={`w-full p-2 border border-gray-300 bg-gray-100 rounded-md ${
+              error ? "border-red-500" : ""
+            } ${error ? "mb-1" : "mb-4"}`}
+          />
+          {error && (
+            <p className="text-red-500 text-sm text-left mb-4">{error}</p>
+          )}
+        </div>
+
         <button
           onClick={handleSubmit}
-          className="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 transition"
+          className="w-full bg-zinc-950 text-white py-2 rounded-md hover:bg-zinc-800 transition-colors"
         >
-          Save & Continue
+          Continue
         </button>
       </div>
     </div>

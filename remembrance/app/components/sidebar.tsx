@@ -119,7 +119,7 @@ function SideBarChatList({ userId }: { userId: string | any }) {
       }
     } catch (error: any) {
       console.error("Failed to delete chat: ", error);
-      alert("Error: ", error);
+      alert(error.message);
     }
   }
 

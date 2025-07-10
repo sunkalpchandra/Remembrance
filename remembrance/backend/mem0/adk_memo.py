@@ -13,6 +13,9 @@ import threading
 import pprint
 # import openai
 from dotenv import load_dotenv
+from werkzeug.utils import secure_filename
+import firebase_admin
+from firebase_admin import credentials, storage
 
 load_dotenv()
 
@@ -29,6 +32,12 @@ mem0_client = MemoryClient(api_key=memo_api_key)
 app_name = "memory_alzheimers_assistant_app"
 
 current_user_id_var = contextvars.ContextVar("current_user_id", default=None)
+
+# firebase initialization
+cred = credentials.Certificate("./docs-3315a-firebase-adminsdk-lw73m-c27400fd79.json")
+firebase_admin.initialize_app(cred, {
+    "storageBucket": os.getenv("NEXT_PUBLIC_FIREBASE_STORAGEBUCKET")
+})
 
 def save_user_info(information: str, **kwargs) -> dict:
     """Save user information to memory"""
@@ -479,6 +488,48 @@ def get_user_memories(user_id):
             "status": "error",
             "message": str(e)
         }), 500
+
+@app.route("/upload", methods=["POST"])
+def upload_file():
+    try:
+        if "file" not in request.files:
+            return jsonify({"status": "error", "message": "No file uploaded"}), 400
+        
+        file = request.files["file"]
+        user_id = request.form.get("user_id")
+
+        if not file or not user_id:
+            return jsonify({"status": "error", "message": "File and user_id are required"}), 400
+        
+        filename = secure_filename(file.filename)
+        blob_path = f"user_uploads/{user_id}_{uuid.uuid4().hex}_{filename}"
+
+        bucket = storage.bucket()
+        blob = bucket.blob(blob_path)
+        blob.upload_from_file(file.stream, content_type=file.content_type)
+
+        blob.make_public() # change later
+
+        mem_response = mem0_client.add(
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Uploaded a file: {filename} (URL: {blob.publicurl})"
+                }
+            ],
+            user_id=user_id,
+            metadata={"type": "file_upload", "filename": filename, "firebase_path": blob_path}
+        )
+
+        return jsonify({
+            "status": "success",
+            "message": f"File '{filename}' uploaded and proccessed",
+            "memory_result": mem_response
+        })
+        
+    except Exception as e:
+        print(f"[ERROR] in /upload: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/test_memory", methods=["POST"])
 def test_memory():

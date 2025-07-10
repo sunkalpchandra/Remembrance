@@ -35,6 +35,47 @@ export default function Home() {
   );
   const textInput = useRef(null as any as HTMLTextAreaElement);
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFileUploadClick = () => {
+    fileInputRef.current?.click();
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("user_id", user.uid);
+
+    try {
+      const response = await axios.post("http://localhost:5000/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data"},
+      });
+
+      const result = response.data?.message || "Uploaded Successfully";
+      sendHumanMessage(`Uploaded file: ${file.name}`);
+      SetConversation((prev) =>
+        prev
+      ? {
+        ...prev,
+        messages: [
+          ...prev.messages,
+          { sentByUser: false, text: result},
+        ],
+      }
+      : undefined
+      )
+    }
+    catch (err: any) {
+      console.error("Upload failed: ", err);
+      alert("Upload failed, please try again");
+    }
+  }
+
   useEffect(() => {
     if (conversationId && user) {
       getConversationById(user.uid, conversationId).then((c) => {
@@ -235,24 +276,18 @@ export default function Home() {
               <div className="flex-row m-3 flex  gap-1">
                 <CircleButton
                   imgURL={"/paperclip.svg"}
-                  onClick={function (e: any): void {
-                    //TODO
-                    console.error("file upload no implmented");
-                  }}
+                  onClick={handleFileUploadClick}
                   imgAlt={"File"}
                   hoverText={"Choose a file to upload"}
                   popUpAbove
                 ></CircleButton>
-                <OvalButton
-                  popUpAbove
-                  imgURL={"/map.svg"}
-                  onClick={function (e: any): void {
-                    //TODO no idea what this button is called/supposed to
-                  }}
-                  imgAlt={"map"}
-                  hoverText={"Choose memory"}
-                  text={"remembrance-1"}
-                ></OvalButton>
+                <input 
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  style={{ display: "none" }}
+                  accept="image/*,.pdf,.txt,.docx"
+                />
                
               </div>
               <button

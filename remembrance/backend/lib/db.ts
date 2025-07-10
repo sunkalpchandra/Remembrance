@@ -1,5 +1,5 @@
 import { db } from "@/backend/firebaseConfig";
-import { doc, setDoc, getDoc, getDocs, collection } from "firebase/firestore";
+import { doc, setDoc, getDoc, getDocs, collection, deleteDoc } from "firebase/firestore";
 // import type { Conversation } from "".
 
 export async function saveConversation(userID: string, conversation: any, conversationId: string) {
@@ -19,4 +19,9 @@ export async function getConversationById(userId: string, id: string) {
         return null;
     }
     return docSnap.data();
+}
+
+export async function deleteConversation(userID: string, conversationId: string) {
+    const ref = doc(db, "users", userID, "conversations", conversationId);
+    await deleteDoc(ref);
 }

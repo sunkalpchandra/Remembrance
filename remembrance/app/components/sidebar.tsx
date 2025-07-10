@@ -1,21 +1,39 @@
 "use client";
-import { useContext, useEffect, useState } from "react";
+
+import type React from "react";
+
+import { useContext, useEffect, useState, useRef } from "react";
 import type { SideBarChoiceProps } from "./sidebarchoice";
-import SideBarChoice from "./sidebarchoice";
-import { BaseSideBar, type SideBarBaseProps } from "./sidebarchoicebase";
+import type { SideBarBaseProps } from "./sidebarchoicebase";
 import { UserContext } from "@/app/components/usercontext";
-import { IBM } from "../lib/fonts";
 import { useRouter } from "next/navigation";
 import {
   getConversationById,
   getConversationsForUser,
   saveConversation,
+  deleteConversation
 } from "@/backend/lib/db";
 import { useParams } from "next/navigation";
+import {
+  BiChevronDown,
+  BiChevronRight,
+  BiHash,
+  BiPlus,
+  BiSearch,
+  BiPencil,
+  BiSolidDashboard,
+  BiCheck,
+  BiLogOut,
+  BiCog,
+  BiUser,
+  BiHelpCircle,
+} from "react-icons/bi";
+import { TfiLayersAlt } from "react-icons/tfi";
 
 interface SidebarProps {
   selected: number;
 }
+
 const SideBarOptions = [
   {
     text: "New chat",
@@ -56,60 +74,217 @@ function SideBarChatList({ userId }: { userId: string | any }) {
   }, [userId]);
 
   const handleRename = async (id: string, newName: string) => {
+    if (!newName.trim()) return;
+
     const updatedChats = chats.map((chat) =>
-      chat.id === id ? { ...chat, name: newName } : chat,
+      chat.id === id ? { ...chat, name: newName.trim() } : chat,
     );
     setChats(updatedChats);
     setEditingId(null);
 
-    const convo = await getConversationById(userId, id);
-    if (convo) {
-      convo.name = newName;
-      await saveConversation(userId, convo, id);
+    try {
+      const convo = await getConversationById(userId, id);
+      if (convo) {
+        convo.name = newName.trim();
+        await saveConversation(userId, convo, id);
+      }
+    } catch (error) {
+      console.error("Failed to rename chat:", error);
+      // Revert the optimistic update on error
+      setChats(chats);
     }
   };
 
+  const handleChatClick = (chatId: string) => {
+    if (editingId) return; // Don't navigate if we're editing
+    router.push(`/chat/${chatId}`);
+  };
+
+  const startEditing = (
+    e: React.MouseEvent,
+    chatId: string,
+    chatName: string,
+  ) => {
+    e.stopPropagation(); // Prevent chat navigation
+    setEditingId(chatId);
+    setEditingName(chatName || "");
+  };
+
+  const handleDelete = async (chatId: string) => {
+    try {
+      await deleteConversation(userId, chatId);
+      setChats((prev) => prev.filter((chat) => chat.id !== chatId));
+      if (currentId === chatId) {
+        router.push("/");
+      }
+    } catch (error: any) {
+      console.error("Failed to delete chat: ", error);
+      alert(error.message);
+    }
+  }
+
   return (
-    <div className="pt-4 p-4 px-4 flex flex-col gap-2">
-      <p className="font-bold text-xs text-gray-600 mb-2">Previous Chats</p>
+    <div className="px-2 py-1">
       {chats.map((chat) => (
-        <div key={chat.id} className={`group flex items-center gap-2`}>
+        <div
+          key={chat.id}
+          className="group flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-100 transition-colors duration-75"
+        >
+          <BiHash className="w-4 h-4 text-gray-500 flex-shrink-0" />
           {editingId === chat.id ? (
             <input
               autoFocus
               value={editingName}
               onChange={(e) => setEditingName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleRename(chat.id, editingName);
-                if (e.key === "Escape") setEditingId(null);
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleRename(chat.id, editingName);
+                }
+                if (e.key === "Escape") {
+                  setEditingId(null);
+                  setEditingName("");
+                }
               }}
-              onBlur={() => setEditingId(null)}
-              className="w-full text-sm bg-white border border-gray-300 rounded px-1"
+              onBlur={() => {
+                if (editingName.trim() && editingName !== chat.name) {
+                  handleRename(chat.id, editingName);
+                } else {
+                  setEditingId(null);
+                }
+              }}
+              className="flex-1 min-w-0 text-sm font-medium bg-white border border-gray-300 rounded px-2 py-0.5 focus:outline-none focus:border-blue-500"
             />
           ) : (
             <div
-              className={`cursor-pointer text-sm truncate grow ${
+              className={`flex-1 min-w-0 text-sm font-medium truncate cursor-pointer transition-colors duration-75 ${
                 chat.id === currentId
-                  ? "bg-gray-300 font-bold px-1 rounded"
-                  : ""
+                  ? "text-gray-900 font-semibold"
+                  : "text-gray-700 hover:text-gray-900"
               }`}
-              onClick={() => router.push(`/chat/${chat.id}`)}
+              onClick={() => handleChatClick(chat.id)}
               title={chat.name}
             >
               {chat.name || "Untitled"}
             </div>
           )}
-          <img
-            src="/pencil.svg" // TODO: add in an actual svg later
-            alt="Edit"
-            className="w-3 h-3 opacity-0 group-hover:opacity-100 cursor-pointer"
-            onClick={() => {
-              setEditingId(chat.id);
-              setEditingName(chat.name || "");
-            }}
-          />
+          {
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(chat.id);
+              }}
+              className="p-1 rounded hover:bg-red-100 transition-colors"
+              title="Delete Chat"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-4 h-4 text-red-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path 
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          }
+          <div
+            className={`flex items-center transition-opacity duration-75 flex-shrink-0 ${
+              editingId === chat.id
+                ? "opacity-100"
+                : "opacity-0 group-hover:opacity-100"
+            }`}
+          >
+            {editingId === chat.id ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRename(chat.id, editingName);
+                }}
+                className="p-1 hover:bg-green-200 bg-green-100 rounded transition-colors duration-75"
+                title="Save changes"
+              >
+                <BiCheck className="w-4 h-4 text-green-600" />
+              </button>
+            ) : (
+              <button
+                onClick={(e) => startEditing(e, chat.id, chat.name)}
+                className="p-1 hover:bg-gray-200 rounded transition-colors duration-75"
+                title="Rename chat"
+              >
+                <BiPencil className="w-3 h-3 text-gray-500" />
+              </button>
+            )}
+          </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function ProfileDropdown({
+  user,
+  onClose,
+}: {
+  user: any;
+  onClose: () => void;
+}) {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        onClose();
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={dropdownRef}
+      className="absolute bottom-full left-2 right-2 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-50"
+    >
+      <div className="px-3 py-2 border-b border-gray-100">
+        <p className="text-sm font-semibold text-gray-900 truncate">
+          {user.displayName || "User"}
+        </p>
+        <p className="text-xs text-gray-500 truncate">{user.email}</p>
+      </div>
+
+      <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+        <BiUser className="w-4 h-4" />
+        Profile
+      </button>
+
+      <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+        <BiCog className="w-4 h-4" />
+        Settings
+      </button>
+
+      <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+        <BiHelpCircle className="w-4 h-4" />
+        Help & Support
+      </button>
+
+      <div className="border-t border-gray-100 mt-1 pt-1">
+        <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+          <BiLogOut className="w-4 h-4" />
+          Sign out
+        </button>
+      </div>
     </div>
   );
 }
@@ -124,61 +299,171 @@ const BaseOptions = [
     iconURL: "/question.svg",
   },
 ] as SideBarBaseProps[];
+
 export default function SideBar(props: SidebarProps) {
+  const router = useRouter();
   const user = useContext(UserContext);
   const [collapsed, setCollapsed] = useState(false);
+  const [chatsExpanded, setChatsExpanded] = useState(true);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+
+  const handleNewChat = () => {
+    router.push("/");
+  };
+
   return (
     <div
-      className={` transition-all h-screen ${collapsed ? "min-w-[3vw] max-w-[3vw]" : "min-w-[13vw] max-w-[13vw]"} grow bg-[#f0eeec] flex flex-col justify-between border-r-1 border-[#9a9a98] py-5 left-0 top-0`}
+      className={`transition-all duration-150 h-screen ${
+        collapsed ? "w-16" : "w-64"
+      } bg-gray-50 border-r border-gray-200 flex flex-col`}
     >
-      <div className=" w-full flex flex-col">
-        <div className="flex  flex-row justify-between px-5 w-full relative ">
-          <img src="/rlogo.svg" alt="" className="w-[1.5vw]" />
-          <img
-            src="/sidebar.svg"
-            alt=""
-            className={` cursor-pointer w-[1.5vw] ${collapsed ? "absolute left-[100%] top-0 -translate-y-0.5 " : ""}`}
-            onClick={() => {
-              setCollapsed(!collapsed);
-            }}
-          />
-        </div>
-        <div className="flex flex-col items-center  text-black text-xs  pt-8 ">
-          {SideBarOptions.map((opt, i) => {
-            return (
-              <SideBarChoice
-                key={i}
-                {...SideBarOptions[i]}
-                collapsed={collapsed}
-                selected={i == props.selected}
-              ></SideBarChoice>
-            );
-          })}
-          <div className="overflow-y-auto max-h-[60vh]">
-            <SideBarChatList userId={user?.uid} />
-          </div>
+      {/* Header */}
+      <div
+        className={`border-b border-gray-200 ${collapsed ? "p-2" : "px-3 py-2"}`}
+      >
+        <div
+          className={`flex items-center ${collapsed ? "justify-center" : "justify-between"}`}
+        >
+          {!collapsed && (
+            <div className="flex items-center gap-2 flex-1">
+              <span className="font-bold text-gray-900">Remembrance</span>
+            </div>
+          )}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className={`hover:bg-gray-200 rounded-md transition-colors duration-75 ${collapsed ? "p-2" : "p-1.5"}`}
+          >
+            <BiChevronRight
+              className={`w-4 h-4 text-gray-500 transition-transform duration-150 ${collapsed ? "" : "rotate-180"}`}
+            />
+          </button>
         </div>
       </div>
-      <div className="flex flex-col">
-        <div className=" w-full flex flex-col cursor-pointer">
-          {BaseOptions.map((e, i) => {
-            return (
-              <BaseSideBar {...e} key={i} collapsed={collapsed}></BaseSideBar>
-            );
-          })}
-        </div>
-        {!collapsed && (
-          <div
-            className={`border-t-1 border-[#d9d9d9] flex flex-row justify-between px-2 items-center ${IBM.className}`}
+
+      {/* Navigation Items */}
+      <div className="flex-1 overflow-y-auto">
+        <div className={`space-y-0.5 ${collapsed ? "p-2" : "px-3 py-2"}`}>
+          {/* New Chat */}
+          <button
+            onClick={handleNewChat}
+            className={`flex items-center w-full text-gray-700 hover:bg-gray-100 rounded-md transition-colors duration-75 cursor-pointer ${
+              collapsed ? "justify-center p-2" : "gap-3 px-2 py-1.5"
+            }`}
+            title={collapsed ? "New chat" : ""}
           >
-            <div className="flex flex-col pt-2">
-              <p>{user?.displayName}</p>{" "}
-              <p className=" text-xs text-[#787776]"> {user?.email}</p>
-            </div>
-            <img src="/up.svg" alt="expand" className="w-[2vw]" />
+            <BiPlus className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && (
+              <span className="text-sm font-medium">New chat</span>
+            )}
+          </button>
+
+          {/* Search */}
+          <div
+            className={`flex items-center text-gray-700 hover:bg-gray-100 rounded-md cursor-pointer transition-colors duration-75 ${
+              collapsed ? "justify-center p-2" : "gap-3 px-2 py-1.5"
+            }`}
+            title={collapsed ? "Search" : ""}
+          >
+            <BiSearch className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && <span className="text-sm font-medium">Search</span>}
+          </div>
+
+          {/* Memory */}
+          <button
+            onClick={() => {
+              router.push("/repository");
+            }}
+            className={`flex items-center w-full text-gray-700 hover:bg-gray-100 rounded-md cursor-pointer transition-colors duration-75 ${
+              collapsed ? "justify-center p-2" : "gap-3 px-2 py-1.5"
+            }`}
+            title={collapsed ? "Memory Graph" : ""}
+          >
+            <TfiLayersAlt className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && (
+              <span className="text-sm font-medium">Memory Graph</span>
+            )}
+          </button>
+
+          {/* Dashboard */}
+          <div
+            className={`flex items-center text-gray-700 hover:bg-gray-100 rounded-md cursor-pointer transition-colors duration-75 ${
+              collapsed ? "justify-center p-2" : "gap-3 px-2 py-1.5"
+            }`}
+            title={collapsed ? "Dashboard" : ""}
+          >
+            <BiSolidDashboard className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && (
+              <span className="text-sm font-medium">Dashboard</span>
+            )}
+          </div>
+        </div>
+
+        {/* Chats Section */}
+        {!collapsed && (
+          <div className="mt-1">
+            <button
+              onClick={() => setChatsExpanded(!chatsExpanded)}
+              className="flex items-center gap-2 px-3 py-1.5 w-full text-left hover:bg-gray-100 transition-colors duration-75"
+            >
+              <BiChevronRight
+                className={`w-3 h-3 text-gray-500 transition-transform duration-150 ${
+                  chatsExpanded ? "rotate-90" : ""
+                }`}
+              />
+              <span className="text-sm font-semibold text-gray-700 tracking-wide">
+                Chats
+              </span>
+            </button>
+
+            {chatsExpanded && (
+              <div className="mt-1">
+                <SideBarChatList userId={user?.uid} />
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Bottom Section */}
+      {!collapsed && (
+        <div className="border-t border-gray-200 p-3 relative">
+          {/* User Info */}
+          {user && (
+            <>
+              <button
+                onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                className="w-full flex items-center gap-3 px-2 py-2 hover:bg-gray-100 rounded-md cursor-pointer transition-colors duration-75"
+              >
+                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm font-semibold text-gray-700">
+                    {user.displayName?.charAt(0) ||
+                      user.email?.charAt(0) ||
+                      "U"}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="text-sm font-semibold text-gray-900 truncate">
+                    {user.displayName || "User"}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate font-medium">
+                    {user.email}
+                  </p>
+                </div>
+                <BiChevronDown
+                  className={`w-4 h-4 text-gray-500 flex-shrink-0 transition-transform duration-150 ${showProfileDropdown ? "rotate-180" : ""}`}
+                />
+              </button>
+
+              {showProfileDropdown && (
+                <ProfileDropdown
+                  user={user}
+                  onClose={() => setShowProfileDropdown(false)}
+                />
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

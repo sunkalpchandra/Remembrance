@@ -9,14 +9,20 @@ import { HumanMessage } from "./components/messages/humanmessage";
 import { BotMessage } from "./components/messages/botmessage";
 import axios from "axios";
 import { auth } from "@/backend/firebaseConfig";
+import { signOut } from "firebase/auth";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { useParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import { getConversationById, saveConversation } from "@/backend/lib/db";
 import MemoryWidget, {MemoryWidgetProps} from "./components/memorywidget";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const router = useRouter();
+
+  const [dropDown, setDropDown] = useState(false);
+  const dropDownRef = useRef<HTMLDivElement | null>(null);
 
   const [user, setUser] = useState<User | any>();
   const params = useParams();
@@ -29,6 +35,47 @@ export default function Home() {
   );
   const textInput = useRef(null as any as HTMLTextAreaElement);
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFileUploadClick = () => {
+    fileInputRef.current?.click();
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("user_id", user.uid);
+
+    try {
+      const response = await axios.post("http://localhost:5000/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data"},
+      });
+
+      const result = response.data?.message || "Uploaded Successfully";
+      sendHumanMessage(`Uploaded file: ${file.name}`);
+      SetConversation((prev) =>
+        prev
+      ? {
+        ...prev,
+        messages: [
+          ...prev.messages,
+          { sentByUser: false, text: result},
+        ],
+      }
+      : undefined
+      )
+    }
+    catch (err: any) {
+      console.error("Upload failed: ", err);
+      alert("Upload failed, please try again");
+    }
+  }
+
   useEffect(() => {
     if (conversationId && user) {
       getConversationById(user.uid, conversationId).then((c) => {
@@ -39,6 +86,24 @@ export default function Home() {
       });
     }
   }, [conversationId, user]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropDownRef.current && !dropDownRef.current.contains(event.target as Node)) {
+        setDropDown(false);
+      }
+    };
+
+    if (dropDown) {
+      document.addEventListener("mousedown", handleClickOutside);
+    } else {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [dropDown]);
 
   useEffect(() => {
     if (ConversationId && user.uid && conversation) {
@@ -164,6 +229,33 @@ export default function Home() {
       />
 
     )} */}
+      <div className="absolute top-4 right-6 z-50">
+        {user && (
+          <div className="relative group">
+            <img
+              src={user.photoURL || "/default-profile.png"}
+              alt="profile"
+              className="w-10 h-10 rounded-full cursor-pointer border border-gray-300"
+              onClick={() => setDropDown((prev) => !prev)}
+            />
+            {dropDown && (
+                <div className="absolute right-0 mt-2 flex flex-col bg-white border border-gray-300 rounded-md shadow-md">
+                  <button
+                    onClick={async () => {
+                      await signOut(auth);
+                      setDropDown(false);
+                      router.push("/login");
+                    }}
+                    className="px-4 py-2 text-sm hover:bg-gray-100 text-left"
+                  >
+                    Logout
+                  </button>
+                </div>
+              )
+            }
+          </div>
+        )}
+      </div>
       <div className=" grow h-screen flex flex-col-reverse gap-5 ">
         {conversation != undefined && (
           <div className="mx-2 border-2 border-[#A3A3A3] rounded-xl bg-white flex flex-col mb-2 ">
@@ -184,24 +276,18 @@ export default function Home() {
               <div className="flex-row m-3 justify-center flex  gap-1">
                 <CircleButton
                   imgURL={"/paperclip.svg"}
-                  onClick={function (e: any): void {
-                    //TODO
-                    console.error("file upload no implmented");
-                  }}
+                  onClick={handleFileUploadClick}
                   imgAlt={"File"}
                   hoverText={"Choose a file to upload"}
                   popUpAbove
                 ></CircleButton>
-                <OvalButton
-                  popUpAbove
-                  imgURL={"/map.svg"}
-                  onClick={function (e: any): void {
-                    //TODO no idea what this button is called/supposed to
-                  }}
-                  imgAlt={"map"}
-                  hoverText={"Choose memory"}
-                  text={"remembrance-1"}
-                ></OvalButton>
+                <input 
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  style={{ display: "none" }}
+                  accept="image/*,.pdf,.txt,.docx"
+                />
                 
                
               </div>

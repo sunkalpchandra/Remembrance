@@ -22,6 +22,8 @@ const Login = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [username, setUsername] = useState("");
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -99,8 +101,8 @@ const Login = () => {
                 Welcome to Remembrance
               </h1>
               <p className="text-[20px] font-medium text-[#c0bebd] leading-relaxed">
-                Ultimate tool to preserve dignity and <br />
-                identity for those facing cognitive decline
+                Ultimate tool to preserve dignity and identity for those facing
+                cognitive decline
               </p>
             </div>
 
@@ -123,29 +125,52 @@ const Login = () => {
                 />
               </div>
 
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <label
-                    htmlFor="password"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Password
-                  </label>
-                  <div className="flex items-center gap-x-2 text-gray-600">
-                    <button className=" transition-colors text-[12.5px]">
-                      Forgot your password?
-                    </button>
+              <div className={"space-y-2"}>
+                <div className="flex flex-col">
+                  <div className="flex justify-between">
+                    <label
+                      htmlFor="password"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Password
+                    </label>
+                    {mode == "login" ? (
+                      <div className="flex items-center gap-x-2 text-gray-600">
+                        <button className=" transition-colors text-[12.5px]">
+                          Forgot your password?
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
+                  <input
+                    type="password"
+                    id="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    className="w-full gap-5 px-3 py-2 bg-white border border-gray-200 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    disabled={loading}
+                  />
                 </div>
-                <input
-                  type="password"
-                  id="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  disabled={loading}
-                />
+                {mode == "signup" ? (
+                  <div className="flex flex-col">
+                    <label
+                      htmlFor="confirmPassword"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Confirm Password
+                    </label>
+                    <input
+                      type="password"
+                      id="confirmPassword"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      disabled={loading}
+                    />
+                  </div>
+                ) : null}
               </div>
 
               {error && <div className="text-red-500 text-sm">{error}</div>}

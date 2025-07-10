@@ -20,8 +20,8 @@ load_dotenv()
 
 # Environment variables
 os.environ.get("OPENAI_API_KEY") # need to replace this, they default to openai for graph so I had to instatiate this (to get rid of the error for not parsing through gemini, soem underlying feature in Mem0 relies on Openai instead of specific LLM provider)
-google_api_key = os.getenv("MEMO_API_KEY")
-memo_api_key = os.getenv("GOOGLE_API_KEY")
+google_api_key = os.getenv("GOOGLE_API_KEY")
+memo_api_key = os.getenv("MEMO_API_KEY")
 
 # Initialize Mem0 client
 mem0_client = MemoryClient(api_key=memo_api_key)

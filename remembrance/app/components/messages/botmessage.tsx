@@ -19,7 +19,7 @@ export function BotMessage(props: BotProps) {
     const start = useRef(new Date());
     
     useEffect(() => {
-        if (progressbar == null) {
+        if (progressbar.current == null) {
             return
         }
         start.current = new Date();

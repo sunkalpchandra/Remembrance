@@ -13,6 +13,7 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import { useParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import { getConversationById, saveConversation } from "@/backend/lib/db";
+import MemoryWidget, {MemoryWidgetProps} from "./components/memorywidget";
 
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -145,7 +146,7 @@ export default function Home() {
     //TODO scroll to bottom
   }, [conversation]);
   return (
-    <div className="w-screen flex flex-row bg-[##f9f8f6]">
+    <div className="w-screen flex flex-row bg-white">
       <SideBar selected={0}></SideBar>
       {/* {conversation && (
       <input
@@ -166,7 +167,7 @@ export default function Home() {
           <div className="mx-2 border-2 border-[#A3A3A3] rounded-xl bg-white flex flex-col mb-2 ">
             <div className="w-full ">
               <textarea
-                className="w-full pt-5 px-2 "
+                className="w-full outline-none resize-none pt-5 px-2 "
                 placeholder="Illustrate your memories based on your people you love..."
                 ref={textInput}
                 onKeyUp={(e) => {
@@ -199,16 +200,7 @@ export default function Home() {
                   hoverText={"Choose memory"}
                   text={"remembrance-1"}
                 ></OvalButton>
-                <CircleButton
-                  imgURL={"/emoji.png"}
-                  onClick={function (e: any): void {
-                    //TODO
-                    console.error("emoji select not implented ");
-                  }}
-                  imgAlt={"Emoji"}
-                  hoverText={"begin convo with emoji"}
-                  popUpAbove
-                ></CircleButton>
+               
               </div>
               <button
                 className="p-2 rounded-full bg-black m-3"
@@ -287,7 +279,9 @@ export default function Home() {
               </div>
             </div>
           ) : (
+          
             <div className="w-full h-full flex flex-col items-center overflow-y-scroll relative max-h-[80vh] mt-5 gap-9">
+              <div className="my-5"></div>
               {conversation.messages.map((e, i) => {
                 if (e.sentByUser) {
                   return (
@@ -298,9 +292,9 @@ export default function Home() {
                     <BotMessage
                       message={e}
                       time={40}
-                      botName={"remeberance"}
+                      botName={"remembrance"}
                       key={i + e.text}
-                      suggestions={[]}
+                      suggestions={[{title:"father",memoryText:"prefers store to family centric"},{title:"father",memoryText:"prefers store to family centric"},{title:"father",memoryText:"prefers store to family centric"}]}
                     ></BotMessage>
                   );
                 }

@@ -44,14 +44,14 @@ export function BotMessage(props: BotProps) {
         <div className="w-full h-full flex flex-col items-start gap-2">
             <div className="w-full flex flex-row items-center ">
                 <p className={`grow-0 text-black ${IBM.className} text-sm`}>  {props.botName} · reteena</p>
-                <div className="grow shadow-sm rounded-full h-[50%] mx-10">
+                {/* <div className="grow shadow-sm rounded-full h-[50%] mx-10">
                     <div ref={progressbar} className="bg-black z-10 h-full rounded-full"></div>
-                </div>
+                </div> */}
                 <p className={`grow-0 text-black ${IBM.className} text-sm`}>[try to answer in {props.time} seconds]</p>
             </div>
             <p className="w-full">{props.message.text}
             </p>
-            <div className="flex flex-row items-center gap-2    ">
+            {/* <div className="flex flex-row items-center gap-2    ">
                 <CircleButton imgURL={"/refresh.svg"} onClick={function (e: any): void {
                     throw new Error("Function not implemented.")
                 }} imgAlt={"Reset"} hoverText={"Re-try generation"}>
@@ -76,18 +76,20 @@ export function BotMessage(props: BotProps) {
                 <CircleButton imgURL={"/clock.svg"} onClick={function (e: any): void {
                     throw new Error("Function not implemented.")
                 }} imgAlt={"reset timer"} hoverText={"restart time "} black></CircleButton>
-            </div>
-            <div className = "flex flex-row gap-2 mt-2">
+            </div> */}
+            <div className = " gap-2 mt-2">
                 {
                     props.suggestions.length > 0 && (
-                        <p className="text-sm text-gray-500 ml-1 mb-1">Memory Retrieved from Pass Convos: </p>
+                        <p className="text-sm text-black mb-5">suggested memories </p>
                     )
                 }
+                <div className="flex gap-3">
                 {
                     props.suggestions.map((suggestion, i) => (
                         <MemoryWidget {...suggestion} key={i} />
                     ))
                 }
+                </div>
             </div>
         </div>
     </div>

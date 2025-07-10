@@ -94,7 +94,7 @@ function SideBarChatList({ userId }: { userId: string | any }) {
             </div>
           )}
           <img
-            src="/edit.svg" // TODO: add in an actual svg later
+            src="/pencil.svg" // TODO: add in an actual svg later
             alt="Edit"
             className="w-3 h-3 opacity-0 group-hover:opacity-100 cursor-pointer"
             onClick={() => {

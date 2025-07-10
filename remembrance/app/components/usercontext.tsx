@@ -7,7 +7,11 @@ import { auth } from "@/backend/firebaseConfig";
 
 export const UserContext = createContext<User | null>(null);
 
-export default function UserContextProvider({ children }: { children: ReactNode }) {
+export default function UserContextProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthChecked, setIsAuthChecked] = useState(false);
   const router = useRouter();
@@ -32,15 +36,16 @@ export default function UserContextProvider({ children }: { children: ReactNode 
 
   if (!isAuthChecked) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-white dark:bg-black">
+      <div className="h-screen w-screen flex items-center justify-center bg-white text-black">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 border-4 border-black dark:border-white border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-gray-500 dark:text-gray-400">Loading your session…</p>
+          <div className="h-8 w-8 border-4 border-black border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Firing up the neurons...
+          </p>
         </div>
       </div>
     );
   }
-
 
   return <UserContext.Provider value={user}>{children}</UserContext.Provider>;
 }

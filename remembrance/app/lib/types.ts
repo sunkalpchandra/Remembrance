@@ -30,7 +30,6 @@ export interface Topic {
     content?: string 
 }
 export interface Memory {
-    symbol: string
     name: string,
     summary: string
     content: string//TODO probably better to swap this later to something more capable of representing all the elements other than text

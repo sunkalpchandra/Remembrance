@@ -26,6 +26,9 @@ os.environ.get("OPENAI_API_KEY") # need to replace this, they default to openai 
 google_api_key = os.getenv("GOOGLE_API_KEY")
 memo_api_key = os.getenv("MEMO_API_KEY")
 
+# gemini-2.0-flash-lite-001
+model = "gemini-2.5-pro"
+
 # Initialize Mem0 client
 mem0_client = MemoryClient(api_key=memo_api_key)
 
@@ -180,7 +183,7 @@ def get_memory_from_user(user_id: str) -> Memory:
         "llm": {
             "provider": "gemini",
             "config": {
-                "model": "gemini-2.0-flash-lite-001",
+                "model": model,
                 "temperature": 0.2,
                 "api_key": google_api_key,
                 "max_tokens": 2000,
@@ -201,7 +204,7 @@ def get_memory_from_user(user_id: str) -> Memory:
             "llm" : {
                 "provider": "gemini",
                 "config": {
-                    "model": "gemini-2.0-flash-lite-001",
+                    "model": model,
                     "temperature": 0.0,
                     "api_key": google_api_key,   
                 }
@@ -223,7 +226,7 @@ def get_memory_from_user(user_id: str) -> Memory:
 # TODO: Fix system prompt
 memory_agent = LlmAgent(
     name="healthcare_assistant",
-    model="gemini-2.0-flash-lite-001",
+    model=model,
     description="Helping patients with memory issues log and retrieve their personal memories",
     instruction="""You are a compassionate memory assistant for people with Alzheimer's or memory difficulties. 
 
@@ -264,15 +267,82 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 thread_local = threading.local()
 
+# async def process_query_async(messages, user_id: str):
+#     """Async function to handle the agent processing"""
+#     current_user_id_var.set(user_id)
+#     thread_local.user_id = user_id
+    
+#     session_id = f"session_{uuid.uuid4().hex[:8]}"
+    
+#     print(f"[DEBUG] Processing query for user_id: {user_id}")
+    
+#     try:
+#         session = await session_service.create_session(
+#             app_name=app_name,
+#             user_id=user_id,
+#             session_id=session_id
+#         )
+
+#         runner = Runner(
+#             agent=memory_agent,
+#             app_name=app_name,
+#             session_service=session_service
+#         )
+
+#         if isinstance(messages, list) and messages:
+#             # Only use the latest message, not the full history
+#             latest_message = messages[-1]
+#             new_message = types.Content(
+#                 role="user" if latest_message.get("sentByUser", False) else "model",
+#                 parts=[types.Part(text=latest_message["text"])]
+#             )
+            
+#             print(f"[DEBUG] Processing latest message: {latest_message['text']}")
+
+#         elif isinstance(messages, str):
+#             new_message = types.Content(role="user", parts=[types.Part(text=messages)])
+
+#         else:
+#             raise ValueError("No valid messages provided.")
+        
+#         final_result = None
+        
+#         async for chunk in runner.run_async(
+#             user_id=user_id,
+#             session_id=session_id,
+#             new_message=new_message,
+#             # tool_kwargs={"user_id": user_id} 
+#         ):
+        
+#             print(f"[DEBUG] Chunk received: {chunk}")
+
+#             # for func_call in chunk.get_function_calls():
+#             #     print(f"[DEBUG] Running Tool: {func_call.name} with args {func_call.args}")
+#             #     await runner.run(func_call)
+
+#             if chunk.is_final_response() and chunk.content and chunk.content.parts:
+#                 final_result = chunk.content.parts[0].text
+#                 # break
+
+#         memories = request_memory_results.get(user_id, [])
+        
+#         print(f"[DEBUG] Final result: {final_result}")
+#         return final_result, session_id, memories
+            
+#     except Exception as e:
+#         print(f"[ERROR] Exception in process_query_async: {e}")
+#         import traceback
+#         traceback.print_exc()
+#         raise
+
 async def process_query_async(messages, user_id: str):
-    """Async function to handle the agent processing"""
     current_user_id_var.set(user_id)
     thread_local.user_id = user_id
     
     session_id = f"session_{uuid.uuid4().hex[:8]}"
     
     print(f"[DEBUG] Processing query for user_id: {user_id}")
-    
+
     try:
         session = await session_service.create_session(
             app_name=app_name,
@@ -286,19 +356,16 @@ async def process_query_async(messages, user_id: str):
             session_service=session_service
         )
 
-        if isinstance(messages, list) and messages:
-            # Only use the latest message, not the full history
+        if isinstance(messages, types.Content):
+            new_message = messages  # accept it directly
+        elif isinstance(messages, list) and messages:
             latest_message = messages[-1]
             new_message = types.Content(
                 role="user" if latest_message.get("sentByUser", False) else "model",
                 parts=[types.Part(text=latest_message["text"])]
             )
-            
-            print(f"[DEBUG] Processing latest message: {latest_message['text']}")
-
         elif isinstance(messages, str):
             new_message = types.Content(role="user", parts=[types.Part(text=messages)])
-
         else:
             raise ValueError("No valid messages provided.")
         
@@ -308,18 +375,10 @@ async def process_query_async(messages, user_id: str):
             user_id=user_id,
             session_id=session_id,
             new_message=new_message,
-            # tool_kwargs={"user_id": user_id} 
         ):
-        
             print(f"[DEBUG] Chunk received: {chunk}")
-
-            # for func_call in chunk.get_function_calls():
-            #     print(f"[DEBUG] Running Tool: {func_call.name} with args {func_call.args}")
-            #     await runner.run(func_call)
-
             if chunk.is_final_response() and chunk.content and chunk.content.parts:
                 final_result = chunk.content.parts[0].text
-                # break
 
         memories = request_memory_results.get(user_id, [])
         
@@ -489,6 +548,51 @@ def get_user_memories(user_id):
             "message": str(e)
         }), 500
 
+# @app.route("/upload", methods=["POST"])
+# def upload_file():
+#     try:
+#         if "file" not in request.files:
+#             return jsonify({"status": "error", "message": "No file uploaded"}), 400
+        
+#         file = request.files["file"]
+#         user_id = request.form.get("user_id")
+
+#         if not file or not user_id:
+#             return jsonify({"status": "error", "message": "File and user_id are required"}), 400
+        
+#         filename = secure_filename(file.filename)
+#         blob_path = f"user_uploads/{user_id}_{uuid.uuid4().hex}_{filename}"
+
+#         bucket = storage.bucket()
+#         blob = bucket.blob(blob_path)
+#         blob.upload_from_file(file.stream, content_type=file.content_type)
+
+#         blob.make_public() # change later
+
+#         mem_response = mem0_client.add(
+#             messages=[
+#                 {
+#                     "role": "user",
+#                     "content": f"Uploaded a file: {filename} (URL: {blob.publicurl})"
+#                 }
+#             ],
+#             user_id=user_id,
+#             metadata={"type": "file_upload", "filename": filename, "firebase_path": blob_path}
+#         )
+
+#         return jsonify({
+#             "status": "success",
+#             "message": f"File '{filename}' uploaded and proccessed",
+#             "memory_result": mem_response
+#         })
+        
+#     except Exception as e:
+#         print(f"[ERROR] in /upload: {e}")
+#         return jsonify({"status": "error", "message": str(e)}), 500
+
+from google.genai.types import Content, Part
+import base64
+
 @app.route("/upload", methods=["POST"])
 def upload_file():
     try:
@@ -501,35 +605,63 @@ def upload_file():
         if not file or not user_id:
             return jsonify({"status": "error", "message": "File and user_id are required"}), 400
         
+        # Save locally
         filename = secure_filename(file.filename)
-        blob_path = f"user_uploads/{user_id}_{uuid.uuid4().hex}_{filename}"
+        upload_dir = os.path.join("uploads", user_id)
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        saved_filename = f"{uuid.uuid4().hex}_{filename}"
+        file_path = os.path.join(upload_dir, saved_filename)
+        file.save(file_path)
 
-        bucket = storage.bucket()
-        blob = bucket.blob(blob_path)
-        blob.upload_from_file(file.stream, content_type=file.content_type)
+        # Construct public URL to the uploaded image
+        NGROK_URL = "https://1d5b0b0d64eb.ngrok-free.app"  # Your public URL
+        public_url = f"{NGROK_URL}/uploads/{user_id}/{saved_filename}"
 
-        blob.make_public() # change later
+        # Prepare a text prompt including the URL
+        prompt_text = f"I have uploaded an image here: {public_url}. Please describe or summarize this image."
 
+        # Build Content object with just text
+        from google.genai.types import Content, Part
+        gemini_message = Content(
+            role="user",
+            parts=[Part(text=prompt_text)]
+        )
+
+        # Save info about this upload in Mem0 (as text message with URL)
         mem_response = mem0_client.add(
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"Uploaded a file: {filename} (URL: {blob.publicurl})"
-                }
-            ],
+            messages=[{
+                "role": "user",
+                "content": f"Uploaded an image: {filename} (URL: {public_url})"
+            }],
             user_id=user_id,
-            metadata={"type": "file_upload", "filename": filename, "firebase_path": blob_path}
+            metadata={"type": "file_upload", "filename": filename, "upload_path": file_path}
+        )
+
+        # Now ask Gemini to summarize the image by sending the URL prompt
+        summary_result, session_id, memories = asyncio.run(
+            process_query_async(gemini_message, user_id)
         )
 
         return jsonify({
             "status": "success",
-            "message": f"File '{filename}' uploaded and proccessed",
-            "memory_result": mem_response
+            "message": f"File '{filename}' uploaded and analyzed.",
+            "memory_result": mem_response,
+            "summary": summary_result,
+            "local_path": file_path,
+            "url": public_url,
         })
         
     except Exception as e:
         print(f"[ERROR] in /upload: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+from flask import send_from_directory
+
+@app.route('/uploads/<user_id>/<filename>')
+def serve_uploaded_file(user_id, filename):
+    upload_folder = os.path.join('uploads', user_id)
+    return send_from_directory(upload_folder, filename)
 
 @app.route("/test_memory", methods=["POST"])
 def test_memory():

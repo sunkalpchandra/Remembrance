@@ -341,7 +341,7 @@ export default function Home() {
                   type="text"
                   id="FirstMessage"
                   placeholder="Relive anything by asking"
-                  className={`relative w-full ${ManRope.className}`}
+                  className={`relative w-full outline-none ${ManRope.className}`}
                 ></input>
                 <div className=" flex flex-row my-1 gap-2">
                   <CircleButton

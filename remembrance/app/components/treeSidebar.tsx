@@ -129,7 +129,7 @@ export default function TreeSidebar({
 
     return (
       <div 
-        key={node.name} 
+        key={node.id || node.name} 
         className="mb-1 group relative"
         style={{ paddingLeft: `${depth * 12}px` }}
       >

@@ -1,5 +1,3 @@
-import { Console } from "console"
-
 export type User =  {
     name : string,
     email : string,
@@ -25,14 +23,16 @@ export interface MemoriesRepo {
     memories:Topic
 }
 export interface Topic {
+    id?: any,
     name: string,
     children: Array<Memory | Topic>,
     content?: string 
 }
 export interface Memory {
+    id: any,
     name: string,
-    summary: string
-    content: string//TODO probably better to swap this later to something more capable of representing all the elements other than text
+    summary: string,
+    content: any,//TODO probably better to swap this later to something more capable of representing all the elements other than text
     topics: Topic[]
 }
 // export interface Person {

@@ -9,6 +9,9 @@ import {
   Placeholder,
 } from "novel";
 import { cx } from "class-variance-authority";
+import { TextStyle } from "@tiptap/extension-text-style";
+import { Color } from "@tiptap/extension-color";
+import { Highlight } from "@tiptap/extension-highlight";
 
 const placeholder = Placeholder;
 const tiptapLink = TiptapLink.configure({
@@ -77,11 +80,23 @@ const starterKit = StarterKit.configure({
   gapcursor: false,
 });
 
+const textStyle = TextStyle.configure({});
+const colorExtension = Color.configure({
+  types: ["textStyle"],
+});
+
+const highlightExtension = Highlight.configure({
+  multicolor: true
+})
+
 export const defaultExtensions = [
   starterKit,
   placeholder,
   tiptapLink,
   TiptapImage,
+  colorExtension,
+  textStyle,
+  highlightExtension,
   UpdatedImage,
   taskList,
   taskItem,

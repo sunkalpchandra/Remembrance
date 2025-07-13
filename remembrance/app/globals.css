@@ -6,8 +6,18 @@
 }
 
 :root {
-    --background: #f9f8f6;
-    --foreground: #171717;
+  --background: #f9f8f6;
+  --foreground: #171717;
+  --novel-black: #222222;
+  --novel-highlight-default: #f5f5f5;
+  --novel-highlight-purple: #f3e8ff;
+  --novel-highlight-red: #fee2e2;
+  --novel-highlight-yellow: #fef9c3;
+  --novel-highlight-blue: #dbeafe;
+  --novel-highlight-green: #dcfce7;
+  --novel-highlight-orange: #ffedd5;
+  --novel-highlight-pink: #fce7f3;
+  --novel-highlight-gray: #f3f4f6;
 }
 
 body {

@@ -37,4 +37,4 @@ export function UserProfile(){
         {getInitals(user.displayName ?? user.email ?? "")}
       </div>
     );
-}Do
+}

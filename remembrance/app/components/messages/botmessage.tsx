@@ -34,7 +34,7 @@ export function BotMessage(props: BotProps) {
             <div className="w-full h-full flex flex-col items-start gap-2">
                 <div className="w-full flex flex-row items-center ">
                     <p className={`grow-0 text-black ${IBM.className} text-sm`}>{props.botName} · reteena</p>
-                    <p className={`grow-0 text-black ${IBM.className} text-sm`}>[try to answer in {props.time} seconds]</p>
+                    {/* <p className={`grow-0 text-black ${IBM.className} text-sm`}>[try to answer in {props.time} seconds]</p> */}
                 </div>
                 <p className="w-full whitespace-pre-line leading-relaxed">{props.message.text}</p>
                 {props.suggestions.length > 0 && (

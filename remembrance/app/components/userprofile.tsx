@@ -13,7 +13,8 @@ function getInitals(name : string) : string{
         return first.toUpperCase();
     }
     else {
-        return first + " " + name.substring(num[0].length + 1, num[0].length + 2)
+        // Use a Unicode hair space between initials for an even smaller gap
+        return first + "\u200A" + name.substring(num[0].length + 1, num[0].length + 2)
     }
 
 }
@@ -31,9 +32,9 @@ export function UserProfile(){
         return null;
     }
 
-    return <div className = "bg-black rounded-full p-1 text-white  aspect-square text-center grow-0 max-w-[3%] min-w-[3%]">
-        {
-            getInitals(user.displayName ?? user.email ?? "")
-        }
-    </div>
-}
+    return (
+      <div className="bg-black rounded-full text-white flex items-center justify-center w-10 h-10 text-lg font-semibold">
+        {getInitals(user.displayName ?? user.email ?? "")}
+      </div>
+    );
+}Do

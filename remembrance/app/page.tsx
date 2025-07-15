@@ -16,6 +16,8 @@ import { v4 as uuidv4 } from "uuid";
 import { getConversationById, saveConversation } from "@/backend/lib/db";
 import MemoryWidget, {MemoryWidgetProps} from "./components/memorywidget";
 import { useRouter } from "next/navigation";
+import { Button } from "@/app/components/novel/ui/button";
+import { Paperclip, ArrowUp } from "lucide-react";
 
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -318,67 +320,76 @@ export default function Home() {
             </div>
           </div>
         )}
-        <div className="grow w-full flex items-center flex-col justify-center p-2">
+        <div className="grow w-full flex items-center flex-col justify-center p-2 relative min-h-[80vh]">
+          {/* Decorative blurred radial gradient background */}
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center z-0">
+            <div className="w-[600px] h-[400px] bg-gradient-to-br from-blue-100 via-purple-100 to-transparent rounded-full blur-3xl opacity-60 animate-bounce-shadow" />
+          </div>
           {conversation == undefined ? (
-            <div>
-              <h1 className="text-6xl">Welcome to Remembrance</h1>
-
-              <div
-                className={` ${ManRope.className} gap-2 w-full border-[#afaead] border-1 mt-5 text-lg px-2 shadow-xs rounded-full flex flex-row items-center justify-between`}
+            <div className="relative z-10 flex flex-col items-center w-full">
+              <h1 className="text-6xl font-extrabold bg-gradient-to-br from-black via-gray-800 to-gray-600 bg-clip-text text-transparent drop-shadow-lg text-center mb-2 select-none">
+                Welcome to Remembrance
+              </h1>
+              <p className="text-xl text-gray-500 font-medium mb-8 text-center max-w-xl select-none">
+                Relive, preserve, and cherish your most important memories. Start by asking anything or sharing a thought below.
+              </p>
+              <form
+                className="flex w-full max-w-xl gap-2 items-center bg-white/80 border border-[#afaead] shadow-lg rounded-full px-6 py-3 transition-all duration-200 focus-within:shadow-2xl focus-within:scale-[1.025] backdrop-blur-md"
+                onSubmit={e => {
+                  e.preventDefault();
+                  const firstMessage = (document.getElementById("FirstMessage") as HTMLInputElement)?.value || "";
+                  if (!firstMessage.trim()) return;
+                  let newconversation: Conversation | undefined = conversation;
+                  newconversation = {
+                    name: "Untitled",
+                    date: new Date(),
+                    messages: [
+                      {
+                        sentByUser: true,
+                        text: firstMessage,
+                      },
+                    ],
+                  };
+                  const newId: string = uuidv4();
+                  setConversationId(newId);
+                  SetConversation(newconversation);
+                  saveConversation(user.uid, newconversation, newId);
+                  (document.getElementById("FirstMessage") as HTMLInputElement).value = "";
+                }}
+                role="search"
+                aria-label="Start a new conversation"
               >
-                <CircleButton
-                  imgURL={"/paperclip.svg"}
-                  onClick={function (e: any): void {
-                    //TODO
-                    console.error("file upload no implmented");
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-full"
+                  aria-label="Attach file"
+                  onClick={e => {
+                    e.preventDefault();
+                    // TODO: implement file upload
+                    console.error("file upload not implemented");
                   }}
-                  imgAlt={"File"}
-                  hoverText={"Choose a file to upload"}
-                  popUpAbove
-                  imgClassName="m-1 "
-                ></CircleButton>
+                >
+                  <Paperclip className="w-5 h-5" />
+                </Button>
                 <input
                   type="text"
                   id="FirstMessage"
                   placeholder="Relive anything by asking"
-                  className={`relative w-full outline-none ${ManRope.className}`}
-                ></input>
-                <div className=" flex flex-row my-1 gap-2">
-                  <CircleButton
-                    black
-                    imgAlt="Send"
-                    imgURL="arrow-up.svg"
-                    hoverText="Start Conversation"
-                    onClick={() => {
-                      const firstMessage =
-                        (
-                          document.getElementById(
-                            "FirstMessage",
-                          ) as HTMLInputElement
-                        )?.value || "";
-                      if (!firstMessage.trim()) return;
-
-                      let newconversation: Conversation | undefined =
-                        conversation;
-                      newconversation = {
-                        name: "Untitled",
-                        date: new Date(),
-                        messages: [
-                          {
-                            sentByUser: true,
-                            text: firstMessage,
-                          },
-                        ],
-                      };
-                      const newId: string = uuidv4();
-                      setConversationId(newId);
-                      SetConversation(newconversation);
-                      saveConversation(user.uid, newconversation, newId);
-                    }}
-                    imgClassName="w-[2vw] p-0.5"
-                  ></CircleButton>
-                </div>
-              </div>
+                  className="flex-1 bg-transparent outline-none text-lg px-2 placeholder-gray-400"
+                  aria-label="Ask a question to start"
+                  autoComplete="off"
+                />
+                <Button
+                  type="submit"
+                  size="icon"
+                  className="rounded-full bg-black text-white hover:bg-gray-900 shadow-md"
+                  aria-label="Start conversation"
+                >
+                  <ArrowUp className="w-5 h-5" />
+                </Button>
+              </form>
             </div>
           ) : (
           

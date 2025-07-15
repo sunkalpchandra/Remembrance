@@ -14,7 +14,7 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import { useParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import { getConversationById, saveConversation } from "@/backend/lib/db";
-import MemoryWidget, {MemoryWidgetProps} from "./components/memorywidget";
+import MemoryWidget, { MemoryWidgetProps } from "./components/memorywidget";
 import { useRouter } from "next/navigation";
 
 export default function Home() {
@@ -39,7 +39,7 @@ export default function Home() {
 
   const handleFileUploadClick = () => {
     fileInputRef.current?.click();
-  }
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -52,29 +52,29 @@ export default function Home() {
     formData.append("user_id", user.uid);
 
     try {
-      const response = await axios.post("http://localhost:5000/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data"},
-      });
+      const response = await axios.post(
+        "http://localhost:5000/upload",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
 
       const result = response.data?.message || "Uploaded Successfully";
       sendHumanMessage(`Uploaded file: ${file.name}`);
       SetConversation((prev) =>
         prev
-      ? {
-        ...prev,
-        messages: [
-          ...prev.messages,
-          { sentByUser: false, text: result},
-        ],
-      }
-      : undefined
-      )
-    }
-    catch (err: any) {
+          ? {
+              ...prev,
+              messages: [...prev.messages, { sentByUser: false, text: result }],
+            }
+          : undefined,
+      );
+    } catch (err: any) {
       console.error("Upload failed: ", err);
       alert("Upload failed, please try again");
     }
-  }
+  };
 
   useEffect(() => {
     if (conversationId && user) {
@@ -89,7 +89,10 @@ export default function Home() {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropDownRef.current && !dropDownRef.current.contains(event.target as Node)) {
+      if (
+        dropDownRef.current &&
+        !dropDownRef.current.contains(event.target as Node)
+      ) {
         setDropDown(false);
       }
     };
@@ -102,7 +105,7 @@ export default function Home() {
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
-    }
+    };
   }, [dropDown]);
 
   useEffect(() => {
@@ -229,33 +232,6 @@ export default function Home() {
       />
 
     )} */}
-      <div className="absolute top-4 right-6 z-50">
-        {user && (
-          <div className="relative group">
-            <img
-              src={user.photoURL || "/default-profile.png"}
-              alt="profile"
-              className="w-10 h-10 rounded-full cursor-pointer border border-gray-300"
-              onClick={() => setDropDown((prev) => !prev)}
-            />
-            {dropDown && (
-                <div className="absolute right-0 mt-2 flex flex-col bg-white border border-gray-300 rounded-md shadow-md">
-                  <button
-                    onClick={async () => {
-                      await signOut(auth);
-                      setDropDown(false);
-                      router.push("/login");
-                    }}
-                    className="px-4 py-2 text-sm hover:bg-gray-100 text-left"
-                  >
-                    Logout
-                  </button>
-                </div>
-              )
-            }
-          </div>
-        )}
-      </div>
       <div className=" grow h-screen flex flex-col-reverse gap-5 ">
         {conversation != undefined && (
           <div className="mx-2 border-2 border-[#A3A3A3] rounded-xl bg-white flex flex-col mb-2 ">
@@ -281,18 +257,15 @@ export default function Home() {
                   hoverText={"Choose a file to upload"}
                   popUpAbove
                 ></CircleButton>
-                <input 
+                <input
                   type="file"
                   ref={fileInputRef}
                   onChange={handleFileChange}
                   style={{ display: "none" }}
                   accept="image/*,.pdf,.txt,.docx"
                 />
-                
-               
               </div>
               <div className="flex  items-center ">
-              
                 <button
                   className="p-2 rounded-full bg-black m-1"
                   onClick={async () => {
@@ -302,19 +275,17 @@ export default function Home() {
                   <img src="/microphone.svg" className="w-5 " alt="Send" />
                 </button>
                 <button
-                className="p-2 rounded-full bg-black m-3"
-                onClick={async () => {
-                  if (textInput.current.value != "") {
-                    sendHumanMessage(textInput.current.value);
-                    textInput.current.value = "";
-                  }
-                }}
-              >
-                <img src="/arrow-up.svg" className="w-5 " alt="Send" />
+                  className="p-2 rounded-full bg-black m-3"
+                  onClick={async () => {
+                    if (textInput.current.value != "") {
+                      sendHumanMessage(textInput.current.value);
+                      textInput.current.value = "";
+                    }
+                  }}
+                >
+                  <img src="/arrow-up.svg" className="w-5 " alt="Send" />
                 </button>
               </div>
-
-              
             </div>
           </div>
         )}
@@ -381,7 +352,6 @@ export default function Home() {
               </div>
             </div>
           ) : (
-          
             <div className="w-full h-full flex flex-col items-center overflow-y-scroll relative max-h-[80vh] mt-5 gap-9">
               <div className="my-5"></div>
               {conversation.messages.map((e, i) => {
@@ -396,7 +366,23 @@ export default function Home() {
                       time={40}
                       botName={"remembrance"}
                       key={i + e.text}
-                      suggestions={[{title:"father",memoryText:"prefers store to family centric lorem ipsum "},{title:"father",memoryText:"prefers store to family centric lorem ipsum "},{title:"father",memoryText:"prefers store to family centric lorem ipsum "}]}
+                      suggestions={[
+                        {
+                          title: "father",
+                          memoryText:
+                            "prefers store to family centric lorem ipsum ",
+                        },
+                        {
+                          title: "father",
+                          memoryText:
+                            "prefers store to family centric lorem ipsum ",
+                        },
+                        {
+                          title: "father",
+                          memoryText:
+                            "prefers store to family centric lorem ipsum ",
+                        },
+                      ]}
                     ></BotMessage>
                   );
                 }

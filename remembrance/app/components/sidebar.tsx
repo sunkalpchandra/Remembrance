@@ -14,6 +14,8 @@ import {
   deleteConversation,
 } from "@/backend/lib/db";
 import { useParams } from "next/navigation";
+import { signOut } from "firebase/auth";
+import { auth } from "@/backend/firebaseConfig";
 import {
   BiChevronDown,
   BiChevronRight,
@@ -58,10 +60,10 @@ const SideBarOptions = [
 ] as SideBarChoiceProps[];
 
 function SideBarChatList({ userId }: { userId: string | any }) {
+  const router = useRouter();
   const [chats, setChats] = useState<{ id: string; name: string }[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>("");
-  const router = useRouter();
   const params = useParams();
   const currentId = params.id;
 
@@ -272,7 +274,13 @@ function ProfileDropdown({
       </button>
 
       <div className="border-t border-gray-100 mt-1 pt-1">
-        <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+        <button
+          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+          onClick={async () => {
+            await signOut(auth);
+            // router.push("/login");
+          }}
+        >
           <BiLogOut className="w-4 h-4" />
           Sign out
         </button>

@@ -296,6 +296,83 @@ def serve_uploaded_file(user_id, filename):
     return send_from_directory(os.path.join("uploads", user_id), filename)
 
 # ------------------------- SIMPLE HEALTH & MEMORIES --------------------------
+
+memory_cache = {}
+
+neo4jUrl = os.getenv("NEO4JURL")
+neo4jUsername = os.getenv("NEO4JUSERNAME")
+neo4jPassword = os.getenv("NEO4JPASSWORD")
+neo4jDb = os.getenv("NEO4JDB")
+
+def safe_dict(items):
+    result = {}
+    for k, v in items:
+        if isinstance(v, (str, int, float, bool)) or v is None:
+            result[k] = v
+        else:
+            result[k] = str(v)
+
+    return result
+
+@app.route("/user/<user_id>/graph", methods=["GET"])
+def get_user_graph(user_id: str):
+    from neo4j import GraphDatabase
+
+    uri = neo4jUrl
+    username = neo4jUsername
+    password = neo4jPassword
+    database = neo4jDb
+
+    try:
+        with GraphDatabase.driver(uri=uri, auth=(username, password)) as driver:
+            with driver.session(database=database) as session:
+
+                query = """
+                MATCH (u:User {userId: $user_id})-[:HAS_MEMORY]->(m:Memory)
+                RETURN u, m
+                """
+
+                results = session.run(query, user_id=user_id)
+                graph = {"nodes": [], "links": []}
+                seen_nodes = set()
+
+                for record in results:
+                    user_node = record["u"]
+                    mem_node = record["m"]
+
+                    # Add user node if not seen
+                    user_id_str = str(user_node.id)
+                    if user_id_str not in seen_nodes:
+                        graph["nodes"].append({
+                            "id": user_id_str,
+                            "label": user_node.get("name", "User"),
+                            "properties": safe_dict(user_node.items())
+                        })
+                        seen_nodes.add(user_id_str)
+
+                    # Add memory node if not seen
+                    mem_id_str = str(mem_node.element_id)
+                    if mem_id_str not in seen_nodes:
+                        graph["nodes"].append({
+                            "id": mem_id_str,
+                            "label": mem_node.get("summary", mem_node.get("content", "Memory"))[:20],
+                            "properties": safe_dict(mem_node.items())
+                        })
+                        seen_nodes.add(mem_id_str)
+
+                    # Add link from user to memory
+                    graph["links"].append({
+                        "source": user_id_str,
+                        "target": mem_id_str,
+                        "type": "HAS_MEMORY"
+                    })
+
+                return jsonify(graph)
+
+    except Exception as e:
+        print(f"[ERROR] in /graph: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/health", methods=["GET"])
 def health_check():
     return jsonify({"status": "healthy", "service": "memory_assistant", "version": "1.1"})

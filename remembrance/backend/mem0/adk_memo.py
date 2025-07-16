@@ -305,10 +305,10 @@ def serve_uploaded_file(user_id, filename):
 
 memory_cache = {}
 
-neo4jUrl = os.getenv("NEO4JURL")
-neo4jUsername = os.getenv("NEO4JUSERNAME")
-neo4jPassword = os.getenv("NEO4JPASSWORD")
-neo4jDb = os.getenv("NEO4JDB")
+neo4jUrl = os.getenv("NEO4J_URL")
+neo4jUsername = os.getenv("NEO4J_USERNAME")
+neo4jPassword = os.getenv("NEO4J_PASSWORD")
+neo4jDb = os.getenv("NEO4J_DATABASE")
 
 def safe_dict(items):
     result = {}

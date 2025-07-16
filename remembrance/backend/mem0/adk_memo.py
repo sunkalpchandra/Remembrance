@@ -273,7 +273,7 @@ def upload_file():
     file_path  = os.path.join(upload_dir, saved_name)
     file.save(file_path)
 
-    NGROK_URL  = "https://your-ngrok-url.ngrok-free.app"
+    NGROK_URL  = "https://ed58f759da7e.ngrok-free.app"
     public_url = f"{NGROK_URL}/uploads/{user_id}/{saved_name}"
 
     prompt_text = f"I have uploaded an image here: {public_url}. Please describe this image."
@@ -288,7 +288,7 @@ def upload_file():
     )
 
     summary, session_id, _ = asyncio.run(process_query_async(gemini_message, user_id))
-
+    print("File '{filename}' uploaded and analyzed.")
     return jsonify({
         "status": "success",
         "message": f"File '{filename}' uploaded and analyzed.",

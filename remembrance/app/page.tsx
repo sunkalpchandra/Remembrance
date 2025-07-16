@@ -15,7 +15,7 @@ import { v4 as uuidv4 } from "uuid";
 import { getConversationById, saveConversation } from "@/backend/lib/db";
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/novel/ui/button";
-import { Paperclip, ArrowUp } from "lucide-react";
+import { Paperclip, ArrowUp, X } from "lucide-react";
 
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -35,44 +35,37 @@ export default function Home() {
   );
   const textInput = useRef(null as any as HTMLTextAreaElement);
 
+  // New state for file handling
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileUploadClick = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) {
-      return;
+    if (!file) return;
+
+    setSelectedFile(file);
+    
+    // Create preview for images
+    if (file.type.startsWith('image/')) {
+      const previewUrl = URL.createObjectURL(file);
+      setFilePreview(previewUrl);
+    } else {
+      setFilePreview(null);
     }
+  };
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("user_id", user.uid);
-
-    try {
-      const response = await axios.post(
-        "http://localhost:5000/upload",
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        },
-      );
-
-      const result = response.data?.message || "Uploaded Successfully";
-      sendHumanMessage(`Uploaded file: ${file.name}`);
-      SetConversation((prev) =>
-        prev
-          ? {
-              ...prev,
-              messages: [...prev.messages, { sentByUser: false, text: result }],
-            }
-          : undefined,
-      );
-    } catch (err: any) {
-      console.error("Upload failed: ", err);
-      alert("Upload failed, please try again");
+  const removeSelectedFile = () => {
+    setSelectedFile(null);
+    setFilePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -136,25 +129,70 @@ export default function Home() {
         },
       ];
     }
-    //spread here to ensure a rerender
     SetConversation({ ...newconversation });
   }
-  async function sendBotMessage() {
-    if (!conversation) {
-      return;
-    }
 
-    const lastUserMsg = conversation.messages.at(-1)?.text;
-    if (!lastUserMsg) {
-      return;
-    }
+  const uploadFile = async () => {
+    if (!selectedFile || !user) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+    formData.append("user_id", user.uid);
 
     try {
-      // if (!conversation.messages) {}
+      const response = await axios.post(
+        "http://localhost:5000/upload",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
+
+      const result = response.data?.message || "Uploaded Successfully";
+      sendHumanMessage(`Uploaded file: ${selectedFile.name}`);
+      SetConversation((prev) =>
+        prev
+          ? {
+              ...prev,
+              messages: [...prev.messages, { sentByUser: false, text: result }],
+            }
+          : undefined,
+      );
+    } catch (err: any) {
+      console.error("Upload failed: ", err);
+      alert("Upload failed, please try again");
+    } finally {
+      setIsUploading(false);
+      removeSelectedFile();
+    }
+  };
+
+  const handleSendMessage = async () => {
+    const messageText = textInput.current.value.trim();
+    
+    if (!messageText && !selectedFile) return;
+
+    if (selectedFile) {
+      await uploadFile();
+    }
+
+    if (messageText) {
+      sendHumanMessage(messageText);
+      textInput.current.value = "";
+    }
+  };
+
+  async function sendBotMessage() {
+    if (!conversation) return;
+
+    const lastUserMsg = conversation.messages.at(-1)?.text;
+    if (!lastUserMsg) return;
+
+    try {
       const response = await axios.post("http://localhost:5000/query", {
-        // query: lastUserMsg, ==> testing for functionality
-        query: conversation.messages, // adding in all data
-        user_id: user?.uid, // use authed user user_id
+        query: conversation.messages,
+        user_id: user?.uid,
       });
 
       const message = {
@@ -209,9 +247,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (conversation == undefined) {
-      return;
-    }
+    if (conversation == undefined) return;
     const last = conversation.messages.at(-1);
     if (last?.sentByUser) {
       sendBotMessage();
@@ -220,29 +256,48 @@ export default function Home() {
     setTimeout(() => {
       scrollRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
-    //TODO scroll to bottom
   }, [conversation]);
+
+  // Clean up object URLs
+  useEffect(() => {
+    return () => {
+      if (filePreview) {
+        URL.revokeObjectURL(filePreview);
+      }
+    };
+  }, [filePreview]);
+
   return (
     <div className="w-screen flex flex-row bg-white">
       <SideBar selected={0}></SideBar>
-      {/* {conversation && (
-      <input
-        value={conversation.name}
-        onChange={((e: any) => {
-          const newConv = {...conversation, name: e.target.value};
-          SetConversation(newConv);
-          if (ConversationId && user?.uid) {
-            saveConversation(user.uid, newConv, ConversationId);
-          }}
-        )}
-        className="text-xl font-bold p-2 border-b"
-      />
-
-    )} */}
-      <div className=" grow h-screen flex flex-col-reverse gap-5 ">
+      <div className="grow h-screen flex flex-col-reverse gap-5">
         {conversation != undefined && (
           <div className="flex flex-col gap-4 mx-2 mb-4 items-center">
             <div className="border-1 border-opacity-10 border-[#A3A3A3] w-[80%] rounded-xl bg-white flex flex-col">
+              {/* File preview section */}
+              {filePreview && (
+                <div className="relative p-2 border-b">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <img 
+                        src={filePreview} 
+                        alt="Preview" 
+                        className="h-12 w-12 object-cover rounded"
+                      />
+                      <span className="text-sm text-gray-600">
+                        {selectedFile?.name}
+                      </span>
+                    </div>
+                    <button
+                      onClick={removeSelectedFile}
+                      className="p-1 rounded-full hover:bg-gray-100"
+                    >
+                      <X className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </div>
+                </div>
+              )}
+              
               <div className="w-full">
                 <textarea
                   className="w-full outline-none resize-none pt-5 px-2"
@@ -250,8 +305,8 @@ export default function Home() {
                   ref={textInput}
                   onKeyUp={(e) => {
                     if (e.key == "Enter" && !e.shiftKey) {
-                      sendHumanMessage(textInput.current.value);
-                      textInput.current.value = "";
+                      e.preventDefault();
+                      handleSendMessage();
                     }
                   }}
                 ></textarea>
@@ -276,22 +331,20 @@ export default function Home() {
                 <div className="flex items-center">
                   <button
                     className="p-2 rounded-full bg-black m-1"
-                    onClick={async () => {
-                      console.error("microphone no implmented");
-                    }}
+                    onClick={() => console.error("microphone not implemented")}
                   >
                     <img src="/microphone.svg" className="w-5" alt="Send" />
                   </button>
                   <button
-                    className="p-2 rounded-full bg-black m-3"
-                    onClick={async () => {
-                      if (textInput.current.value != "") {
-                        sendHumanMessage(textInput.current.value);
-                        textInput.current.value = "";
-                      }
-                    }}
+                    className="p-2 rounded-full bg-black m-3 disabled:opacity-50"
+                    onClick={handleSendMessage}
+                    disabled={isUploading || (!textInput.current?.value.trim() && !selectedFile)}
                   >
-                    <img src="/arrow-up.svg" className="w-5" alt="Send" />
+                    {isUploading ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <img src="/arrow-up.svg" className="w-5" alt="Send" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -302,7 +355,6 @@ export default function Home() {
           </div>
         )}
         <div className="grow w-full flex items-center flex-col justify-center p-2 relative min-h-[80vh]">
-          {/* Decorative blurred radial gradient background */}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 flex items-center justify-center z-0"
@@ -320,33 +372,34 @@ export default function Home() {
               </p>
               <form
                 className="flex w-full max-w-xl gap-2 items-center bg-white/80 border border-[#afaead] shadow-lg rounded-full px-6 py-3 transition-all duration-200 focus-within:shadow-2xl focus-within:scale-[1.025] backdrop-blur-md"
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault();
                   const firstMessage =
-                    (
-                      document.getElementById(
-                        "FirstMessage",
-                      ) as HTMLInputElement
-                    )?.value || "";
-                  if (!firstMessage.trim()) return;
-                  let newconversation: Conversation | undefined = conversation;
-                  newconversation = {
-                    name: "Untitled",
-                    date: new Date(),
-                    messages: [
-                      {
-                        sentByUser: true,
-                        text: firstMessage,
-                      },
-                    ],
-                  };
-                  const newId: string = uuidv4();
-                  setConversationId(newId);
-                  SetConversation(newconversation);
-                  saveConversation(user.uid, newconversation, newId);
-                  (
-                    document.getElementById("FirstMessage") as HTMLInputElement
-                  ).value = "";
+                    (document.getElementById("FirstMessage") as HTMLInputElement)?.value || "";
+                  
+                  if (!firstMessage.trim() && !selectedFile) return;
+
+                  if (selectedFile) {
+                    await uploadFile();
+                  }
+
+                  if (firstMessage.trim()) {
+                    const newconversation: Conversation = {
+                      name: "Untitled",
+                      date: new Date(),
+                      messages: [
+                        {
+                          sentByUser: true,
+                          text: firstMessage,
+                        },
+                      ],
+                    };
+                    const newId: string = uuidv4();
+                    setConversationId(newId);
+                    SetConversation(newconversation);
+                    saveConversation(user.uid, newconversation, newId);
+                    (document.getElementById("FirstMessage") as HTMLInputElement).value = "";
+                  }
                 }}
                 role="search"
                 aria-label="Start a new conversation"
@@ -357,14 +410,17 @@ export default function Home() {
                   size="icon"
                   className="rounded-full"
                   aria-label="Attach file"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    // TODO: implement file upload
-                    console.error("file upload not implemented");
-                  }}
+                  onClick={handleFileUploadClick}
                 >
                   <Paperclip className="w-5 h-5" />
                 </Button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  style={{ display: "none" }}
+                  accept="image/*,.pdf,.txt,.docx"
+                />
                 <input
                   type="text"
                   id="FirstMessage"
@@ -378,8 +434,13 @@ export default function Home() {
                   size="icon"
                   className="rounded-full bg-black text-white hover:bg-gray-900 shadow-md"
                   aria-label="Start conversation"
+                  disabled={isUploading}
                 >
-                  <ArrowUp className="w-5 h-5" />
+                  {isUploading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <ArrowUp className="w-5 h-5" />
+                  )}
                 </Button>
               </form>
             </div>

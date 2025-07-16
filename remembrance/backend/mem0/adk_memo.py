@@ -170,6 +170,9 @@ memory_agent = LlmAgent(
     2. ALWAYS call retrieve_user_info() when users ask FOR ANY CALL. However, that information must also be relevant to the conversation AND MUST ALWAYS BE CALLED BEFORE ANY RESPONSE.
     3. Be patient, kind, and encouraging in your responses.
 
+    OML BRUH PLEASE ALWAYS CALL retrieve_user_info() before any response.
+
+
     FOR ANY RESPONSE. ALMOST ALWAYS call save_user_info() immediately when users share ANY personal information. Same thing applies to retrieve_user_info() when users ask FOR ANY CALL. However, that information must also be relevant to the conversation.
 """,
     tools=[save_user_info, retrieve_user_info, delete_user_info],
@@ -373,7 +376,7 @@ def get_user_graph(user_id: str):
     except Exception as e:
         print(f"[ERROR] in /graph: {e}")
         return jsonify({"error": str(e)}), 500
-    
+
 @app.route("/user/<user_id>/populate_graph", methods=["POST"])
 def populate_graph_from_mem0(user_id):
     try:

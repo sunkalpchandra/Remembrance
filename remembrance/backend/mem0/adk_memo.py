@@ -79,7 +79,7 @@ def get_memory_from_user(user_id: str) -> Memory:
                 "url": os.getenv("NEO4JURL"),
                 "username": os.getenv("NEO4JUSERNAME"),
                 "password": os.getenv("NEO4JPASSWORD"),
-                "database": f"userdb_{user_id}",
+                "database": os.getenv("NEO4JDB"),
                 "default_node_properties": {"userId": user_id},
             },
             "llm": {
@@ -109,6 +109,10 @@ def save_user_info(information: str, **kwargs) -> dict:
             metadata={"type": "client_information", "app": app_name, "userId": user_id},
             output_format="v1.1"
         )
+
+        memory = get_memory_from_user(user_id=user_id)
+        memory.save(information)
+
         return {"status": "saved", "details": response, "message": f"Successfully saved: {information}"}
     except Exception as e:
         print(f"[ERROR] Exception in save_user_info: {e}")
@@ -369,6 +373,29 @@ def get_user_graph(user_id: str):
     except Exception as e:
         print(f"[ERROR] in /graph: {e}")
         return jsonify({"error": str(e)}), 500
+    
+@app.route("/user/<user_id>/populate_graph", methods=["POST"])
+def populate_graph_from_mem0(user_id):
+    try:
+        results = mem0_client.get_all(user_id=user_id)
+        memories = [m.get("memory") for m in results if m.get("memory")]
+
+        memory = get_memory_from_user(user_id=user_id)
+
+        count = 0
+        for mem in memories:
+            content = mem.get("content")
+            if content:
+                memory.save(content)
+                count += 1
+
+        return jsonify({
+            "status": "success",
+            "message": f"{count} memories populated into neo4j for user {user_id}"
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/health", methods=["GET"])
 def health_check():

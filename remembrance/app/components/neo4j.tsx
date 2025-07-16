@@ -54,7 +54,42 @@ const Neo4jGraph = ({ userId, onNodeClick }: { userId: string; onNodeClick?: (no
             });
     }, [userId, nodeColors]);
 
-    // ... (keep the same loading and error states as before)
+    useEffect(() => {
+        const syncAndFetch = async () => {
+            setLoading(true);
+            setError(null);
+
+            try {
+            // First sync memories to Neo4j
+            const syncRes = await fetch(`http://localhost:5000/user/${userId}/populate_graph`, {
+                method: "POST",
+            });
+            if (!syncRes.ok) throw new Error("Failed to sync memories");
+
+            // Then fetch graph
+            const graphRes = await fetch(`http://localhost:5000/user/${userId}/graph`);
+            if (!graphRes.ok) throw new Error("Failed to load graph");
+
+            const data = await graphRes.json();
+
+            const coloredNodes = data.nodes.map((node: any, index: any) => ({
+                ...node,
+                color: nodeColors[index % nodeColors.length],
+            }));
+
+            setGraph({ nodes: coloredNodes, links: data.links });
+            } catch (err: any) {
+            console.error("Graph load error:", err);
+            setError(err.message);
+            } finally {
+            setLoading(false);
+            }
+        };
+
+    syncAndFetch();
+    }, [userId, nodeColors]);
+
+
 
     return (
         <div className="w-full h-[500px] border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden">

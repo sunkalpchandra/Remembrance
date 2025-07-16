@@ -166,6 +166,17 @@ export default function Home() {
 
       const memorySnippet = response.data?.memories || [];
 
+      const latestMemories = memorySnippet.map((memory: string) => {
+        const firstSentence = memory.split('.')[0];
+        const words = firstSentence.split('');
+        const title = words.length > 5 ? words.slice(0, 5).join(' ') + '...': firstSentence;
+        
+        return {
+        title: title,
+        memoryText: memory,
+        }
+      })
+
       SetConversation({
         ...conversation,
         messages: [
@@ -177,6 +188,7 @@ export default function Home() {
             isMemorySnippet: true,
           })),
         ],
+        latestMemories
       });
     } catch (err) {
       console.error("Error: ", err);
@@ -377,23 +389,9 @@ export default function Home() {
                       time={40}
                       botName={"remembrance"}
                       key={i + e.text}
-                      suggestions={[
-                        {
-                          title: "father",
-                          memoryText:
-                            "prefers store to family centric lorem ipsum ",
-                        },
-                        {
-                          title: "father",
-                          memoryText:
-                            "prefers store to family centric lorem ipsum ",
-                        },
-                        {
-                          title: "father",
-                          memoryText:
-                            "prefers store to family centric lorem ipsum ",
-                        },
-                      ]}
+                      suggestions={
+                        conversation.latestMemories?.slice(0, 5) || []
+                      }
                     ></BotMessage>
                   );
                 }

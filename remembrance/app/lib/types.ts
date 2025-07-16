@@ -12,7 +12,11 @@ export interface ConversationMessage {
 export interface Conversation {
     name: string,
     date: Date,
-    messages: ConversationMessage[]
+    messages: ConversationMessage[],
+    latestMemories?: Array<{
+        title: string,
+        memoryText: string,
+    }>
 }
 
 

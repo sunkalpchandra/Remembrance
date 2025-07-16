@@ -1,20 +1,18 @@
 "use client";
 import SideBar from "@/app/components/sidebar";
+import type React from "react";
+
 import { useEffect, useRef, useState } from "react";
 import type { Conversation } from "@/app/lib/types";
 import CircleButton from "@/app/components/circlebutton";
-import OvalButton from "@/app/components/ovalbutton";
-import { ManRope } from "./lib/fonts";
 import { HumanMessage } from "./components/messages/humanmessage";
 import { BotMessage } from "./components/messages/botmessage";
 import axios from "axios";
 import { auth } from "@/backend/firebaseConfig";
-import { signOut } from "firebase/auth";
-import { onAuthStateChanged, User } from "firebase/auth";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import { useParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import { getConversationById, saveConversation } from "@/backend/lib/db";
-import MemoryWidget, { MemoryWidgetProps } from "./components/memorywidget";
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/novel/ui/button";
 import { Paperclip, ArrowUp } from "lucide-react";
@@ -219,7 +217,7 @@ export default function Home() {
     if (conversation == undefined) {
       return;
     }
-    let last = conversation.messages.at(-1);
+    const last = conversation.messages.at(-1);
     if (last?.sentByUser) {
       sendBotMessage();
     }
@@ -248,64 +246,72 @@ export default function Home() {
     )} */}
       <div className=" grow h-screen flex flex-col-reverse gap-5 ">
         {conversation != undefined && (
-          <div className="mx-2 border-2 border-[#A3A3A3] rounded-xl bg-white flex flex-col mb-2 ">
-            <div className="w-full ">
-              <textarea
-                className="w-full outline-none resize-none pt-5 px-2 "
-                placeholder="Illustrate your memories based on your people you love..."
-                ref={textInput}
-                onKeyUp={(e) => {
-                  if (e.key == "Enter" && !e.shiftKey) {
-                    sendHumanMessage(textInput.current.value);
-                    textInput.current.value = "";
-                  }
-                }}
-              ></textarea>
-            </div>
-            <div className="w-full flex flex-row justify-between items-end">
-              <div className="flex-row m-3 justify-center flex  gap-1">
-                <CircleButton
-                  imgURL={"/paperclip.svg"}
-                  onClick={handleFileUploadClick}
-                  imgAlt={"File"}
-                  hoverText={"Choose a file to upload"}
-                  popUpAbove
-                ></CircleButton>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  style={{ display: "none" }}
-                  accept="image/*,.pdf,.txt,.docx"
-                />
-              </div>
-              <div className="flex  items-center ">
-                <button
-                  className="p-2 rounded-full bg-black m-1"
-                  onClick={async () => {
-                    console.error("microphone no implmented");
-                  }}
-                >
-                  <img src="/microphone.svg" className="w-5 " alt="Send" />
-                </button>
-                <button
-                  className="p-2 rounded-full bg-black m-3"
-                  onClick={async () => {
-                    if (textInput.current.value != "") {
+          <div className="flex flex-col gap-4 mx-2 mb-4 items-center">
+            <div className="border-1 border-opacity-10 border-[#A3A3A3] w-[80%] rounded-xl bg-white flex flex-col">
+              <div className="w-full">
+                <textarea
+                  className="w-full outline-none resize-none pt-5 px-2"
+                  placeholder="Turn your complex thoughts into graphs..."
+                  ref={textInput}
+                  onKeyUp={(e) => {
+                    if (e.key == "Enter" && !e.shiftKey) {
                       sendHumanMessage(textInput.current.value);
                       textInput.current.value = "";
                     }
                   }}
-                >
-                  <img src="/arrow-up.svg" className="w-5 " alt="Send" />
-                </button>
+                ></textarea>
               </div>
+              <div className="w-full flex flex-row justify-between items-end">
+                <div className="flex-row m-3 justify-center flex gap-1">
+                  <CircleButton
+                    imgURL={"/paperclip.svg"}
+                    onClick={handleFileUploadClick}
+                    imgAlt={"File"}
+                    hoverText={"Choose a file to upload"}
+                    popUpAbove
+                  ></CircleButton>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    style={{ display: "none" }}
+                    accept="image/*,.pdf,.txt,.docx"
+                  />
+                </div>
+                <div className="flex items-center">
+                  <button
+                    className="p-2 rounded-full bg-black m-1"
+                    onClick={async () => {
+                      console.error("microphone no implmented");
+                    }}
+                  >
+                    <img src="/microphone.svg" className="w-5" alt="Send" />
+                  </button>
+                  <button
+                    className="p-2 rounded-full bg-black m-3"
+                    onClick={async () => {
+                      if (textInput.current.value != "") {
+                        sendHumanMessage(textInput.current.value);
+                        textInput.current.value = "";
+                      }
+                    }}
+                  >
+                    <img src="/arrow-up.svg" className="w-5" alt="Send" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="text-center text-sm text-gray-500 mb-4">
+              Remembrance can make mistakes. Check important info.
             </div>
           </div>
         )}
         <div className="grow w-full flex items-center flex-col justify-center p-2 relative min-h-[80vh]">
           {/* Decorative blurred radial gradient background */}
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center z-0">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 flex items-center justify-center z-0"
+          >
             <div className="w-[600px] h-[400px] bg-gradient-to-br from-blue-100 via-purple-100 to-transparent rounded-full blur-3xl opacity-60 animate-bounce-shadow" />
           </div>
           {conversation == undefined ? (
@@ -314,13 +320,19 @@ export default function Home() {
                 Welcome to Remembrance
               </h1>
               <p className="text-xl text-gray-500 font-medium mb-8 text-center max-w-xl select-none">
-                Relive, preserve, and cherish your most important memories. Start by asking anything or sharing a thought below.
+                Relive, preserve, and cherish your most important memories.
+                Start by asking anything or sharing a thought below.
               </p>
               <form
                 className="flex w-full max-w-xl gap-2 items-center bg-white/80 border border-[#afaead] shadow-lg rounded-full px-6 py-3 transition-all duration-200 focus-within:shadow-2xl focus-within:scale-[1.025] backdrop-blur-md"
-                onSubmit={e => {
+                onSubmit={(e) => {
                   e.preventDefault();
-                  const firstMessage = (document.getElementById("FirstMessage") as HTMLInputElement)?.value || "";
+                  const firstMessage =
+                    (
+                      document.getElementById(
+                        "FirstMessage",
+                      ) as HTMLInputElement
+                    )?.value || "";
                   if (!firstMessage.trim()) return;
                   let newconversation: Conversation | undefined = conversation;
                   newconversation = {
@@ -337,7 +349,9 @@ export default function Home() {
                   setConversationId(newId);
                   SetConversation(newconversation);
                   saveConversation(user.uid, newconversation, newId);
-                  (document.getElementById("FirstMessage") as HTMLInputElement).value = "";
+                  (
+                    document.getElementById("FirstMessage") as HTMLInputElement
+                  ).value = "";
                 }}
                 role="search"
                 aria-label="Start a new conversation"
@@ -348,7 +362,7 @@ export default function Home() {
                   size="icon"
                   className="rounded-full"
                   aria-label="Attach file"
-                  onClick={e => {
+                  onClick={(e) => {
                     e.preventDefault();
                     // TODO: implement file upload
                     console.error("file upload not implemented");
@@ -389,9 +403,29 @@ export default function Home() {
                       time={40}
                       botName={"remembrance"}
                       key={i + e.text}
+<<<<<<< Updated upstream
                       suggestions={
                         conversation.latestMemories?.slice(0, 5) || []
                       }
+=======
+                      suggestions={[
+                        {
+                          title: "brother",
+                          memoryText:
+                            "Went to Hawaii and brought back a chocolate bar",
+                        },
+                        {
+                          title: "mother",
+                          memoryText:
+                            "Went to the beach in Honolulu and had seashells",
+                        },
+                        {
+                          title: "aunt",
+                          memoryText:
+                            "Bought a box of chocolate bars for her family",
+                        },
+                      ]}
+>>>>>>> Stashed changes
                     ></BotMessage>
                   );
                 }

@@ -107,6 +107,7 @@ def save_user_info(information: str, **kwargs) -> dict:
             messages=[{"role": "user", "content": information}],
             user_id=user_id,
             metadata={"type": "client_information", "app": app_name, "userId": user_id},
+            output_format="v1.1"
         )
         return {"status": "saved", "details": response, "message": f"Successfully saved: {information}"}
     except Exception as e:
@@ -143,6 +144,7 @@ def delete_user_info(query: str, **kwargs) -> dict:
         response = mem0_client.delete(
             messages=[{"role": "user", "content": query}],
             user_id=user_id,
+            output_format="v1.1"
         )
         return {"status": "deleted", "details": response, "message": f"Successfully deleted: {query}"}
     except Exception as e:
@@ -274,6 +276,7 @@ def upload_file():
         messages=[{"role": "user", "content": f"Uploaded an image: {filename} (URL: {public_url})"}],
         user_id=user_id,
         metadata={"type": "file_upload", "filename": filename, "upload_path": file_path},
+        output_format="v1.1"
     )
 
     summary, session_id, _ = asyncio.run(process_query_async(gemini_message, user_id))

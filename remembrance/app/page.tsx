@@ -165,28 +165,23 @@ export default function Home() {
       const memorySnippet = response.data?.memories || [];
 
       const latestMemories = memorySnippet.map((memory: string) => {
-        const firstSentence = memory.split('.')[0];
-        const words = firstSentence.split('');
-        const title = words.length > 5 ? words.slice(0, 5).join(' ') + '...': firstSentence;
-        
+        const firstSentence = memory.split(".")[0];
+        const words = firstSentence.split("");
+        const title =
+          words.length > 5
+            ? words.slice(0, 5).join(" ") + "..."
+            : firstSentence;
+
         return {
-        title: title,
-        memoryText: memory,
-        }
-      })
+          title: title,
+          memoryText: memory,
+        };
+      });
 
       SetConversation({
         ...conversation,
-        messages: [
-          ...conversation.messages,
-          message,
-          ...memorySnippet.map((memory: string) => ({
-            sentByUser: false,
-            text: memory,
-            isMemorySnippet: true,
-          })),
-        ],
-        latestMemories
+        messages: [...conversation.messages, message],
+        latestMemories,
       });
     } catch (err) {
       console.error("Error: ", err);
@@ -391,45 +386,27 @@ export default function Home() {
           ) : (
             <div className="w-full h-full flex flex-col items-center overflow-y-scroll relative max-h-[80vh] mt-5 gap-9">
               <div className="my-5"></div>
-              {conversation.messages.map((e, i) => {
-                if (e.sentByUser) {
-                  return (
-                    <HumanMessage message={e} key={i + e.text}></HumanMessage>
-                  );
-                } else {
-                  return (
-                    <BotMessage
-                      message={e}
-                      time={40}
-                      botName={"remembrance"}
-                      key={i + e.text}
-<<<<<<< Updated upstream
-                      suggestions={
-                        conversation.latestMemories?.slice(0, 5) || []
-                      }
-=======
-                      suggestions={[
-                        {
-                          title: "brother",
-                          memoryText:
-                            "Went to Hawaii and brought back a chocolate bar",
-                        },
-                        {
-                          title: "mother",
-                          memoryText:
-                            "Went to the beach in Honolulu and had seashells",
-                        },
-                        {
-                          title: "aunt",
-                          memoryText:
-                            "Bought a box of chocolate bars for her family",
-                        },
-                      ]}
->>>>>>> Stashed changes
-                    ></BotMessage>
-                  );
-                }
-              })}
+              {conversation.messages
+                .filter((e) => !e.isMemorySnippet)
+                .map((e, i) => {
+                  if (e.sentByUser) {
+                    return (
+                      <HumanMessage message={e} key={i + e.text}></HumanMessage>
+                    );
+                  } else {
+                    return (
+                      <BotMessage
+                        message={e}
+                        time={40}
+                        botName={"remembrance"}
+                        key={i + e.text}
+                        suggestions={
+                          conversation.latestMemories?.slice(0, 5) || []
+                        }
+                      ></BotMessage>
+                    );
+                  }
+                })}
               <div ref={scrollRef}></div>
             </div>
           )}

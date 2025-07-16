@@ -26,7 +26,7 @@ load_dotenv()
 google_api_key = os.getenv("GOOGLE_API_KEY")
 memo_api_key   = os.getenv("MEMO_API_KEY")
 
-model = "gemini-2.5-pro"                 # LLM model to use
+model = "gemini-2.5-flash"                 # LLM model to use
 
 mem0_client = MemoryClient(api_key=memo_api_key)
 

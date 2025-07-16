@@ -6,6 +6,7 @@ export type User =  {
 
 //chat
 export interface ConversationMessage {
+    [x: string]: any
     text: string,
     sentByUser: boolean
 }

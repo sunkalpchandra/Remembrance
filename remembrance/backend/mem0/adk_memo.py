@@ -122,7 +122,7 @@ def retrieve_user_info(query: str, **kwargs) -> dict:
 
     try:
         print(f"[DEBUG] RETRIEVE_USER_INFO called for user_id={user_id}, query='{query}'")
-        results = mem0_client.search(query=query, user_id=user_id, limit=10)
+        results = mem0_client.search(query=query, user_id=user_id, limit=10, output_format="v1.1")
 
         if results and results.get("results"):
             memories = [m["memory"] for m in results["results"]]

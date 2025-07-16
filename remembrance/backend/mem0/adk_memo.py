@@ -73,20 +73,20 @@ def get_memory_from_user(user_id: str) -> Memory:
         },
         # ---------------------------------------------------------------------
         # Neo4j graph-store block REMOVED – comment back in if you restore Neo4j
-        # "graph_store": {
-        #     "provider": "neo4j",
-        #     "config": {
-        #         "url": os.getenv("NEO4JURL"),
-        #         "username": os.getenv("NEO4JUSERNAME"),
-        #         "password": os.getenv("NEO4JPASSWORD"),
-        #         "database": f"userdb_{user_id}",
-        #         "default_node_properties": {"userId": user_id},
-        #     },
-        #     "llm": {
-        #         "provider": "gemini",
-        #         "config": {"model": model, "temperature": 0.0, "api_key": google_api_key},
-        #     },
-        # },
+        "graph_store": {
+            "provider": "neo4j",
+            "config": {
+                "url": os.getenv("NEO4JURL"),
+                "username": os.getenv("NEO4JUSERNAME"),
+                "password": os.getenv("NEO4JPASSWORD"),
+                "database": f"userdb_{user_id}",
+                "default_node_properties": {"userId": user_id},
+            },
+            "llm": {
+                "provider": "gemini",
+                "config": {"model": model, "temperature": 0.0, "api_key": google_api_key},
+            },
+        },
         # ---------------------------------------------------------------------
     }
 
@@ -318,30 +318,28 @@ def safe_dict(items):
 def get_user_graph(user_id: str):
     from neo4j import GraphDatabase
 
-    uri = neo4jUrl
-    username = neo4jUsername
-    password = neo4jPassword
-    database = neo4jDb
-
     try:
-        with GraphDatabase.driver(uri=uri, auth=(username, password)) as driver:
-            with driver.session(database=database) as session:
-
+        print(f"[DEBUG] Fetching graph for user_id: {user_id}")
+        with GraphDatabase.driver(uri=neo4jUrl, auth=(neo4jUsername, neo4jPassword)) as driver:
+            with driver.session(database=neo4jDb) as session:
                 query = """
                 MATCH (u:User {userId: $user_id})-[:HAS_MEMORY]->(m:Memory)
                 RETURN u, m
                 """
+                result = session.run(query, user_id=user_id)
+                records = list(result)
+                print(f"[DEBUG] Found {len(records)} graph records for {user_id}")
 
-                results = session.run(query, user_id=user_id)
                 graph = {"nodes": [], "links": []}
                 seen_nodes = set()
 
-                for record in results:
+                for record in records:
                     user_node = record["u"]
                     mem_node = record["m"]
 
-                    # Add user node if not seen
                     user_id_str = str(user_node.id)
+                    mem_id_str = str(mem_node.id)
+
                     if user_id_str not in seen_nodes:
                         graph["nodes"].append({
                             "id": user_id_str,
@@ -350,8 +348,6 @@ def get_user_graph(user_id: str):
                         })
                         seen_nodes.add(user_id_str)
 
-                    # Add memory node if not seen
-                    mem_id_str = str(mem_node.element_id)
                     if mem_id_str not in seen_nodes:
                         graph["nodes"].append({
                             "id": mem_id_str,
@@ -360,7 +356,6 @@ def get_user_graph(user_id: str):
                         })
                         seen_nodes.add(mem_id_str)
 
-                    # Add link from user to memory
                     graph["links"].append({
                         "source": user_id_str,
                         "target": mem_id_str,

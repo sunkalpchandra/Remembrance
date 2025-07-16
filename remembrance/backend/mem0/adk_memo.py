@@ -163,8 +163,10 @@ memory_agent = LlmAgent(
 
     CRITICAL INSTRUCTIONS:
     1. ALWAYS call save_user_info() immediately when users share ANY personal information.
-    2. ALWAYS call retrieve_user_info() when users ask questions about themselves.
+    2. ALWAYS call retrieve_user_info() when users ask FOR ANY CALL. However, that information must also be relevant to the conversation AND MUST ALWAYS BE CALLED BEFORE ANY RESPONSE.
     3. Be patient, kind, and encouraging in your responses.
+
+    FOR ANY RESPONSE. ALMOST ALWAYS call save_user_info() immediately when users share ANY personal information. Same thing applies to retrieve_user_info() when users ask FOR ANY CALL. However, that information must also be relevant to the conversation.
 """,
     tools=[save_user_info, retrieve_user_info, delete_user_info],
 )

@@ -1,56 +1,146 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 
-const ForceGraph2D = dynamic(() => import("react-force-graph").then(mod => mod.ForceGraph2D), {ssr: false})
+const ForceGraph2D = dynamic(() => import("react-force-graph").then(mod => mod.ForceGraph2D), { ssr: false });
 
-const Neo4jGraph = ({userId, onNodeClick}: {userId: string; onNodeClick?: (node: any) => void;}) => {
-    const [graph, setGraph] = useState({nodes: [], links: []});
+// Color palette generation function
+const generateColorPalette = (count: number) => {
+  const colors = [];
+  const hueStep = 360 / count;
+  for (let i = 0; i < count; i++) {
+    const hue = i * hueStep;
+    colors.push(`hsl(${hue}, 70%, 60%)`); // Vibrant colors
+  }
+  return colors;
+};
+
+const Neo4jGraph = ({ userId, onNodeClick }: { userId: string; onNodeClick?: (node: any) => void }) => {
+    const [graph, setGraph] = useState({ nodes: [], links: [] });
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [hoverNode, setHoverNode] = useState(null);
+
+    // Generate colors for nodes
+    const nodeColors = useMemo(() => {
+        return generateColorPalette(graph.nodes.length);
+    }, [graph.nodes.length]);
 
     useEffect(() => {
+        setLoading(true);
+        setError(null);
+        
         fetch(`http://localhost:5000/user/${userId}/graph`)
-            .then(res => res.json())
-            .then(data => setGraph(data))
-            .catch(err => console.error("Failed to fetch graph: ", err))
-    }, [userId]);
+            .then(res => {
+                if (!res.ok) throw new Error("Failed to load graph");
+                return res.json();
+            })
+            .then(data => {
+                if (!data.nodes || !data.links) {
+                    throw new Error("Invalid graph data format");
+                }
+                // Assign colors to nodes based on their index
+                const coloredNodes = data.nodes.map((node: any, index: any) => ({
+                    ...node,
+                    color: nodeColors[index % nodeColors.length]
+                }));
+                setGraph({ nodes: coloredNodes, links: data.links });
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error("Graph load error:", err);
+                setError(err.message);
+                setLoading(false);
+            });
+    }, [userId, nodeColors]);
+
+    // ... (keep the same loading and error states as before)
 
     return (
-        <div className="w-full h-[500px] border">
+        <div className="w-full h-[500px] border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden">
+            <div className="p-3 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-gray-100">
+                <h3 className="font-medium text-gray-800 text-sm flex items-center">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></span>
+                    Memory Connections
+                </h3>
+            </div>
             <ForceGraph2D 
                 graphData={graph}
-                // nodeLabel={(node: any) => node.label}
-                nodeAutoColorBy="label"
-                linkDirectionalArrowLength={6}
-                linkDirectionalArrowRelPos={1}
+                nodeAutoColorBy="label" // Remove this since we're manually coloring
+                linkDirectionalArrowLength={5}
+                linkDirectionalArrowRelPos={0.9}
+                linkDirectionalParticles={1}
+                linkDirectionalParticleSpeed={0.003}
+                linkColor={() => "rgba(180, 180, 180, 0.4)"}
+                linkWidth={link => hoverNode && (link.source === hoverNode || link.target === hoverNode) ? 2 : 1}
+                linkLineDash={[3, 2]}
+                onNodeHover={(node: any) => setHoverNode(node)}
                 onNodeClick={onNodeClick}
-                nodeCanvasObject={(node, ctx, globalScale) => {
+                nodeRelSize={8}
+                nodeVal={node => hoverNode === node ? 12 : 8}
+                nodeColor={node => hoverNode === node ? '#6366f1' : node.color} // Use assigned color
+                nodeCanvasObject={(node: any, ctx, globalScale) => {
                     const label = node.label || node.id;
-                    const fontSize = 14 / globalScale;
+                    const nodeRadius = hoverNode === node ? 8 : 6;
+                    const glow = hoverNode === node;
 
-                    // Draw default circle node (you can customize color/radius here)
-                    const nodeRadius = 8;
+                    // Node glow effect
+                    if (glow) {
+                        ctx.beginPath();
+                        ctx.arc(node.x, node.y, nodeRadius * 1.8, 0, 2 * Math.PI, false);
+                        ctx.fillStyle = 'rgba(99, 102, 241, 0.2)';
+                        ctx.fill();
+                    }
+
+                    // Draw node
                     ctx.beginPath();
-                    ctx.arc(node.x as number, node.y as number, nodeRadius, 0, 2 * Math.PI, false);
-                    ctx.fillStyle = node.color || 'lightblue'; // fallback color
+                    ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI, false);
+                    ctx.fillStyle = hoverNode === node ? '#6366f1' : node.color;
                     ctx.fill();
 
-                    // Draw label background for better readability
-                    const textWidth = ctx.measureText(label).width;
-                    const padding = 2;
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-                    ctx.fillRect(node.x as number - textWidth / 2 - padding, node.y as number - fontSize / 2 - padding, textWidth + padding * 2, fontSize + padding * 2);
+                    // White border
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
 
-                    // Draw label text
-                    ctx.font = `${fontSize}px Sans-Serif`;
-                    ctx.fillStyle = "#333";
-                    ctx.textAlign = "center";
-                    ctx.textBaseline = "middle";
-                    ctx.fillText(label, node.x as number, node.y as number);
+                    // Draw label only if zoomed in enough
+                    if (globalScale > 0.5) {
+                        const fontSize = Math.min(12, 12 / globalScale);
+                        const textWidth = ctx.measureText(label).width;
+                        const padding = 4;
+                        
+                        // Label background
+                        ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+                        ctx.beginPath();
+                        ctx.roundRect(
+                            node.x - textWidth/2 - padding,
+                            node.y - fontSize/2 - padding - nodeRadius - 4,
+                            textWidth + padding*2,
+                            fontSize + padding*2,
+                            6
+                        );
+                        ctx.fill();
+                        ctx.strokeStyle = 'rgba(0, 0, 0, 0.05)';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                        
+                        // Label text
+                        ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
+                        ctx.fillStyle = "#111827";
+                        ctx.textAlign = "center";
+                        ctx.textBaseline = "middle";
+                        ctx.fillText(label, node.x, node.y - nodeRadius - fontSize/2 - 4);
+                    }
                 }}
-
+                nodePointerAreaPaint={(node, color, ctx) => {
+                    ctx.fillStyle = color;
+                    ctx.beginPath();
+                    ctx.arc((node as any).x, (node as any).y, 12, 0, 2 * Math.PI);
+                    ctx.fill();
+                }}
             />
         </div>
-    )
-}
+    );
+};
 
 export default Neo4jGraph;

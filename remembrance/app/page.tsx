@@ -57,7 +57,7 @@ export default function Home() {
       const previewUrl = URL.createObjectURL(file);
       setFilePreview(previewUrl);
     } else {
-      setFilePreview(null);
+      setFilePreview("/file2.svg");
     }
   };
 

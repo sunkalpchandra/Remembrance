@@ -12,6 +12,7 @@ import { auth, db } from "@/backend/firebaseConfig";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import "aframe";
 import NovelEditor from "../components/novelEditor";
+import VerticalDivider from "../components/VerticalDivider";
 
 const initialRepo: MemoriesRepo = {
   memories: {
@@ -43,8 +44,22 @@ export default function Page() {
   const old = useRef("");
 
   const mainContainerRef = useRef<HTMLDivElement | null>(null);
-  const treeResizeRef = useRef<HTMLDivElement | null>(null);
-  const notionResizeRef = useRef<HTMLDivElement | null>(null);
+
+  // Handle resize for dividers
+  const handleTreeResize = (deltaX: number) => {
+    if (!mainContainerRef.current) return;
+    const containerWidth = mainContainerRef.current.clientWidth;
+    const deltaPercent = (deltaX / containerWidth) * 100;
+    setTreeSidebarWidth((prev) => Math.max(8, Math.min(20, prev + deltaPercent)));
+  };
+
+  const handleNotionResize = (deltaX: number) => {
+    if (!mainContainerRef.current) return;
+    const containerWidth = mainContainerRef.current.clientWidth;
+    const deltaPercent = (deltaX / containerWidth) * 100;
+    const maxWidth = 100 - treeSidebarWidth - 30;
+    setNotionPageWidth((prev) => Math.max(30, Math.min(maxWidth, prev + deltaPercent)));
+  };
 
   const saveToFirestore = async (updatedRepo: MemoriesRepo) => {
     if (!user) return;
@@ -138,71 +153,6 @@ export default function Page() {
     setCommand("");
   };
 
-  // Setup resize handlers
-  useEffect(() => {
-    const handleTreeResize = (e: MouseEvent) => {
-      const startX = e.clientX;
-      const startWidth = treeSidebarWidth;
-      
-      const handleMouseMove = (e: MouseEvent) => {
-        if (!mainContainerRef.current) return;
-        const containerWidth = mainContainerRef.current.clientWidth;
-        const deltaX = e.clientX - startX;
-        const deltaPercent = (deltaX / containerWidth) * 100;
-        const newWidth = Math.max(8, Math.min(20, startWidth + deltaPercent));
-        setTreeSidebarWidth(newWidth);
-      };
-
-      const handleMouseUp = () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    };
-
-    const handleNotionResize = (e: MouseEvent) => {
-      const startX = e.clientX;
-      const startWidth = notionPageWidth;
-      
-      const handleMouseMove = (e: MouseEvent) => {
-        if (!mainContainerRef.current) return;
-        const containerWidth = mainContainerRef.current.clientWidth;
-        const deltaX = e.clientX - startX;
-        const deltaPercent = (deltaX / containerWidth) * 100;
-        const maxWidth = 100 - treeSidebarWidth - 30;
-        const newWidth = Math.max(30, Math.min(maxWidth, startWidth + deltaPercent));
-        setNotionPageWidth(newWidth);
-      };
-
-      const handleMouseUp = () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    };
-
-    if (treeResizeRef.current) {
-      treeResizeRef.current.addEventListener('mousedown', handleTreeResize);
-    }
-    if (notionResizeRef.current) {
-      notionResizeRef.current.addEventListener('mousedown', handleNotionResize);
-    }
-
-    return () => {
-      if (treeResizeRef.current) {
-        treeResizeRef.current.removeEventListener('mousedown', handleTreeResize);
-      }
-      if (notionResizeRef.current) {
-        notionResizeRef.current.removeEventListener('mousedown', handleNotionResize);
-      }
-    };
-  }, [treeSidebarWidth, notionPageWidth]);
-
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
@@ -262,13 +212,12 @@ export default function Page() {
     <div className="flex w-screen h-screen flex-row items-stretch text-black bg-gray-50 overflow-hidden">
       {/* Main Sidebar */}
       <SideBar selected={1} />
-      
       {/* Main Content Container */}
       <div className="flex-1 flex flex-row h-full" ref={mainContainerRef}>
         {/* Tree Sidebar */}
         <div 
           className="h-full bg-white border-r border-gray-200 overflow-y-auto"
-          style={{ width: `${25}%` }}
+          style={{ width: `${treeSidebarWidth}%` }}
         >
           <TreeSidebar
             repo={repo}
@@ -280,17 +229,15 @@ export default function Page() {
             user={user}
           />
         </div>
-
         {/* Tree Sidebar Resize Handle */}
-        <div 
-          ref={treeResizeRef}
-          className="w-1 bg-gray-300 hover:bg-gray-400 cursor-col-resize"
+        <VerticalDivider
+          onResize={handleTreeResize}
+          ariaLabel="Resize tree sidebar"
         />
-
         {/* Notion-style Page */}
-        <div className="flex-1 overflow-y-auto">
-            {current ? (
-              <div className="px-6 py-8">
+        <div className="overflow-y-auto" style={{ width: `${notionPageWidth}%` }}>
+          {current ? (
+            <div className="px-6 py-8">
                 {/* Title - Now editable in the editor */}
                 
                 {/* Summary - Now editable in the editor */}
@@ -424,14 +371,11 @@ export default function Page() {
               </div>
             )}
           </div>
-        </div>
-
         {/* Notion Page Resize Handle */}
-        <div 
-          ref={notionResizeRef}
-          className="w-1 bg-gray-300 hover:bg-gray-400 cursor-col-resize"
+        <VerticalDivider
+          onResize={handleNotionResize}
+          ariaLabel="Resize notion page"
         />
-
         {/* Graph View */}
         <div 
           className="h-full bg-white overflow-hidden"
@@ -450,22 +394,22 @@ export default function Page() {
             }}
           />
         </div>
-
-      {/* Selected Node Popup */}
-      {selectedNode && (
-        <div className="absolute bottom-10 right-10 max-w-md p-4 bg-white shadow-xl border border-gray-200 rounded-lg z-50">
-          <div className="flex justify-between items-start mb-2">
-            <h2 className="font-semibold text-lg">Selected Node</h2>
-            <button 
-              onClick={() => setSelectedNode(null)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              ×
-            </button>
+        {/* Selected Node Popup */}
+        {selectedNode && (
+          <div className="absolute bottom-10 right-10 max-w-md p-4 bg-white shadow-xl border border-gray-200 rounded-lg z-50">
+            <div className="flex justify-between items-start mb-2">
+              <h2 className="font-semibold text-lg">Selected Node</h2>
+              <button 
+                onClick={() => setSelectedNode(null)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ×
+              </button>
+            </div>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedNode}</p>
           </div>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedNode}</p>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

@@ -16,7 +16,7 @@ import { getConversationById, saveConversation } from "@/backend/lib/db";
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/novel/ui/button";
 import { Paperclip, ArrowUp, X } from "lucide-react";
-
+import {useDropzone} from 'react-dropzone';
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
@@ -39,12 +39,43 @@ export default function Home() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const {
+    getRootProps,
+    acceptedFiles,
+    getInputProps,
+    isFocused,
+    isDragAccept,
+    isDragReject
+  } = useDropzone({
+    onDrop: (incomingFiles) => {
+      if (fileInputRef.current) {
+        // Note the specific way we need to munge the file into the hidden input
+        // https://stackoverflow.com/a/68182158/1068446
+        const dataTransfer = new DataTransfer();
+        incomingFiles.forEach((v) => {
+          dataTransfer.items.add(v);
+        });
+        fileInputRef.current.files = dataTransfer.files;
+        const file = dataTransfer.files[0];
+        if (!file) return;
 
+        setSelectedFile(file);
+
+        if (file.type.startsWith("image/")) {
+          const previewUrl = URL.createObjectURL(file);
+          setFilePreview(previewUrl);
+        } else {
+          setFilePreview("/file2.svg");
+        }
+      }
+    }
+  });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileUploadClick = () => {
     fileInputRef.current?.click();
   };
+    //const files = acceptedFiles.map(file => <li key={file.path}>{file.path}</li>);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -270,10 +301,12 @@ export default function Home() {
   return (
     <div className="w-screen flex flex-row bg-white">
       <SideBar selected={0}></SideBar>
-      <div className="grow h-screen flex flex-col-reverse gap-5">
-        {conversation != undefined && (
+      <div {...getRootProps({className: 'dropzone'})} className="grow h-screen flex flex-col-reverse gap-5 " >
+        {!isDragAccept &&(
+        conversation != undefined && (
           <div className="flex flex-col gap-4 mx-2 mb-4 items-center">
-            <div className="border-1 border-opacity-10 border-[#A3A3A3] w-[80%] rounded-xl bg-white flex flex-col">
+      
+            <div   className="border-1 border-opacity-10 border-[#A3A3A3] w-[80%] rounded-xl bg-white flex flex-col">
               {/* File preview section */}
               {filePreview && (
                 <div className="relative p-2 border-b">
@@ -297,20 +330,21 @@ export default function Home() {
                   </div>
                 </div>
               )}
-              
-              <div className="w-full">
-                <textarea
-                  className="w-full outline-none resize-none pt-5 px-2"
-                  placeholder="Turn your complex thoughts into graphs..."
-                  ref={textInput}
-                  onKeyUp={(e) => {
-                    if (e.key == "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                ></textarea>
-              </div>
+           
+                <div className="w-full">
+                  <textarea
+                    className="w-full outline-none resize-none pt-5 px-2"
+                    placeholder="Turn your complex thoughts into graphs..."
+                    ref={textInput}
+                    onKeyUp={(e) => {
+                      if (e.key == "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                  ></textarea>
+                </div>
+             
               <div className="w-full flex flex-row justify-between items-end">
                 <div className="flex-row m-3 justify-center flex gap-1">
                   <CircleButton
@@ -348,12 +382,12 @@ export default function Home() {
                   </button>
                 </div>
               </div>
-            </div>
+            </div> 
             <div className="text-center text-sm text-gray-500 mb-4">
               Remembrance can make mistakes. Check important info.
             </div>
           </div>
-        )}
+        ))}
         <div className="grow w-full flex items-center flex-col justify-center p-2 relative min-h-[80vh]">
           <div
             aria-hidden="true"
@@ -444,7 +478,7 @@ export default function Home() {
                 </Button>
               </form>
             </div>
-          ) : (
+          ) : ( !isDragAccept ?(
             <div className="w-full h-full flex flex-col items-center overflow-y-scroll relative max-h-[80vh] mt-5 gap-9">
               <div className="my-5"></div>
               {conversation.messages
@@ -470,7 +504,12 @@ export default function Home() {
                 })}
               <div ref={scrollRef}></div>
             </div>
-          )}
+          ):(
+            <div className="w-full h-full  flex items-center justify-center">
+              <img alt="File"  className="h-6 w-6 object-cover rounded" src="/file2.svg"/>
+              <h3>Drop Files here to add them to the conversation.</h3>
+            </div>
+          ))}
         </div>
       </div>
     </div>

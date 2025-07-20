@@ -17,12 +17,18 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/novel/ui/button";
 import { Paperclip, ArrowUp, X } from "lucide-react";
 import {useDropzone} from 'react-dropzone';
+import { text } from "stream/consumers";
+
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
+  const frameLength = 512;
 
   const [dropDown, setDropDown] = useState(false);
   const dropDownRef = useRef<HTMLDivElement | null>(null);
+
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   const [user, setUser] = useState<User | any>();
   const params = useParams();
@@ -199,6 +205,44 @@ export default function Home() {
     }
   };
 
+  const handleRecordAudio = async () => {
+    if (!isRecording) {
+      // start the recording
+      if (!('webkitSpeechRecognition' in window)) {
+        alert("Your browser does not support speech recognition.");
+        return;
+      }
+
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (textInput.current) {
+          textInput.current.value = transcript;
+        }
+      }
+      recognition.onend = () => {
+        setIsRecording(false);
+      }
+      recognition.onerror = (error: any) => {
+        console.error("Error occurred in recognition: ", error);
+        setIsRecording(false);
+        alert("Error occurred while recording audio. Please try again.");
+      };
+      recognitionRef.current = recognition;
+      setIsRecording(true);
+      setTimeout(async () => {
+        await recognition.start();
+      }, 4000);
+    } else {
+      await recognitionRef.current?.stop();
+      setIsRecording(false);
+    }
+  }
+
   const handleSendMessage = async () => {
     const messageText = textInput.current.value.trim();
     
@@ -364,8 +408,9 @@ export default function Home() {
                 </div>
                 <div className="flex items-center">
                   <button
-                    className="p-2 rounded-full bg-black m-1"
-                    onClick={() => console.error("microphone not implemented")}
+                    className={`p-2 rounded-full bg-black m-1 ${isRecording ? "bg-red-600" : "bg-black"}`}
+                    onClick={handleRecordAudio}
+                    aria-label={isRecording ? "Stop recording" : "Start recording"}
                   >
                     <img src="/microphone.svg" className="w-5" alt="Send" />
                   </button>

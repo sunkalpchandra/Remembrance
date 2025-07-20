@@ -10,6 +10,9 @@
   },
   "dependencies": {
     "@mdxeditor/editor": "^3.39.1",
+    "@picovoice/leopard-react": "^2.0.3",
+    "@picovoice/pvrecorder-node": "^1.2.8",
+    "@picovoice/web-voice-processor": "^4.0.9",
     "aframe": "^1.7.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

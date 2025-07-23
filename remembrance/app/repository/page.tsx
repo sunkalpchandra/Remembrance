@@ -126,13 +126,15 @@ export default function Page() {
         i = 0
       }
     }
+    const randomId = new Uint8Array(32);
+    crypto.getRandomValues(randomId)
     const newMemory: Memory = {
       name: `New Memory ${nameAddition == 0 ? "" : nameAddition +1}`,
       content: " ",
       topics: [],
       summary: "",
       ownerID: user?.uid ,
-      id: Math.random().toString(32).substring(15)
+      id: btoa((String.fromCharCode(...randomId)))
     };
     if (current && 'children' in current) {
       (current as Topic).children.push(newMemory);

@@ -118,7 +118,6 @@ export default function Page() {
       check = check.filter((e) => {
         return e.name.match(/New Memory [1-9]+/) || e.name.trim() == "New Memory";
       })
-      console.log(check)
       //if lag gets bad this can be rewritten to use a sort and be much more time efficent
     for(let i = 0; i < check.length ; i ++){
       let value = `New Memory ${nameAddition == 0? "" : nameAddition +1}`
@@ -132,22 +131,21 @@ export default function Page() {
       content: " ",
       topics: [],
       summary: "",
-      id: user?.uid,
+      ownerID: user?.uid ,
+      id: Math.random().toString(32).substring(15)
     };
-
-    
     if (current && 'children' in current) {
       (current as Topic).children.push(newMemory);
     } else {
       newRepo.memories.children.push(newMemory);
     }
-    
     setRepo(newRepo);
     setCurrent(newMemory);
     saveToFirestore(newRepo);
   };
 
   const handleNodeSelect = (node: Memory | Topic) => {
+
     setCurrent(node);
     setCommand("");
   };
@@ -157,7 +155,6 @@ export default function Page() {
     const handleTreeResize = (e: MouseEvent) => {
       const startX = e.clientX;
       const startWidth = treeSidebarWidth;
-      
       const handleMouseMove = (e: MouseEvent) => {
         if (!mainContainerRef.current) return;
         const containerWidth = mainContainerRef.current.clientWidth;
@@ -276,7 +273,6 @@ export default function Page() {
     <div className="flex w-screen h-screen flex-row items-stretch text-black bg-gray-50 overflow-hidden">
       {/* Main Sidebar */}
       <SideBar selected={1} />
-      
       {/* Main Content Container */}
       <div className="flex-1 flex flex-row h-full" ref={mainContainerRef}>
         {/* Tree Sidebar */}
@@ -407,11 +403,9 @@ export default function Page() {
 
                           const copy = { ...current };
                           copy.name = titleNode?.content?.[0]?.text || current.name;
-                          
                           if (!('children' in current) && summaryNode) {
                             (copy as Memory).summary = summaryNode.content?.[0]?.text || (current as Memory).summary;
                           }
-                          
                           copy.content = editorContent;
                           setCurrent(copy);
                           updateRepo(current, copy);

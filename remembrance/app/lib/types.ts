@@ -35,6 +35,7 @@ export interface Topic {
 }
 export interface Memory {
     id: any,
+    ownerID: any
     name: string,
     summary: string,
     content: any,//TODO probably better to swap this later to something more capable of representing all the elements other than text

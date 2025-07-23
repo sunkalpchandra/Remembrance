@@ -29,8 +29,8 @@ export default function NovelEditor({
     const [openAI, setOpenAI] = useState(false);
 
     return (
-      <EditorRoot>
-        <EditorContent
+      <EditorRoot >
+        <EditorContent immediatelyRender = {false}
           extensions={defaultExtensions}
           className={`w-full ${className}`}
           editorProps={{

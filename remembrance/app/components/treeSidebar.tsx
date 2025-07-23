@@ -210,7 +210,6 @@ export default function TreeSidebar({
           <span className="mr-1">+</span>
           Add Memory
         </button>
-        
         {showCategoryInput ? (
           <div className="flex items-center gap-1">
             <input

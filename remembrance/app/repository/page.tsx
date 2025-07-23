@@ -112,15 +112,29 @@ export default function Page() {
   };
 
   const handleAddMemory = () => {
+    const newRepo = { ...repo };
+    let nameAddition = 0;
+      let check = (current && "children" in current) ? current.children : newRepo.memories.children
+      check = check.filter((e) => {
+        return e.name.match(/New Memory [1-9]+/) || e.name.trim() == "New Memory";
+      })
+      console.log(check)
+      //if lag gets bad this can be rewritten to use a sort and be much more time efficent
+    for(let i = 0; i < check.length ; i ++){
+      let value = `New Memory ${nameAddition == 0? "" : nameAddition +1}`
+      if(check[i].name == value){
+        nameAddition++
+        i = 0
+      }
+    }
     const newMemory: Memory = {
-      name: 'New Memory',
-      content: '',
+      name: `New Memory ${nameAddition == 0 ? "" : nameAddition +1}`,
+      content: " ",
       topics: [],
-      summary: '',
-      id: user?.uid
+      summary: "",
+      id: user?.uid,
     };
 
-    const newRepo = { ...repo };
     
     if (current && 'children' in current) {
       (current as Topic).children.push(newMemory);
@@ -292,9 +306,7 @@ export default function Page() {
             {current ? (
               <div className="px-6 py-8">
                 {/* Title - Now editable in the editor */}
-                
                 {/* Summary - Now editable in the editor */}
-                
                 {/* Editor - Combined with title and summary */}
                 <div className="relative">
                   {command !== "" && (
@@ -370,14 +382,14 @@ export default function Page() {
                             type: "heading",
                             attrs: { level: 1 },
                             content: [
-                              { type: "text", text: current.name }
+                              { type: "text", text: current.name || "Unamed" }
                             ]
                           },
                           ...(!('children' in current) ? [
                             {
                               type: "paragraph",
                               content: [
-                                { type: "text", text: (current as Memory).summary }
+                                { type: "text", text: (current as Memory).summary || " " }
                               ]
                             }
                           ] : []),

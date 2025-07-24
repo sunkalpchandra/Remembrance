@@ -7,7 +7,7 @@ import { Command, CommandInput } from "./ui/command";
 import AISelectorCommands from "./aiSelectorCommands";
 import { ArrowUp, Sparkles } from "lucide-react";
 import Magic from "./ui/magic";
-
+import axios from "axios";
 interface AISelectorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -27,15 +27,18 @@ const AISelector = ({ open }: AISelectorProps) => {
     setIsLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/ai/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, command: option || inputValue }),
+      const res = await axios.post("http://localhost:5000/api/ai/generate", {
+        query: prompt,
+        // command: option || input value needs impl later
       });
-      if (!res.ok) throw new Error("AI request failed");
-      const data = await res.json();
-      setCompletion(data.completion || "");
-      editor.chain().focus().insertContent(data.completion || "").run();
+
+      const data = res.data;
+      if (data.status !== "success") {
+        throw new Error(data.error || "Ai Request Failed");
+      }
+
+      setCompletion(data.message || "");
+      editor.chain().focus().insertContent(data.message || "").run();
       setInputValue("");
     } catch (e: any) {
       setError(e.message || "Unknown error");
@@ -61,7 +64,11 @@ const AISelector = ({ open }: AISelectorProps) => {
           className="h-7 w-7 rounded-full bg-blue-500 hover:bg-blue-900 shadow-none border-none flex items-center justify-center"
           onClick={() => {
             const slice = editor.state.selection.content();
-            const text = editor.storage.markdown.serializer.serialize(slice.content);
+            const text = editor.state.doc.textBetween(
+              editor.state.selection.from,
+              editor.state.selection.to,
+              ""
+            );
             handleComplete(text);
           }}
           disabled={isLoading}

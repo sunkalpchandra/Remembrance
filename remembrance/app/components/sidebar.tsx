@@ -309,6 +309,8 @@ export default function SideBar(props: SidebarProps) {
 
   const handleNewChat = () => {
     router.push("/");
+    router.replace("/");
+    setChatsExpanded(true);
   };
 
   return (

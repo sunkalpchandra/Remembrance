@@ -10,19 +10,20 @@ import { BotMessage } from "./components/messages/botmessage";
 import axios from "axios";
 import { auth } from "@/backend/firebaseConfig";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import { getConversationById, saveConversation } from "@/backend/lib/db";
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/novel/ui/button";
 import { Paperclip, ArrowUp, X } from "lucide-react";
-import {useDropzone} from 'react-dropzone';
+import { useDropzone } from "react-dropzone";
 import { text } from "stream/consumers";
 
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
   const frameLength = 512;
+  const path = usePathname();
 
   const [dropDown, setDropDown] = useState(false);
   const dropDownRef = useRef<HTMLDivElement | null>(null);
@@ -51,7 +52,7 @@ export default function Home() {
     getInputProps,
     isFocused,
     isDragAccept,
-    isDragReject
+    isDragReject,
   } = useDropzone({
     onDrop: (incomingFiles) => {
       if (fileInputRef.current) {
@@ -74,23 +75,23 @@ export default function Home() {
           setFilePreview("/file2.svg");
         }
       }
-    }
+    },
   });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileUploadClick = () => {
     fileInputRef.current?.click();
   };
-    //const files = acceptedFiles.map(file => <li key={file.path}>{file.path}</li>);
+  //const files = acceptedFiles.map(file => <li key={file.path}>{file.path}</li>);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setSelectedFile(file);
-    
+
     // Create preview for images
-    if (file.type.startsWith('image/')) {
+    if (file.type.startsWith("image/")) {
       const previewUrl = URL.createObjectURL(file);
       setFilePreview(previewUrl);
     } else {
@@ -102,7 +103,7 @@ export default function Home() {
     setSelectedFile(null);
     setFilePreview(null);
     if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      fileInputRef.current.value = "";
     }
   };
 
@@ -208,14 +209,16 @@ export default function Home() {
   const handleRecordAudio = async () => {
     if (!isRecording) {
       // start the recording
-      if (!('webkitSpeechRecognition' in window)) {
+      if (!("webkitSpeechRecognition" in window)) {
         alert("Your browser does not support speech recognition.");
         return;
       }
 
-      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      const SpeechRecognition =
+        (window as any).webkitSpeechRecognition ||
+        (window as any).SpeechRecognition;
       const recognition = new SpeechRecognition();
-      recognition.lang = 'en-US';
+      recognition.lang = "en-US";
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
       recognition.onresult = (event: any) => {
@@ -223,10 +226,10 @@ export default function Home() {
         if (textInput.current) {
           textInput.current.value = transcript;
         }
-      }
+      };
       recognition.onend = () => {
         setIsRecording(false);
-      }
+      };
       recognition.onerror = (error: any) => {
         console.error("Error occurred in recognition: ", error);
         setIsRecording(false);
@@ -241,11 +244,11 @@ export default function Home() {
       await recognitionRef.current?.stop();
       setIsRecording(false);
     }
-  }
+  };
 
   const handleSendMessage = async () => {
     const messageText = textInput.current.value.trim();
-    
+
     if (!messageText && !selectedFile) return;
 
     if (selectedFile) {
@@ -345,20 +348,21 @@ export default function Home() {
   return (
     <div className="w-screen flex flex-row bg-white">
       <SideBar selected={0}></SideBar>
-      <div {...getRootProps({className: 'dropzone'})} className="grow h-screen flex flex-col-reverse gap-5 " >
-        {!isDragAccept &&(
-        conversation != undefined && (
+      <div
+        {...getRootProps({ className: "dropzone" })}
+        className="grow h-screen flex flex-col-reverse gap-5 "
+      >
+        {!isDragAccept && conversation != undefined && (
           <div className="flex flex-col gap-4 mx-2 mb-4 items-center">
-      
-            <div   className="border-1 border-opacity-10 border-[#A3A3A3] w-[80%] rounded-xl bg-white flex flex-col">
+            <div className="border-1 border-opacity-10 border-[#A3A3A3] w-[80%] rounded-xl bg-white flex flex-col">
               {/* File preview section */}
               {filePreview && (
                 <div className="relative p-2 border-b">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <img 
-                        src={filePreview} 
-                        alt="Preview" 
+                      <img
+                        src={filePreview}
+                        alt="Preview"
                         className="h-12 w-12 object-cover rounded"
                       />
                       <span className="text-sm text-gray-600">
@@ -374,21 +378,21 @@ export default function Home() {
                   </div>
                 </div>
               )}
-           
-                <div className="w-full">
-                  <textarea
-                    className="w-full outline-none resize-none pt-5 px-2"
-                    placeholder="Turn your complex thoughts into graphs..."
-                    ref={textInput}
-                    onKeyUp={(e) => {
-                      if (e.key == "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                  ></textarea>
-                </div>
-             
+
+              <div className="w-full">
+                <textarea
+                  className="w-full outline-none resize-none pt-5 px-2"
+                  placeholder="Turn your complex thoughts into graphs..."
+                  ref={textInput}
+                  onKeyUp={(e) => {
+                    if (e.key == "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                ></textarea>
+              </div>
+
               <div className="w-full flex flex-row justify-between items-end">
                 <div className="flex-row m-3 justify-center flex gap-1">
                   <CircleButton
@@ -410,14 +414,19 @@ export default function Home() {
                   <button
                     className={`p-2 rounded-full bg-black m-1 ${isRecording ? "bg-red-600" : "bg-black"}`}
                     onClick={handleRecordAudio}
-                    aria-label={isRecording ? "Stop recording" : "Start recording"}
+                    aria-label={
+                      isRecording ? "Stop recording" : "Start recording"
+                    }
                   >
                     <img src="/microphone.svg" className="w-5" alt="Send" />
                   </button>
                   <button
                     className="p-2 rounded-full bg-black m-3 disabled:opacity-50"
                     onClick={handleSendMessage}
-                    disabled={isUploading || (!textInput.current?.value.trim() && !selectedFile)}
+                    disabled={
+                      isUploading ||
+                      (!textInput.current?.value.trim() && !selectedFile)
+                    }
                   >
                     {isUploading ? (
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -427,12 +436,12 @@ export default function Home() {
                   </button>
                 </div>
               </div>
-            </div> 
+            </div>
             <div className="text-center text-sm text-gray-500 mb-4">
               Remembrance can make mistakes. Check important info.
             </div>
           </div>
-        ))}
+        )}
         <div className="grow w-full flex items-center flex-col justify-center p-2 relative min-h-[80vh]">
           <div
             aria-hidden="true"
@@ -454,8 +463,12 @@ export default function Home() {
                 onSubmit={async (e) => {
                   e.preventDefault();
                   const firstMessage =
-                    (document.getElementById("FirstMessage") as HTMLInputElement)?.value || "";
-                  
+                    (
+                      document.getElementById(
+                        "FirstMessage",
+                      ) as HTMLInputElement
+                    )?.value || "";
+
                   if (!firstMessage.trim() && !selectedFile) return;
 
                   if (selectedFile) {
@@ -477,7 +490,17 @@ export default function Home() {
                     setConversationId(newId);
                     SetConversation(newconversation);
                     saveConversation(user.uid, newconversation, newId);
-                    (document.getElementById("FirstMessage") as HTMLInputElement).value = "";
+                    console.clear();
+                    if (path == "/" && newId) {
+                      router.prefetch("/chat/" + newId);
+                      router.push("/chat/" + newId);
+                    }
+
+                    (
+                      document.getElementById(
+                        "FirstMessage",
+                      ) as HTMLInputElement
+                    ).value = "";
                   }
                 }}
                 role="search"
@@ -523,7 +546,7 @@ export default function Home() {
                 </Button>
               </form>
             </div>
-          ) : ( !isDragAccept ?(
+          ) : !isDragAccept ? (
             <div className="w-full h-full flex flex-col items-center overflow-y-scroll relative max-h-[80vh] mt-5 gap-9">
               <div className="my-5"></div>
               {conversation.messages
@@ -549,12 +572,16 @@ export default function Home() {
                 })}
               <div ref={scrollRef}></div>
             </div>
-          ):(
+          ) : (
             <div className="w-full h-full  flex items-center justify-center">
-              <img alt="File"  className="h-6 w-6 object-cover rounded" src="/file2.svg"/>
+              <img
+                alt="File"
+                className="h-6 w-6 object-cover rounded"
+                src="/file2.svg"
+              />
               <h3>Drop Files here to add them to the conversation.</h3>
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>

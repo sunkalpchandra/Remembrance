@@ -225,7 +225,7 @@ async def process_query_async(messages, user_id: str):
 
 # ------------------------------- FLASK API -----------------------------------
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True, allow_headers="*", methods=["GET", "POST", "OPTIONS"])
 
 @app.route("/query", methods=["POST"])
 def handle_query():
@@ -312,6 +312,29 @@ neo4jUrl = os.getenv("NEO4J_URL")
 neo4jUsername = os.getenv("NEO4J_USERNAME")
 neo4jPassword = os.getenv("NEO4J_PASSWORD")
 neo4jDb = os.getenv("NEO4J_DATABASE")
+
+@app.route("/user/<user_id>/test_graph", methods=["POST"])
+def test_get_user_graph(user_id: str):
+    from neo4j import GraphDatabase
+
+    driver = GraphDatabase.driver(
+        neo4jUrl,
+        auth=(neo4jUsername, neo4jPassword)
+    )
+
+    query = """
+    MATCH (m:Memory {userId: ${user_id}})
+    RETURN m LIMIT 50
+    """
+
+    results = []
+    with driver.session(databse=neo4jDb) as session:
+        data = session.run(query, user_id=user_id)
+        for record in data:
+            node = record["m"]
+            results.append(dict(node))
+
+        return jsonify({"status": "success", "user_id": user_id, "nodes": results})
 
 def safe_dict(items):
     result = {}

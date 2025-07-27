@@ -48,11 +48,27 @@ const Neo4jGraph = ({ userId, onNodeClick }: { userId: string; onNodeClick?: (no
                 setLoading(false);
             })
             .catch(err => {
-                console.error("Graph load error:", err);
+                // console.error("Graph load error:", err);
                 setError(err.message);
                 setLoading(false);
             });
     }, [userId, nodeColors]);
+
+    const fetchUserGraph = async (userId: string) => {
+        try {
+        const res = await fetch(`http://localhost:5000/user/${userId}/test_graph`, {
+            method: "POST",
+        });
+
+        console.log("Test Graph Response", res);
+
+        const data = await res.json();
+        console.log(data.nodes);
+        }
+        catch (err: any) {
+            console.error("Test Graph Error", err);
+        }
+    }
 
     useEffect(() => {
         const syncAndFetch = async () => {
@@ -61,25 +77,25 @@ const Neo4jGraph = ({ userId, onNodeClick }: { userId: string; onNodeClick?: (no
 
             try {
             // First sync memories to Neo4j
-            const syncRes = await fetch(`http://localhost:5000/user/${userId}/populate_graph`, {
-                method: "POST",
-            });
-            if (!syncRes.ok) throw new Error("Failed to sync memories");
+                const syncRes = await fetch(`http://localhost:5000/user/${userId}/populate_graph`, {
+                    method: "POST",
+                });
+                if (!syncRes.ok) throw new Error("Failed to sync memories");
 
-            // Then fetch graph
-            const graphRes = await fetch(`http://localhost:5000/user/${userId}/graph`);
-            if (!graphRes.ok) throw new Error("Failed to load graph");
+                // Then fetch graph
+                const graphRes = await fetch(`http://localhost:5000/user/${userId}/graph`);
+                if (!graphRes.ok) throw new Error("Failed to load graph");
 
-            const data = await graphRes.json();
+                const data = await graphRes.json();
 
-            const coloredNodes = data.nodes.map((node: any, index: any) => ({
-                ...node,
-                color: nodeColors[index % nodeColors.length],
-            }));
+                const coloredNodes = data.nodes.map((node: any, index: any) => ({
+                    ...node,
+                    color: nodeColors[index % nodeColors.length],
+                }));
 
-            setGraph({ nodes: coloredNodes, links: data.links });
+                setGraph({ nodes: coloredNodes, links: data.links });
             } catch (err: any) {
-            console.error("Graph load error:", err);
+            // console.error("Graph load error:", err);
             setError(err.message);
             } finally {
             setLoading(false);
@@ -99,6 +115,9 @@ const Neo4jGraph = ({ userId, onNodeClick }: { userId: string; onNodeClick?: (no
                     Memory Connections
                 </h3>
             </div>
+            <button className="border-black rounded-xl bg-black" onClick={() => fetchUserGraph(userId)}>
+                Test console log graph
+            </button>
             <ForceGraph2D 
                 graphData={graph}
                 nodeAutoColorBy="label" // Remove this since we're manually coloring

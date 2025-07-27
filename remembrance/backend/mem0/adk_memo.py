@@ -25,6 +25,7 @@ load_dotenv()
 
 google_api_key = os.getenv("GOOGLE_API_KEY")
 memo_api_key   = os.getenv("MEMO_API_KEY")
+# openai.api_key = os.getenv("OPENAI_API_KEY")
 
 model = "gemini-2.5-flash"                 # LLM model to use
 
@@ -95,7 +96,46 @@ def get_memory_from_user(user_id: str) -> Memory:
     memory_cache[user_id] = mem
     return mem
 
+def test_neo4j_connection(user_id: str):
+    try:
+        memory = get_memory_from_user(user_id=user_id)
+        
+        # Test with a simple message
+        test_result = memory.add(
+            messages=[{"role": "user", "content": "Test message for Neo4j connection"}],
+            user_id=user_id
+        )
+        print(f"[DEBUG] Neo4j test successful: {test_result}")
+        return True
+    except Exception as e:
+        print(f"[ERROR] Neo4j test failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 # ----------------------- TOOL FUNCTIONS FOR THE AGENT ------------------------
+# def save_user_info(information: str, **kwargs) -> dict:
+#     user_id = kwargs.get("user_id") or current_user_id_var.get() or getattr(thread_local, "user_id", None)
+#     if not user_id:
+#         return {"status": "error", "message": "user_id is missing"}
+
+#     try:
+#         print(f"[DEBUG] SAVE_USER_INFO called for user_id={user_id}: {information}")
+#         response = mem0_client.add(
+#             messages=[{"role": "user", "content": information}],
+#             user_id=user_id,
+#             metadata={"type": "client_information", "app": app_name, "userId": user_id},
+#             output_format="v1.1"
+#         )
+
+#         memory = get_memory_from_user(user_id=user_id)
+#         memory.save(information)
+
+#         return {"status": "saved", "details": response, "message": f"Successfully saved: {information}"}
+#     except Exception as e:
+#         print(f"[ERROR] Exception in save_user_info: {e}")
+#         return {"status": "error", "message": f"Failed to save: {str(e)}"}
+
 def save_user_info(information: str, **kwargs) -> dict:
     user_id = kwargs.get("user_id") or current_user_id_var.get() or getattr(thread_local, "user_id", None)
     if not user_id:
@@ -103,6 +143,8 @@ def save_user_info(information: str, **kwargs) -> dict:
 
     try:
         print(f"[DEBUG] SAVE_USER_INFO called for user_id={user_id}: {information}")
+        
+        # Save to Mem0 cloud
         response = mem0_client.add(
             messages=[{"role": "user", "content": information}],
             user_id=user_id,
@@ -110,8 +152,14 @@ def save_user_info(information: str, **kwargs) -> dict:
             output_format="v1.1"
         )
 
-        memory = get_memory_from_user(user_id=user_id)
-        memory.save(information)
+        # Save to local Neo4j
+        try:
+            memory = get_memory_from_user(user_id=user_id)
+            neo4j_result = memory.save(information)
+            print(f"[DEBUG] Neo4j save result: {neo4j_result}")
+        except Exception as neo4j_error:
+            print(f"[ERROR] Neo4j save failed: {neo4j_error}")
+            # Continue execution - don't fail the whole function
 
         return {"status": "saved", "details": response, "message": f"Successfully saved: {information}"}
     except Exception as e:
@@ -308,10 +356,17 @@ def serve_uploaded_file(user_id, filename):
 
 memory_cache = {}
 
-neo4jUrl = os.getenv("NEO4J_URL")
-neo4jUsername = os.getenv("NEO4J_USERNAME")
-neo4jPassword = os.getenv("NEO4J_PASSWORD")
-neo4jDb = os.getenv("NEO4J_DATABASE")
+neo4jUrl = os.getenv("NEO4J_URL", "neo4j+s://ba91be75.databases.neo4j.io")
+neo4jUsername = os.getenv("NEO4J_USERNAME", "neo4j")
+neo4jPassword = os.getenv("NEO4J_PASSWORD", "BTawsLNEOdzmHNyZY0I52GL6cekh08irgeFemNU0eng")
+neo4jDb = os.getenv("NEO4J_DATABASE", "neo4j")
+
+@app.route("/test_neo4j/<user_id>", methods=["GET"])
+def test_neo4j(user_id: str):
+    text = "me park today see dog with red collar"
+    memory = Memory(user_id)
+    memory.add(text=text)
+    return jsonify({"message": "Memory added for user", "user_id": user_id})
 
 @app.route("/user/<user_id>/test_graph", methods=["POST"])
 def test_get_user_graph(user_id: str):
@@ -323,12 +378,12 @@ def test_get_user_graph(user_id: str):
     )
 
     query = """
-    MATCH (m:Memory {userId: ${user_id}})
+    MATCH (m:Memory {userId: $user_id})
     RETURN m LIMIT 50
     """
 
     results = []
-    with driver.session(databse=neo4jDb) as session:
+    with driver.session(database=neo4jDb) as session:
         data = session.run(query, user_id=user_id)
         for record in data:
             node = record["m"]
@@ -402,25 +457,103 @@ def get_user_graph(user_id: str):
 
 @app.route("/user/<user_id>/populate_graph", methods=["POST"])
 def populate_graph_from_mem0(user_id):
+    from neo4j import GraphDatabase
+    import json
+
+    driver = GraphDatabase.driver(
+        neo4jUrl,
+        auth=(neo4jUsername, neo4jPassword)
+    )
+
     try:
-        results = mem0_client.get_all(user_id=user_id)
-        memories = [m.get("memory") for m in results if m.get("memory")]
+        # Get all memories for the user
+        results = mem0_client.get_all(user_id=user_id, output_format="v1.1")
+        print(f"[DEBUG] Raw response from mem0_client.get_all(): {results}")
 
-        memory = get_memory_from_user(user_id=user_id)
+        # Handle the paginated response structure
+        if isinstance(results, dict) and "results" in results:
+            memories = results["results"]
+        elif isinstance(results, list):
+            memories = results
+        else:
+            print(f"[ERROR] Unexpected response format: {type(results)}")
+            return jsonify({"status": "error", "message": "Unexpected response format from Mem0"}), 500
 
-        count = 0
-        for mem in memories:
-            content = mem.get("content")
-            if content:
-                memory.save(content)
-                count += 1
+        print(f"[DEBUG] Found {len(memories)} memories to process")
 
+        with driver.session(database=neo4jDb) as session:
+            # Ensure user node exists
+            session.run("MERGE (u:User {userId: $user_id})", user_id=user_id)
+
+            count = 0
+            for mem in memories:
+                print(f"[DEBUG] Processing memory: {mem}")
+                
+                # Extract memory content
+                if isinstance(mem, dict):
+                    memory_content = mem.get("memory")
+                    memory_id = mem.get("id")
+                    metadata = mem.get("metadata", {})
+                    created_at = mem.get("created_at")
+                    
+                    if not memory_content:
+                        print(f"[DEBUG] Skipping memory with no content: {mem}")
+                        continue
+
+                    # Create summary (first 50 chars)
+                    summary = memory_content[:50] + "..." if len(memory_content) > 50 else memory_content
+
+                    # Convert metadata to JSON string (Neo4j can store strings)
+                    metadata_json = json.dumps(metadata) if metadata else "{}"
+                    
+                    # Extract individual metadata fields as separate properties
+                    metadata_type = metadata.get("type", "") if isinstance(metadata, dict) else ""
+                    metadata_app = metadata.get("app", "") if isinstance(metadata, dict) else ""
+
+                    # Insert into Neo4j with proper data types
+                    session.run("""
+                        MERGE (u:User {userId: $user_id})
+                        CREATE (m:Memory {
+                            id: $memory_id,
+                            content: $content,
+                            summary: $summary,
+                            userId: $user_id,
+                            createdAt: $created_at,
+                            metadataJson: $metadata_json,
+                            metadataType: $metadata_type,
+                            metadataApp: $metadata_app
+                        })
+                        MERGE (u)-[:HAS_MEMORY]->(m)
+                    """, 
+                    user_id=user_id, 
+                    memory_id=memory_id,
+                    content=memory_content, 
+                    summary=summary,
+                    created_at=created_at,
+                    metadata_json=metadata_json,
+                    metadata_type=metadata_type,
+                    metadata_app=metadata_app
+                    )
+
+                    count += 1
+                    print(f"[DEBUG] Successfully inserted memory {count}: {memory_id}")
+
+                else:
+                    print(f"[DEBUG] Skipping non-dict memory: {mem}")
+
+        driver.close()
+        
         return jsonify({
             "status": "success",
-            "message": f"{count} memories populated into neo4j for user {user_id}"
+            "message": f"{count} memories written to Neo4j for {user_id}",
+            "total_found": len(memories),
+            "total_inserted": count
         })
 
     except Exception as e:
+        print(f"[ERROR] Failed to populate Neo4j: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/health", methods=["GET"])

@@ -29,6 +29,23 @@ const Neo4jGraph = ({ userId, onNodeClick }: { userId: string; onNodeClick?: (no
     useEffect(() => {
         setLoading(true);
         setError(null);
+
+        fetch(`http://localhost:5000/test_neo4j/${userId}`)
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error("Failed to establish neo4j connection");
+                    return res.json();
+                }
+            })
+            .catch(error => {
+                setError(error.message);
+                setLoading(false);
+            })
+    }, [userId]);
+
+    useEffect(() => {
+        setLoading(true);
+        setError(null);
         
         fetch(`http://localhost:5000/user/${userId}/graph`)
             .then(res => {

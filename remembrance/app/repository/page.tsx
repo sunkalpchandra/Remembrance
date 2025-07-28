@@ -119,11 +119,11 @@ export default function Page() {
         ? current.children
         : newRepo.memories.children;
     check = check.filter((e) => {
-      return e.name.match(/New Memory [1-9]+/) || e.name.trim() == "New Memory";
+      return e.name.match(/Untitled [1-9]+/) || e.name.trim() == "Untitled";
     });
     //if lag gets bad this can be rewritten to use a sort and be much more time efficent
     for (let i = 0; i < check.length; i++) {
-      let value = `New Memory ${nameAddition == 0 ? "" : nameAddition + 1}`;
+      let value = `Untitled ${nameAddition == 0 ? "" : nameAddition + 1}`;
       if (check[i].name == value) {
         nameAddition++;
         i = 0;
@@ -132,7 +132,7 @@ export default function Page() {
     const randomId = new Uint8Array(32);
     crypto.getRandomValues(randomId);
     const newMemory: Memory = {
-      name: `New Memory ${nameAddition == 0 ? "" : nameAddition + 1}`,
+      name: `Untitled ${nameAddition == 0 ? "" : nameAddition + 1}`,
       content: " ",
       topics: [],
       summary: "",

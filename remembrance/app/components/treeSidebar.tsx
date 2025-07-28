@@ -501,9 +501,7 @@ export default function TreeSidebar({
       >
         <div
           className={`group flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-150 cursor-move w-full ${nodeClass} ${
-            isSelected
-              ? "bg-blue-100 border border-blue-200"
-              : "hover:bg-gray-100"
+            isSelected ? "bg-white border border-gray-200" : "hover:bg-gray-100"
           } ${isBeingDragged ? "opacity-30 transform scale-95" : ""}`}
           onClick={() => onNodeSelect(node)}
           {...dragHandlers}
@@ -569,9 +567,15 @@ export default function TreeSidebar({
                     ? "text-blue-700"
                     : "text-gray-700 hover:text-gray-900"
               }`}
-              title={node.name}
+              title={
+                node.name.length > 15
+                  ? `${node.name.slice(0, 15)}...`
+                  : node.name
+              }
             >
-              {node.name}
+              {node.name.length > 15
+                ? `${node.name.slice(0, 15)}...`
+                : node.name}
               {isDropTarget && (
                 <span className="text-xs text-blue-600 ml-2">
                   {dropTarget.action === "inside"

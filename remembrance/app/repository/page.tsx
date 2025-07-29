@@ -15,7 +15,7 @@ import NovelEditor from "../components/novelEditor";
 
 const initialRepo: MemoriesRepo = {
   memories: {
-    name: "root",
+    name: "",
     children: [],
   },
 };
@@ -150,8 +150,24 @@ export default function Page() {
   };
 
   const handleNodeSelect = (node: Memory | Topic) => {
-    setCurrent(node);
+    // If it's a Topic (folder/collection), don't set it as current to show empty state
+    if ("children" in node) {
+      setCurrent(null);
+    } else {
+      // It's a Memory, set it as current
+      setCurrent(node);
+    }
     setCommand("");
+  };
+
+  // Check if repository is empty
+  const isRepositoryEmpty = () => {
+    return !repo.memories.children || repo.memories.children.length === 0;
+  };
+
+  // Check if we should show empty state
+  const shouldShowEmptyState = () => {
+    return !current || (current && "children" in current) || isRepositoryEmpty();
   };
 
   // Setup resize handlers
@@ -308,7 +324,7 @@ export default function Page() {
 
         {/* Notion-style Page */}
         <div className="flex-1 overflow-y-auto">
-          {current ? (
+          {current && !("children" in current) && !shouldShowEmptyState() ? (
             <div className="px-6 py-8">
               {/* Title - Now editable in the editor */}
               {/* Summary - Now editable in the editor */}
@@ -396,6 +412,12 @@ export default function Page() {
                     }
                   }}
                 >
+                  {/* Put Info, i.e. Folder > Name */}
+                  {/* Put Info, i.e. Folder > Category > Name */}
+                  <h1 className="text-gray-400 font-bold text-lg">
+                    Repository > {current && GetPath(current) && GetPath(current).length > 1 ? `${GetPath(current)[0].name.length <= 10 ? GetPath(current)[0].name : GetPath(current)[0].name.substring(0, 10)} > ${(current.name.length <= 10 ? current.name : current.name.substring(0, 10)) || "Untitled"}` : ((current?.name.length <= 10 ? current.name : current.name.substring(0, 10)) || "Untitled")}
+                  </h1>
+                  {/* Editor */}
                   <NovelEditor
                     key={current.id || current.name}
                     content={{

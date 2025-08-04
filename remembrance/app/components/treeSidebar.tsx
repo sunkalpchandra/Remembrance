@@ -648,11 +648,11 @@ export default function TreeSidebar({
         className={`h-full w-full flex flex-col transition-all duration-200 ${
           isDragging
             ? "bg-blue-50 border-r-4 border-blue-400 shadow-lg"
-            : "bg-gray-50 border-r border-gray-200"
+            : "bg-gray-50 "
         }`}
       >
         {/* Header */}
-        <div className="border-b border-gray-200 px-3 py-2 w-full">
+        <div className="px-3 py-2 w-full">
           <div className="flex items-center gap-2 mb-2">
             <span className="font-bold text-gray-900 truncate">Memories</span>
             {isDragging && (

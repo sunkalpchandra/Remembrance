@@ -302,7 +302,7 @@ export default function Page() {
       <div className="flex-1 flex flex-row h-full" ref={mainContainerRef}>
         {/* Tree Sidebar */}
         <div
-          className="h-full bg-white border-r border-gray-200 overflow-y-auto"
+          className="h-full bg-white overflow-y-auto"
           style={{ width: `${25}%` }}
         >
           <TreeSidebar
@@ -317,10 +317,10 @@ export default function Page() {
         </div>
 
         {/* Tree Sidebar Resize Handle */}
-        <div
+        {/* <div
           ref={treeResizeRef}
           className="w-1 bg-gray-300 hover:bg-gray-400 cursor-col-resize"
-        />
+        /> */}
 
         {/* Notion-style Page */}
         <div className="flex-1 overflow-y-auto">
@@ -414,7 +414,7 @@ export default function Page() {
                 >
                   {/* Put Info, i.e. Folder > Name */}
                   {/* Put Info, i.e. Folder > Category > Name */}
-                  <h1 className="text-gray-400 font-bold text-lg">
+                  <h1 className="text-gray-400 font-bold text-md">
                     Repository > {current && GetPath(current) && GetPath(current).length > 1 ? `${GetPath(current)[0].name.length <= 10 ? GetPath(current)[0].name : GetPath(current)[0].name.substring(0, 10)} > ${(current.name.length <= 10 ? current.name : current.name.substring(0, 10)) || "Untitled"}` : ((current?.name.length <= 10 ? current.name : current.name.substring(0, 10)) || "Untitled")}
                   </h1>
                   {/* Editor */}

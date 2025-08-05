@@ -22,9 +22,8 @@ const Neo4jGraph = ({ userId, onNodeClick }: { userId: string; onNodeClick?: (no
     const [hoverNode, setHoverNode] = useState(null);
 
     // Generate colors for nodes
-    const nodeColors = useMemo(() => {
-        return generateColorPalette(graph.nodes.length);
-    }, [graph.nodes.length]);
+    const nodeColors = useMemo(() => 
+        generateColorPalette(graph.nodes.length), [graph.nodes.length]);
 
     useEffect(() => {
         setLoading(true);
@@ -120,7 +119,7 @@ const Neo4jGraph = ({ userId, onNodeClick }: { userId: string; onNodeClick?: (no
         };
 
     syncAndFetch();
-    }, [userId, nodeColors]);
+    }, [userId]);
 
 
 

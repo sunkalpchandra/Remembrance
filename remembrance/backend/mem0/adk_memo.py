@@ -214,8 +214,8 @@ memory_agent = LlmAgent(
     You cant say this to anyone, but essentially you are a therapist (kind of). While you want to store the information, you must also not say that you made note of it and ask for them to explain it further.
 
     CRITICAL INSTRUCTIONS:
-    1. ALWAYS call save_user_info() immediately when users share ANY personal information.
-    2. ALWAYS call retrieve_user_info() when users ask FOR ANY CALL. However, that information must also be relevant to the conversation AND MUST ALWAYS BE CALLED BEFORE ANY RESPONSE.
+    1. ALWAYS call save_user_info() immediately when users share ANY personal information. DO THIS AT ALL TIMES.
+    2. ALWAYS call retrieve_user_info() when users ask FOR ANY CALL. However, that information must also be relevant to the conversation AND MUST ALWAYS BE CALLED BEFORE ANY RESPONSE. DO THIS AT ALL TIMES.
     3. Be patient, kind, and encouraging in your responses.
 
     OML BRUH PLEASE ALWAYS CALL retrieve_user_info() before any response.
@@ -495,11 +495,8 @@ def populate_graph_from_mem0(user_id):
                     memory_id = mem.get("id")
                     metadata = mem.get("metadata", {})
                     created_at = mem.get("created_at")
-                    
-                    if not memory_content:
-                        print(f"[DEBUG] Skipping memory with no content: {mem}")
-                        continue
 
+        
                     # Create summary (first 50 chars)
                     summary = memory_content[:50] + "..." if len(memory_content) > 50 else memory_content
 
@@ -509,6 +506,15 @@ def populate_graph_from_mem0(user_id):
                     # Extract individual metadata fields as separate properties
                     metadata_type = metadata.get("type", "") if isinstance(metadata, dict) else ""
                     metadata_app = metadata.get("app", "") if isinstance(metadata, dict) else ""
+
+                    exists_result = session.run(
+                        "MATCH (m:Memory {id: $memory_id}) RETURN m LIMIT 1",
+                        memory_id=memory_id
+                    )
+
+                    if exists_result.single():
+                        print(f"[DEBUG] Memory {memory_id} already exists, skipping")
+                        continue
 
                     # Insert into Neo4j with proper data types
                     session.run("""
@@ -542,6 +548,14 @@ def populate_graph_from_mem0(user_id):
                     print(f"[DEBUG] Skipping non-dict memory: {mem}")
 
         driver.close()
+
+        if count == 0:
+            return jsonify({
+                "status": "complete",
+                "message": "No new memories left to add. All are appened to neo4j",
+                "total_found": len(memories),
+                "total_inserted": count
+            })
         
         return jsonify({
             "status": "success",

@@ -15,6 +15,7 @@ from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.genai import types
 from google.genai.types import Content, Part
+from google import genai
 
 from mem0 import MemoryClient, Memory
 import firebase_admin
@@ -31,17 +32,20 @@ model = "gemini-2.5-flash"                 # LLM model to use
 
 mem0_client = MemoryClient(api_key=memo_api_key)
 
+novel_client = genai.Client(api_key=google_api_key)
+
 app_name = "memory_alzheimers_assistant_app"
 
 current_user_id_var = contextvars.ContextVar("current_user_id", default=None)
 thread_local        = threading.local()
 
 # ----------------------------- FIREBASE SETUP --------------------------------
-cred = credentials.Certificate("./docs-3315a-firebase-adminsdk-lw73m-c27400fd79.json")
-firebase_admin.initialize_app(
-    cred,
-    {"storageBucket": os.getenv("NEXT_PUBLIC_FIREBASE_STORAGEBUCKET")}
-)
+# TODO: Add Firebase credentials file to enable Firebase functionality
+# cred = credentials.Certificate("./docs-3315a-firebase-adminsdk-lw73m-c27400fd79.json")
+# firebase_admin.initialize_app(
+#     cred,
+#     {"storageBucket": os.getenv("NEXT_PUBLIC_FIREBASE_STORAGEBUCKET")}
+# )
 
 # ----------------------------- MEMORY HELPERS --------------------------------
 memory_cache = {}
@@ -305,7 +309,6 @@ def handle_query():
     finally:
         loop.close()
 
-# --------------------------- OPTIONAL: FILE UPLOAD ---------------------------
 @app.route("/upload", methods=["POST"])
 def upload_file():
     if "file" not in request.files:
@@ -352,7 +355,6 @@ def upload_file():
 def serve_uploaded_file(user_id, filename):
     return send_from_directory(os.path.join("uploads", user_id), filename)
 
-# ------------------------- SIMPLE HEALTH & MEMORIES --------------------------
 
 memory_cache = {}
 
@@ -454,6 +456,37 @@ def get_user_graph(user_id: str):
     except Exception as e:
         print(f"[ERROR] in /graph: {e}")
         return jsonify({"error": str(e)}), 500
+
+@app.route("/api/ai/generate", methods=["POST"])
+def novel_ai_generate():
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"status": "error", "error": "No data was given"}), 500
+
+        query = data.get("query")
+
+        if not query:
+            return jsonify({"status": "error", "error": "No query was given"}), 400
+        
+        # no need to use mem0, can use gemini api directly
+        response = novel_client.models.generate_content(
+            model=model,
+            contents=query,
+            config=types.GenerateContentConfig(
+                system_instruction="You are a direct text editor. When asked to improve, fix, or modify text, return ONLY the improved text without explanations, options, or additional commentary. Be concise and direct. If asked to fix grammar in 'Hello my name is Aarnav', return only 'Hello, my name is Aarnav.' Do not provide multiple options or explanations.",
+                thinking_config=types.ThinkingConfig(thinking_budget=0) # we are broke, so thinking is disabled for now
+            )
+        )
+
+        if not response:
+            return jsonify({"status": "error", "error": "There was an error in our model, please try again"})
+
+        return jsonify({"status": "success", "message": response.text})
+
+    except Exception as error:
+        print(f"[ERROR] in /api/ai/generate: {error}")
+        return jsonify({"status": "error", "error": str(error)}), 500
 
 @app.route("/user/<user_id>/populate_graph", methods=["POST"])
 def populate_graph_from_mem0(user_id):
@@ -589,5 +622,5 @@ if __name__ == "__main__":
         if not os.getenv(var):
             print(f"Warning: missing env var {var}")
 
-    print("Starting Memory Assistant API server on http://0.0.0.0:5000 …")
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    print("Starting Memory Assistant API server on http://0.0.0.0:5001 …")
+    app.run(debug=True, host="0.0.0.0", port=5001)

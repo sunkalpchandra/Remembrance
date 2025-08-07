@@ -180,7 +180,7 @@ export default function Home() {
 
     try {
       const response = await axios.post(
-        "http://localhost:5000/upload",
+        "http://localhost:5001/upload",
         formData,
         {
           headers: { "Content-Type": "multipart/form-data" },
@@ -268,7 +268,7 @@ export default function Home() {
     if (!lastUserMsg) return;
 
     try {
-      const response = await axios.post("http://localhost:5000/query", {
+      const response = await axios.post("http://localhost:5001/query", {
         query: conversation.messages,
         user_id: user?.uid,
       });

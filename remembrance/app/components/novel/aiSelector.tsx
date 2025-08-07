@@ -13,7 +13,7 @@ interface AISelectorProps {
   onOpenChange: (open: boolean) => void;
 }     
 
-const AISelector = ({ open }: AISelectorProps) => {
+const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
   const { editor } = useEditor();
   const [inputValue, setInputValue] = useState("");
   const [completion, setCompletion] = useState("");
@@ -27,9 +27,8 @@ const AISelector = ({ open }: AISelectorProps) => {
     setIsLoading(true);
     setError("");
     try {
-      const res = await axios.post("http://localhost:5000/api/ai/generate", {
+      const res = await axios.post("http://localhost:5001/api/ai/generate", {
         query: prompt,
-        // command: option || input value needs impl later
       });
 
       const data = res.data;
@@ -37,9 +36,21 @@ const AISelector = ({ open }: AISelectorProps) => {
         throw new Error(data.error || "Ai Request Failed");
       }
 
-      setCompletion(data.message || "");
-      editor.chain().focus().insertContent(data.message || "").run();
+      const aiResponse = data.message || "";
+      setCompletion(aiResponse);
+      
+      if (option && !editor.state.selection.empty) {
+        // If this is a command (like fix, improve, etc.) and there's selected text,
+        // replace the selected text with the AI response
+        editor.chain().focus().deleteSelection().insertContent(aiResponse).run();
+      } else {
+        // Otherwise, just insert the content at the current position
+        editor.chain().focus().insertContent(aiResponse).run();
+      }
+      
       setInputValue("");
+      // Close the AI selector after successful completion
+      setTimeout(() => onOpenChange(false), 1000);
     } catch (e: any) {
       setError(e.message || "Unknown error");
     } finally {
@@ -54,6 +65,26 @@ const AISelector = ({ open }: AISelectorProps) => {
         <CommandInput
           value={inputValue}
           onChange={e => setInputValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (inputValue.trim()) {
+                handleComplete(inputValue);
+              } else {
+                const text = editor.state.doc.textBetween(
+                  editor.state.selection.from,
+                  editor.state.selection.to,
+                  ""
+                );
+                if (text.trim()) {
+                  handleComplete(text);
+                }
+              }
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              onOpenChange(false);
+            }
+          }}
           autoFocus
           placeholder="Ask AI to edit or generate..."
           disabled={isLoading}
@@ -63,15 +94,22 @@ const AISelector = ({ open }: AISelectorProps) => {
           size="icon"
           className="h-7 w-7 rounded-full bg-blue-500 hover:bg-blue-900 shadow-none border-none flex items-center justify-center"
           onClick={() => {
-            const slice = editor.state.selection.content();
-            const text = editor.state.doc.textBetween(
-              editor.state.selection.from,
-              editor.state.selection.to,
-              ""
-            );
-            handleComplete(text);
+            if (inputValue.trim()) {
+              // Use the input value if there's text typed
+              handleComplete(inputValue);
+            } else {
+              // Otherwise, use selected text
+              const text = editor.state.doc.textBetween(
+                editor.state.selection.from,
+                editor.state.selection.to,
+                ""
+              );
+              if (text.trim()) {
+                handleComplete(text);
+              }
+            }
           }}
-          disabled={isLoading}
+          disabled={isLoading || (!inputValue.trim() && editor.state.selection.empty)}
         >
           <ArrowUp className="h-4 w-4" />
         </Button>

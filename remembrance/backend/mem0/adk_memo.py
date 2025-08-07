@@ -39,11 +39,12 @@ current_user_id_var = contextvars.ContextVar("current_user_id", default=None)
 thread_local        = threading.local()
 
 # ----------------------------- FIREBASE SETUP --------------------------------
-cred = credentials.Certificate("./docs-3315a-firebase-adminsdk-lw73m-c27400fd79.json")
-firebase_admin.initialize_app(
-    cred,
-    {"storageBucket": os.getenv("NEXT_PUBLIC_FIREBASE_STORAGEBUCKET")}
-)
+# TODO: Add Firebase credentials file to enable Firebase functionality
+# cred = credentials.Certificate("./docs-3315a-firebase-adminsdk-lw73m-c27400fd79.json")
+# firebase_admin.initialize_app(
+#     cred,
+#     {"storageBucket": os.getenv("NEXT_PUBLIC_FIREBASE_STORAGEBUCKET")}
+# )
 
 # ----------------------------- MEMORY HELPERS --------------------------------
 memory_cache = {}
@@ -260,7 +261,6 @@ def handle_query():
     finally:
         loop.close()
 
-# --------------------------- OPTIONAL: FILE UPLOAD ---------------------------
 @app.route("/upload", methods=["POST"])
 def upload_file():
     if "file" not in request.files:
@@ -307,7 +307,6 @@ def upload_file():
 def serve_uploaded_file(user_id, filename):
     return send_from_directory(os.path.join("uploads", user_id), filename)
 
-# ------------------------- SIMPLE HEALTH & MEMORIES --------------------------
 
 memory_cache = {}
 
@@ -397,7 +396,7 @@ def novel_ai_generate():
             model=model,
             contents=query,
             config=types.GenerateContentConfig(
-                system_instruction="You are a grammarly type of grammar editor, please make anything that the user asks for grammatically correct",
+                system_instruction="You are a direct text editor. When asked to improve, fix, or modify text, return ONLY the improved text without explanations, options, or additional commentary. Be concise and direct. If asked to fix grammar in 'Hello my name is Aarnav', return only 'Hello, my name is Aarnav.' Do not provide multiple options or explanations.",
                 thinking_config=types.ThinkingConfig(thinking_budget=0) # we are broke, so thinking is disabled for now
             )
         )
@@ -453,5 +452,5 @@ if __name__ == "__main__":
         if not os.getenv(var):
             print(f"Warning: missing env var {var}")
 
-    print("Starting Memory Assistant API server on http://0.0.0.0:5000 …")
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    print("Starting Memory Assistant API server on http://0.0.0.0:5001 …")
+    app.run(debug=True, host="0.0.0.0", port=5001)

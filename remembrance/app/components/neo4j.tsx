@@ -30,7 +30,7 @@ const Neo4jGraph = ({ userId, onNodeClick }: { userId: string; onNodeClick?: (no
         setLoading(true);
         setError(null);
         
-        fetch(`http://localhost:5000/user/${userId}/graph`)
+        fetch(`http://localhost:5001/user/${userId}/graph`)
             .then(res => {
                 if (!res.ok) throw new Error("Failed to load graph");
                 return res.json();
@@ -61,13 +61,13 @@ const Neo4jGraph = ({ userId, onNodeClick }: { userId: string; onNodeClick?: (no
 
             try {
             // First sync memories to Neo4j
-            const syncRes = await fetch(`http://localhost:5000/user/${userId}/populate_graph`, {
+            const syncRes = await fetch(`http://localhost:5001/user/${userId}/populate_graph`, {
                 method: "POST",
             });
             if (!syncRes.ok) throw new Error("Failed to sync memories");
 
             // Then fetch graph
-            const graphRes = await fetch(`http://localhost:5000/user/${userId}/graph`);
+            const graphRes = await fetch(`http://localhost:5001/user/${userId}/graph`);
             if (!graphRes.ok) throw new Error("Failed to load graph");
 
             const data = await graphRes.json();

@@ -40,16 +40,12 @@ const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
       setCompletion(aiResponse);
       
       if (option && !editor.state.selection.empty) {
-        // If this is a command (like fix, improve, etc.) and there's selected text,
-        // replace the selected text with the AI response
         editor.chain().focus().deleteSelection().insertContent(aiResponse).run();
       } else {
-        // Otherwise, just insert the content at the current position
         editor.chain().focus().insertContent(aiResponse).run();
       }
       
       setInputValue("");
-      // Close the AI selector after successful completion
       setTimeout(() => onOpenChange(false), 1000);
     } catch (e: any) {
       setError(e.message || "Unknown error");
@@ -68,17 +64,21 @@ const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
+              const selectedText = editor.state.doc.textBetween(
+                editor.state.selection.from,
+                editor.state.selection.to,
+                ""
+              );
+              
               if (inputValue.trim()) {
-                handleComplete(inputValue);
-              } else {
-                const text = editor.state.doc.textBetween(
-                  editor.state.selection.from,
-                  editor.state.selection.to,
-                  ""
-                );
-                if (text.trim()) {
-                  handleComplete(text);
+                if (selectedText.trim()) {
+                  const combinedPrompt = `${inputValue} "${selectedText}"`;
+                  handleComplete(combinedPrompt, "custom");
+                } else {
+                  handleComplete(inputValue);
                 }
+              } else if (selectedText.trim()) {
+                handleComplete(selectedText);
               }
             } else if (e.key === "Escape") {
               e.preventDefault();
@@ -86,7 +86,7 @@ const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
             }
           }}
           autoFocus
-          placeholder="Ask AI to edit or generate..."
+          placeholder="Ask AI to edit or generate... (selected text will be included)"
           disabled={isLoading}
           className="flex-1 border-none shadow-none focus:ring-0 bg-transparent h-8 px-0"
         />
@@ -94,19 +94,21 @@ const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
           size="icon"
           className="h-7 w-7 rounded-full bg-blue-500 hover:bg-blue-900 shadow-none border-none flex items-center justify-center"
           onClick={() => {
+            const selectedText = editor.state.doc.textBetween(
+              editor.state.selection.from,
+              editor.state.selection.to,
+              ""
+            );
+            
             if (inputValue.trim()) {
-              // Use the input value if there's text typed
-              handleComplete(inputValue);
-            } else {
-              // Otherwise, use selected text
-              const text = editor.state.doc.textBetween(
-                editor.state.selection.from,
-                editor.state.selection.to,
-                ""
-              );
-              if (text.trim()) {
-                handleComplete(text);
+              if (selectedText.trim()) {
+                const combinedPrompt = `${inputValue} "${selectedText}"`;
+                handleComplete(combinedPrompt, "custom");
+              } else {
+                handleComplete(inputValue);
               }
+            } else if (selectedText.trim()) {
+              handleComplete(selectedText);
             }
           }}
           disabled={isLoading || (!inputValue.trim() && editor.state.selection.empty)}
@@ -114,7 +116,6 @@ const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
           <ArrowUp className="h-4 w-4" />
         </Button>
       </div>
-      {/* Gray divider below input row */}
       <div className="border-b border-gray-200 w-full" />
       {error && (
         <div className="text-red-500 text-xs px-3 pb-1">{error}</div>

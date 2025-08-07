@@ -15,6 +15,7 @@ from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.genai import types
 from google.genai.types import Content, Part
+from google import genai
 
 from mem0 import MemoryClient, Memory
 import firebase_admin
@@ -29,6 +30,8 @@ memo_api_key   = os.getenv("MEMO_API_KEY")
 model = "gemini-2.5-flash"                 # LLM model to use
 
 mem0_client = MemoryClient(api_key=memo_api_key)
+
+novel_client = genai.Client(api_key=google_api_key)
 
 app_name = "memory_alzheimers_assistant_app"
 
@@ -376,6 +379,37 @@ def get_user_graph(user_id: str):
     except Exception as e:
         print(f"[ERROR] in /graph: {e}")
         return jsonify({"error": str(e)}), 500
+
+@app.route("/api/ai/generate", methods=["POST"])
+def novel_ai_generate():
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"status": "error", "error": "No data was given"}), 500
+
+        query = data.get("query")
+
+        if not query:
+            return jsonify({"status": "error", "error": "No query was given"}), 400
+        
+        # no need to use mem0, can use gemini api directly
+        response = novel_client.models.generate_content(
+            model=model,
+            contents=query,
+            config=types.GenerateContentConfig(
+                system_instruction="You are a grammarly type of grammar editor, please make anything that the user asks for grammatically correct",
+                thinking_config=types.ThinkingConfig(thinking_budget=0) # we are broke, so thinking is disabled for now
+            )
+        )
+
+        if not response:
+            return jsonify({"status": "error", "error": "There was an error in our model, please try again"})
+
+        return jsonify({"status": "success", "message": response.text})
+
+    except Exception as error:
+        print(f"[ERROR] in /api/ai/generate: {error}")
+        return jsonify({"status": "error", "error": str(error)}), 500
 
 @app.route("/user/<user_id>/populate_graph", methods=["POST"])
 def populate_graph_from_mem0(user_id):

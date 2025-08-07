@@ -1,4 +1,4 @@
-"use client";
+m "use client";
 
 import { EditorContent, EditorRoot, EditorBubble, Color } from "novel";
 import { defaultExtensions } from "./extensions";

@@ -11,7 +11,7 @@ import Magic from "./ui/magic";
 interface AISelectorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}   
+}     
 
 const AISelector = ({ open }: AISelectorProps) => {
   const { editor } = useEditor();

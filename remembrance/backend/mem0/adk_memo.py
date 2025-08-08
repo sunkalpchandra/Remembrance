@@ -103,7 +103,7 @@ def get_memory_from_user(user_id: str) -> Memory:
 def test_neo4j_connection(user_id: str):
     try:
         memory = get_memory_from_user(user_id=user_id)
-        
+
         # Test with a simple message
         test_result = memory.add(
             messages=[{"role": "user", "content": "Test message for Neo4j connection"}],
@@ -147,7 +147,7 @@ def save_user_info(information: str, **kwargs) -> dict:
 
     try:
         print(f"[DEBUG] SAVE_USER_INFO called for user_id={user_id}: {information}")
-        
+
         # Save to Mem0 cloud
         response = mem0_client.add(
             messages=[{"role": "user", "content": information}],
@@ -468,7 +468,7 @@ def novel_ai_generate():
 
         if not query:
             return jsonify({"status": "error", "error": "No query was given"}), 400
-        
+
         # no need to use mem0, can use gemini api directly
         response = novel_client.models.generate_content(
             model=model,
@@ -521,7 +521,7 @@ def populate_graph_from_mem0(user_id):
             count = 0
             for mem in memories:
                 print(f"[DEBUG] Processing memory: {mem}")
-                
+
                 # Extract memory content
                 if isinstance(mem, dict):
                     memory_content = mem.get("memory")
@@ -529,13 +529,13 @@ def populate_graph_from_mem0(user_id):
                     metadata = mem.get("metadata", {})
                     created_at = mem.get("created_at")
 
-        
+
                     # Create summary (first 50 chars)
                     summary = memory_content[:50] + "..." if len(memory_content) > 50 else memory_content
 
                     # Convert metadata to JSON string (Neo4j can store strings)
                     metadata_json = json.dumps(metadata) if metadata else "{}"
-                    
+
                     # Extract individual metadata fields as separate properties
                     metadata_type = metadata.get("type", "") if isinstance(metadata, dict) else ""
                     metadata_app = metadata.get("app", "") if isinstance(metadata, dict) else ""
@@ -563,10 +563,10 @@ def populate_graph_from_mem0(user_id):
                             metadataApp: $metadata_app
                         })
                         MERGE (u)-[:HAS_MEMORY]->(m)
-                    """, 
-                    user_id=user_id, 
+                    """,
+                    user_id=user_id,
                     memory_id=memory_id,
-                    content=memory_content, 
+                    content=memory_content,
                     summary=summary,
                     created_at=created_at,
                     metadata_json=metadata_json,
@@ -589,7 +589,7 @@ def populate_graph_from_mem0(user_id):
                 "total_found": len(memories),
                 "total_inserted": count
             })
-        
+
         return jsonify({
             "status": "success",
             "message": f"{count} memories written to Neo4j for {user_id}",
@@ -622,5 +622,5 @@ if __name__ == "__main__":
         if not os.getenv(var):
             print(f"Warning: missing env var {var}")
 
-    print("Starting Memory Assistant API server on http://0.0.0.0:5001 …")
-    app.run(debug=True, host="0.0.0.0", port=5001)
+    print("Starting Memory Assistant API server on http://0.0.0.0:5000 …")
+    app.run(debug=True, host="0.0.0.0", port=5000)

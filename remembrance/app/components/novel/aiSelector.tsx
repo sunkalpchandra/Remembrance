@@ -11,7 +11,7 @@ import axios from "axios";
 interface AISelectorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}     
+}
 
 const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
   const { editor } = useEditor();
@@ -27,7 +27,7 @@ const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
     setIsLoading(true);
     setError("");
     try {
-      const res = await axios.post("http://localhost:5001/api/ai/generate", {
+      const res = await axios.post("http://localhost:5000/api/ai/generate", {
         query: prompt,
       });
 
@@ -38,13 +38,18 @@ const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
 
       const aiResponse = data.message || "";
       setCompletion(aiResponse);
-      
+
       if (option && !editor.state.selection.empty) {
-        editor.chain().focus().deleteSelection().insertContent(aiResponse).run();
+        editor
+          .chain()
+          .focus()
+          .deleteSelection()
+          .insertContent(aiResponse)
+          .run();
       } else {
         editor.chain().focus().insertContent(aiResponse).run();
       }
-      
+
       setInputValue("");
       setTimeout(() => onOpenChange(false), 1000);
     } catch (e: any) {
@@ -60,16 +65,16 @@ const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
         <Magic className="h-5 w-5 text-blue-500 group-hover:text-black transition-colors mr-2" />
         <CommandInput
           value={inputValue}
-          onChange={e => setInputValue(e.target.value)}
+          onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               const selectedText = editor.state.doc.textBetween(
                 editor.state.selection.from,
                 editor.state.selection.to,
-                ""
+                "",
               );
-              
+
               if (inputValue.trim()) {
                 if (selectedText.trim()) {
                   const combinedPrompt = `${inputValue} "${selectedText}"`;
@@ -97,9 +102,9 @@ const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
             const selectedText = editor.state.doc.textBetween(
               editor.state.selection.from,
               editor.state.selection.to,
-              ""
+              "",
             );
-            
+
             if (inputValue.trim()) {
               if (selectedText.trim()) {
                 const combinedPrompt = `${inputValue} "${selectedText}"`;
@@ -111,15 +116,15 @@ const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
               handleComplete(selectedText);
             }
           }}
-          disabled={isLoading || (!inputValue.trim() && editor.state.selection.empty)}
+          disabled={
+            isLoading || (!inputValue.trim() && editor.state.selection.empty)
+          }
         >
           <ArrowUp className="h-4 w-4" />
         </Button>
       </div>
       <div className="border-b border-gray-200 w-full" />
-      {error && (
-        <div className="text-red-500 text-xs px-3 pb-1">{error}</div>
-      )}
+      {error && <div className="text-red-500 text-xs px-3 pb-1">{error}</div>}
       <div className="px-1 py-0">
         <AISelectorCommands
           onSelect={(value, option) => handleComplete(value, option)}
@@ -139,4 +144,4 @@ const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
   );
 };
 
-export default AISelector; 
+export default AISelector;

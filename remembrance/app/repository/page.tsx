@@ -295,14 +295,14 @@ export default function Page() {
   const graphWidth = 100 - treeSidebarWidth - notionPageWidth;
 
   return (
-    <div className="flex w-screen h-screen flex-row items-stretch text-black bg-gray-50 overflow-hidden">
+    <div className="flex w-screen h-screen flex-row items-stretch text-black bg-white overflow-hidden">
       {/* Main Sidebar */}
       <SideBar selected={1} />
       {/* Main Content Container */}
       <div className="flex-1 flex flex-row h-full" ref={mainContainerRef}>
         {/* Tree Sidebar */}
         <div
-          className="h-full bg-white overflow-y-auto"
+          className="h-full bg-white overflow-y-auto mb-3"
           style={{ width: `${25}%` }}
         >
           <TreeSidebar

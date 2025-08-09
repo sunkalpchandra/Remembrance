@@ -648,7 +648,7 @@ export default function TreeSidebar({
         className={`h-full w-full flex flex-col transition-all duration-200 ${
           isDragging
             ? "bg-blue-50 border-r-4 border-blue-400 shadow-lg"
-            : "bg-gray-50 "
+            : "bg-white "
         }`}
       >
         {/* Header */}

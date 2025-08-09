@@ -441,7 +441,7 @@ export default function Neo4jGraph({
   return (
     <div
       ref={containerRef}
-      className="w-full h-[80%] border rounded-md border-gray-300  bg-white shadow-sm overflow-hidden relative"
+      className="w-full h-[97%] border rounded-md border-gray-300  bg-white overflow-hidden relative"
     >
       {error && <div className="p-2 text-red-500">Error: {error}</div>}
 

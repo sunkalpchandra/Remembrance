@@ -33,7 +33,7 @@ export default function Page() {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [current, setCurrent] = useState<Memory | Topic | null>(null);
   const [treeSidebarWidth, setTreeSidebarWidth] = useState(12);
-  const [notionPageWidth, setNotionPageWidth] = useState(65);
+  const [notionPageWidth, setNotionPageWidth] = useState(61.5);
   const [user, setUser] = useState<User | null>(null);
 
   const [content, setContent] = useState(null);
@@ -495,15 +495,10 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Notion Page Resize Handle */}
-      <div
-        ref={notionResizeRef}
-        className="w-1 bg-gray-300 hover:bg-gray-400 cursor-col-resize"
-      />
 
       {/* Graph View */}
       <div
-        className="h-full bg-white overflow-hidden"
+        className="h-full overflow-hidden m-3 rounded-md"
         style={{ width: `${graphWidth}%` }}
       >
         <Neo4jGraph

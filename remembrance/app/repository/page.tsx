@@ -167,7 +167,9 @@ export default function Page() {
 
   // Check if we should show empty state
   const shouldShowEmptyState = () => {
-    return !current || (current && "children" in current) || isRepositoryEmpty();
+    return (
+      !current || (current && "children" in current) || isRepositoryEmpty()
+    );
   };
 
   // Setup resize handlers
@@ -415,7 +417,14 @@ export default function Page() {
                   {/* Put Info, i.e. Folder > Name */}
                   {/* Put Info, i.e. Folder > Category > Name */}
                   <h1 className="text-gray-400 font-bold text-md">
-                    Repository > {current && GetPath(current) && GetPath(current).length > 1 ? `${GetPath(current)[0].name.length <= 10 ? GetPath(current)[0].name : GetPath(current)[0].name.substring(0, 10)} > ${(current.name.length <= 10 ? current.name : current.name.substring(0, 10)) || "Untitled"}` : ((current?.name.length <= 10 ? current.name : current.name.substring(0, 10)) || "Untitled")}
+                    Repository &gt;{" "}
+                    {/*@ts-expect-error Expecting this madness to happen.*/}
+                    {current && GetPath(current) && GetPath(current).length > 1
+                      ? // @ts-expect-error Expecting this madness to happen.
+                        `${GetPath(current)[0].name.length <= 10 ? GetPath(current)[0].name : GetPath(current)[0].name.substring(0, 10)} > ${(current.name.length <= 10 ? current.name : current.name.substring(0, 10)) || "Untitled"}`
+                      : (current?.name.length <= 10
+                          ? current.name
+                          : current.name.substring(0, 10)) || "Untitled"}
                   </h1>
                   {/* Editor */}
                   <NovelEditor
@@ -494,7 +503,6 @@ export default function Page() {
           )}
         </div>
       </div>
-
 
       {/* Graph View */}
       <div

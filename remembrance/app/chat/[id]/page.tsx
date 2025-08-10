@@ -1,7 +1,7 @@
 "use client";
 import Home from "@/app/page";
 
-const ChatPage = ({ params }: { params: { ids: string } }) => {
+const ChatPage = ({ params }: { params: { id: string } }) => {
   return <Home />;
 };
 

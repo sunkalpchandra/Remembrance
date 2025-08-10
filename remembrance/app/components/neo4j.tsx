@@ -458,6 +458,7 @@ export default function Neo4jGraph({
         className="mt-5 rounded-lg"
       >
         {!loading && (
+          // @ts-expect-error Expecting this error
           <ForceGraph2D
             key={graphKey}
             ref={fgRef}

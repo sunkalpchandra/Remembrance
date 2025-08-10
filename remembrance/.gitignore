@@ -43,5 +43,5 @@ yarn-error.log*
 next-env.d.ts
 *.venv
 *temp
-*docs-3315a-firebase-adminsdk-lw73m-c27400fd79.json
+docs-3315a-firebase-adminsdk-lw73m-c27400fd79.json
 *uploads

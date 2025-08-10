@@ -6,11 +6,12 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/test_neo4j/:path*",
-        destination: "http://localhost:5000/test_neo4j/:path*",
+        destination:
+          "https://remembrance-backend.onrender.com/test_neo4j/:path*",
       },
       {
         source: "/user/:path*",
-        destination: "http://localhost:5000/user/:path*",
+        destination: "https://remembrance-backend.onrender.com/user/:path*",
       },
     ];
   },

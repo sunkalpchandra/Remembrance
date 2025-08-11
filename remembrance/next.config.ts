@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  images: {
+    remotePatterns: [new URL("https://cdn.theorg.com/*")],
+  },
 };
 
 export default nextConfig;

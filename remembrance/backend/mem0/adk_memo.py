@@ -21,8 +21,8 @@ from google.genai.types import Content, Part
 from google import genai
 
 from mem0 import MemoryClient, Memory
-import firebase_admin
-from firebase_admin import credentials, storage
+# import firebase_admin
+# from firebase_admin import credentials, storage
 
 # ----------------------------- ENV & BASIC SETUP -----------------------------
 load_dotenv()

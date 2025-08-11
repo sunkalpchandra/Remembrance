@@ -26,7 +26,9 @@ export function BotProfile(props: { name: string }) {
   // );
   return (
     <Image
-      src={"/Remembrance.png"}
+      src={
+        "https://cdn.theorg.com/cf7d2f28-2d09-4a7b-b5ac-686f31eeb5ec_thumb.jpg"
+      }
       height={40}
       width={40}
       className={`bg-gray-200 rounded-full text-white flex items-center justify-center w-10 h-10 text-lg font-semibold`}

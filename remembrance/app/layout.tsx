@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import UserContextProvider from "./components/usercontext";
+import { RootProvider } from "fumadocs-ui/provider";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -13,9 +14,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body suppressHydrationWarning>
-        <UserContextProvider> {children}</UserContextProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body
+        // you can use Tailwind CSS too
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100vh',
+        }}
+      >
+        <RootProvider>
+          <UserContextProvider>{children}</UserContextProvider>
+        </RootProvider>
       </body>
     </html>
   );

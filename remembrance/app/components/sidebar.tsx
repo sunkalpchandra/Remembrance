@@ -32,6 +32,7 @@ import {
   BiTrash,
 } from "react-icons/bi";
 import { TfiLayersAlt } from "react-icons/tfi";
+import { BsBookHalf } from "react-icons/bs";
 
 interface SidebarProps {
   selected: number;
@@ -57,6 +58,14 @@ const SideBarOptions = [
     tag: "beta",
     tagcolor: "#000000",
   },
+  {
+    text: "Documentation",
+    iconPath: "",
+    link: "/docs",
+    tag: "beta",
+    tagcolor: "#000000"
+  },
+
 ] as SideBarChoiceProps[];
 
 function SideBarChatList({ userId }: { userId: string | any }) {
@@ -398,6 +407,22 @@ export default function SideBar(props: SidebarProps) {
               <span className="text-sm font-medium">Dashboard</span>
             )}
           </div>
+
+          {/* Documentation */}
+          <button
+            onClick={() => {
+              router.push("/docs");
+            }}
+            className={`flex items-center w-full text-gray-700 hover:bg-gray-100 rounded-md cursor-pointer transition-colors duration-75 ${
+              collapsed ? "justify-center p-2" : "gap-3 px-2 py-1.5"
+            }`}
+            title={collapsed ? "Documentation" : ""}
+          >
+              <BsBookHalf className="w-4 h-4 flex-shrink-0" />
+              {!collapsed && (
+                <span className="text-sm font-medium">Documentation</span>
+              )}
+          </button>
         </div>
 
         {/* Chats Section */}

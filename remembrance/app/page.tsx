@@ -180,7 +180,7 @@ export default function Home() {
 
     try {
       const response = await axios.post(
-        "https://remembrance-backend.onrender.com/upload",
+        "http://localhost:5000/upload",
         formData,
         {
           headers: { "Content-Type": "multipart/form-data" },
@@ -268,13 +268,10 @@ export default function Home() {
     if (!lastUserMsg) return;
 
     try {
-      const response = await axios.post(
-        "https://remembrance-backend.onrender.com/query",
-        {
-          query: conversation.messages,
-          user_id: user?.uid,
-        },
-      );
+      const response = await axios.post("http://localhost:5000/query", {
+        query: conversation.messages,
+        user_id: user?.uid,
+      });
 
       const message = {
         sentByUser: false,

@@ -27,12 +27,9 @@ const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
     setIsLoading(true);
     setError("");
     try {
-      const res = await axios.post(
-        "https://remembrance-backend.onrender.com/api/ai/generate",
-        {
-          query: prompt,
-        },
-      );
+      const res = await axios.post("http://localhost:5000/api/ai/generate", {
+        query: prompt,
+      });
 
       const data = res.data;
       if (data.status !== "success") {

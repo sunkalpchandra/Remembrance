@@ -440,10 +440,16 @@ export default function Home() {
           </div>
           {conversation == undefined ? (
             <div className="relative z-10 flex flex-col items-center w-full">
-              <h1 className="text-6xl font-extrabold bg-gradient-to-br from-black via-gray-800 to-gray-600 bg-clip-text text-transparent drop-shadow-lg text-center mb-2 select-none">
-                Welcome to Remembrance
+              <h1
+                className="text-4xl font-extrabold bg-gradient-to-br from-black via-gray-800 to-gray-600 bg-clip-text text-transparent drop-shadow-lg text-center mb-2 select-none animate-fade-in"
+                style={{ animationFillMode: "both" }}
+              >
+                Remembrance
               </h1>
-              <p className="text-xl text-gray-500 font-medium mb-8 text-center max-w-xl select-none">
+              <p
+                className="text-base text-gray-500 font-medium mb-8 text-center max-w-xl select-none animate-fade-in"
+                style={{ animationDelay: "0.25s", animationFillMode: "both" }}
+              >
                 Relive, preserve, and cherish your most important memories.
                 Start by asking anything or sharing a thought below.
               </p>

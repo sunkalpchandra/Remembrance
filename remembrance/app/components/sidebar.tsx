@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useContext, useEffect, useState, useRef } from "react";
+import { useContext, useEffect, useState } from "react";
 import type { SideBarChoiceProps } from "./sidebarchoice";
 import type { SideBarBaseProps } from "./sidebarchoicebase";
 import { UserContext } from "@/app/components/usercontext";
@@ -15,7 +15,6 @@ import {
 } from "@/backend/lib/db";
 import { useParams } from "next/navigation";
 import {
-  BiChevronDown,
   BiChevronRight,
   BiHash,
   BiPlus,
@@ -23,10 +22,6 @@ import {
   BiPencil,
   BiSolidDashboard,
   BiCheck,
-  BiLogOut,
-  BiCog,
-  BiUser,
-  BiHelpCircle,
   BiTrash,
 } from "react-icons/bi";
 import { TfiLayersAlt } from "react-icons/tfi";
@@ -228,73 +223,6 @@ function SideBarChatList({ userId }: { userId: string | any }) {
   );
 }
 
-function ProfileDropdown({
-  user,
-  onClose,
-}: {
-  user: any;
-  onClose: () => void;
-}) {
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        onClose();
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [onClose]);
-
-  return (
-    <div
-      ref={dropdownRef}
-      className="absolute bottom-full left-2 right-2 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-50"
-    >
-      <div className="px-3 py-2 border-b border-gray-100">
-        <p className="text-sm font-semibold text-gray-900 truncate">
-          {user.displayName || "User"}
-        </p>
-        <p className="text-xs text-gray-500 truncate">{user.email}</p>
-      </div>
-
-      <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-        <BiUser className="w-4 h-4" />
-        Profile
-      </button>
-
-      <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-        <BiCog className="w-4 h-4" />
-        Settings
-      </button>
-
-      <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-        <BiHelpCircle className="w-4 h-4" />
-        Help & Support
-      </button>
-
-      <div className="border-t border-gray-100 mt-1 pt-1">
-        <button
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-          onClick={() => {
-            onClose();
-          }}
-        >
-          <BiLogOut className="w-4 h-4" />
-          Sign out
-        </button>
-      </div>
-    </div>
-  );
-}
-
 const BaseOptions = [
   {
     text: "Open Source",
@@ -311,7 +239,6 @@ export default function SideBar(props: SidebarProps) {
   const user = useContext(UserContext);
   const [collapsed, setCollapsed] = useState(false);
   const [chatsExpanded, setChatsExpanded] = useState(true);
-  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
   const handleNewChat = () => {
     router.push("/");
@@ -448,46 +375,6 @@ export default function SideBar(props: SidebarProps) {
         )}
       </div>
 
-      {/* Bottom Section */}
-      {!collapsed && (
-        <div className="border-t border-gray-200 p-3 relative">
-          {/* User Info */}
-          {user && (
-            <>
-              <button
-                onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                className="w-full flex items-center gap-3 px-2 py-2 hover:bg-gray-100 rounded-md cursor-pointer transition-colors duration-75"
-              >
-                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-sm font-semibold text-gray-700">
-                    {user.displayName?.charAt(0) ||
-                      user.email?.charAt(0) ||
-                      "U"}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0 text-left">
-                  <p className="text-sm font-semibold text-gray-900 truncate">
-                    {user.displayName || "User"}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate font-medium">
-                    {user.email}
-                  </p>
-                </div>
-                <BiChevronDown
-                  className={`w-4 h-4 text-gray-500 flex-shrink-0 transition-transform duration-150 ${showProfileDropdown ? "rotate-180" : ""}`}
-                />
-              </button>
-
-              {showProfileDropdown && (
-                <ProfileDropdown
-                  user={user}
-                  onClose={() => setShowProfileDropdown(false)}
-                />
-              )}
-            </>
-          )}
-        </div>
-      )}
     </div>
   );
 }

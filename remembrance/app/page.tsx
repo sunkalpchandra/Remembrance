@@ -26,9 +26,6 @@ export default function Home() {
   const [dropDown, setDropDown] = useState(false);
   const dropDownRef = useRef<HTMLDivElement | null>(null);
 
-  const [isRecording, setIsRecording] = useState(false);
-  const recognitionRef = useRef<any>(null);
-
   const [landingInput, setLandingInput] = useState("");
   const landingInputRef = useRef<HTMLInputElement>(null);
 
@@ -209,44 +206,6 @@ export default function Home() {
     }
   };
 
-  const handleRecordAudio = async () => {
-    if (!isRecording) {
-      // start the recording
-      if (!("webkitSpeechRecognition" in window)) {
-        alert("Your browser does not support speech recognition.");
-        return;
-      }
-
-      const SpeechRecognition =
-        (window as any).webkitSpeechRecognition ||
-        (window as any).SpeechRecognition;
-      const recognition = new SpeechRecognition();
-      recognition.lang = "en-US";
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setChatInput((prev) => (prev ? prev + " " + transcript : transcript));
-      };
-      recognition.onend = () => {
-        setIsRecording(false);
-      };
-      recognition.onerror = (error: any) => {
-        console.error("Error occurred in recognition: ", error);
-        setIsRecording(false);
-        alert("Error occurred while recording audio. Please try again.");
-      };
-      recognitionRef.current = recognition;
-      setIsRecording(true);
-      setTimeout(async () => {
-        await recognition.start();
-      }, 4000);
-    } else {
-      await recognitionRef.current?.stop();
-      setIsRecording(false);
-    }
-  };
-
   const handleSendMessage = async () => {
     const messageText = chatInput.trim();
 
@@ -346,7 +305,7 @@ export default function Home() {
       >
         {!isDragAccept && conversation != undefined && (
           <div className="flex flex-col gap-3 mx-2 mb-6 items-center">
-            <div className="w-[80%] max-w-3xl rounded-[32px] liquid-glass flex flex-col">
+            <div className="w-[80%] max-w-3xl rounded-2xl liquid-glass flex flex-col">
               {filePreview && (
                 <div className="flex items-center gap-2 px-3 pt-3">
                   <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-100 rounded-xl max-w-full">
@@ -410,20 +369,6 @@ export default function Home() {
                   />
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    className={`p-1.5 rounded-full transition-colors ${
-                      isRecording
-                        ? "bg-red-600 hover:bg-red-700"
-                        : "bg-black hover:bg-gray-800"
-                    }`}
-                    onClick={handleRecordAudio}
-                    aria-label={
-                      isRecording ? "Stop recording" : "Start recording"
-                    }
-                  >
-                    <img src="/microphone.svg" className="w-3.5" alt="" />
-                  </button>
                   <button
                     type="button"
                     className="p-1.5 rounded-full bg-black text-white hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"

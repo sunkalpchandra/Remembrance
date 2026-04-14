@@ -11,7 +11,7 @@ services:
         value: 3.11.9
       - key: GOOGLE_API_KEY
         sync: false
-      - key: MEMO_API_KEY
+      - key: MEM0_API_KEY
         sync: false
 
   - type: web
@@ -25,7 +25,4 @@ services:
       - key: NODE_VERSION
         value: 20.11.1
       - key: NEXT_PUBLIC_BACKEND_URL
-        fromService:
-          type: web
-          name: remembrance-backend
-          property: host
+        sync: false

@@ -29,7 +29,7 @@ from mem0 import MemoryClient, Memory
 load_dotenv()
 
 google_api_key = os.getenv("GOOGLE_API_KEY")
-memo_api_key   = os.getenv("MEMO_API_KEY")
+memo_api_key   = os.getenv("MEM0_API_KEY") or os.getenv("MEMO_API_KEY")
 # openai.api_key = os.getenv("OPENAI_API_KEY")
 
 model = "gemini-2.5-flash"                 # LLM model to use
@@ -80,26 +80,29 @@ def get_memory_from_user(user_id: str) -> Memory:
                 "top_p": 1.0,
             },
         },
-        # ---------------------------------------------------------------------
-        # Neo4j graph-store block REMOVED – comment back in if you restore Neo4j
-        "graph_store": {
+    }
+
+    neo4j_url = os.getenv("NEO4J_URL") or os.getenv("NEO4JURL")
+    neo4j_user = os.getenv("NEO4J_USERNAME") or os.getenv("NEO4JUSERNAME")
+    neo4j_pass = os.getenv("NEO4J_PASSWORD") or os.getenv("NEO4JPASSWORD")
+    neo4j_db = os.getenv("NEO4J_DATABASE") or os.getenv("NEO4JDB") or "neo4j"
+
+    if neo4j_url and neo4j_user and neo4j_pass:
+        user_config["graph_store"] = {
             "provider": "neo4j",
             "config": {
-                "url": os.getenv("NEO4JURL"),
-                "username": os.getenv("NEO4JUSERNAME"),
-                "password": os.getenv("NEO4JPASSWORD"),
-                "database": os.getenv("NEO4JDB"),
+                "url": neo4j_url,
+                "username": neo4j_user,
+                "password": neo4j_pass,
+                "database": neo4j_db,
                 "default_node_properties": {"userId": user_id},
             },
             "llm": {
                 "provider": "gemini",
                 "config": {"model": model, "temperature": 0.0, "api_key": google_api_key},
             },
-        },
-        # ---------------------------------------------------------------------
-    }
+        }
 
-    pprint.pprint(user_config)  # optional: comment out to silence console noise
     mem = Memory.from_config(config_dict=user_config)
     memory_cache[user_id] = mem
     return mem
@@ -317,8 +320,8 @@ def upload_file():
     file_path  = os.path.join(upload_dir, saved_name)
     file.save(file_path)
 
-    NGROK_URL  = "https://ed58f759da7e.ngrok-free.app"
-    public_url = f"{NGROK_URL}/uploads/{user_id}/{saved_name}"
+    base_url = os.getenv("PUBLIC_BACKEND_URL") or request.host_url.rstrip("/")
+    public_url = f"{base_url}/uploads/{user_id}/{saved_name}"
 
     prompt_text = f"I have uploaded an image here: {public_url}. Please describe this image."
 
@@ -348,9 +351,9 @@ def serve_uploaded_file(user_id, filename):
 
 memory_cache = {}
 
-neo4jUrl = os.getenv("NEO4J_URL", "neo4j+s://ba91be75.databases.neo4j.io")
-neo4jUsername = os.getenv("NEO4J_USERNAME", "neo4j")
-neo4jPassword = os.getenv("NEO4J_PASSWORD", "BTawsLNEOdzmHNyZY0I52GL6cekh08irgeFemNU0eng")
+neo4jUrl = os.getenv("NEO4J_URL")
+neo4jUsername = os.getenv("NEO4J_USERNAME")
+neo4jPassword = os.getenv("NEO4J_PASSWORD")
 neo4jDb = os.getenv("NEO4J_DATABASE", "neo4j")
 
 @app.route("/test_neo4j/<user_id>", methods=["GET"])
@@ -608,7 +611,7 @@ def get_user_memories(user_id):
 
 # --------------------------- MAIN ENTRY POINT --------------------------------
 if __name__ == "__main__":
-    for var in ["GOOGLE_API_KEY", "MEMO_API_KEY"]:
+    for var in ["GOOGLE_API_KEY", "MEM0_API_KEY"]:
         if not os.getenv(var):
             print(f"Warning: missing env var {var}")
 

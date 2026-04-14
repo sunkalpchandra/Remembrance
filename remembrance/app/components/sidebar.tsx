@@ -257,8 +257,8 @@ export default function SideBar(props: SidebarProps) {
           className={`flex items-center ${collapsed ? "justify-center" : "justify-between"}`}
         >
           {!collapsed && (
-            <div className="flex items-center gap-2 flex-1">
-              <span className="font-bold text-gray-900">Remembrance</span>
+            <div className="flex items-center gap-2 flex-1 px-2">
+              <span className="text-gray-900 text-sm font-medium">Remembrance</span>
             </div>
           )}
           <button

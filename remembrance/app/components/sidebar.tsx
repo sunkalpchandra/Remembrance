@@ -310,8 +310,8 @@ export default function SideBar(props: SidebarProps) {
                   chatsExpanded ? "rotate-90" : ""
                 }`}
               />
-              <span className="text-sm font-semibold text-gray-700 tracking-wide">
-                Chats
+              <span className="text-gray-900 text-sm font-medium">
+                Recent
               </span>
             </button>
 

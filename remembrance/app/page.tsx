@@ -4,7 +4,6 @@ import type React from "react";
 
 import { useContext, useEffect, useRef, useState } from "react";
 import type { Conversation } from "@/app/lib/types";
-import CircleButton from "@/app/components/circlebutton";
 import { HumanMessage } from "./components/messages/humanmessage";
 import { BotMessage } from "./components/messages/botmessage";
 import axios from "axios";
@@ -14,7 +13,7 @@ import { v4 as uuidv4 } from "uuid";
 import { getConversationById, saveConversation } from "@/backend/lib/db";
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/novel/ui/button";
-import { Paperclip, ArrowUp, X } from "lucide-react";
+import { Plus, ArrowUp, X } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { text } from "stream/consumers";
 
@@ -32,6 +31,8 @@ export default function Home() {
 
   const [landingInput, setLandingInput] = useState("");
   const landingInputRef = useRef<HTMLInputElement>(null);
+
+  const [chatInput, setChatInput] = useState("");
 
   const user = useContext(UserContext);
   const params = useParams();
@@ -225,9 +226,7 @@ export default function Home() {
       recognition.maxAlternatives = 1;
       recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
-        if (textInput.current) {
-          textInput.current.value = transcript;
-        }
+        setChatInput((prev) => (prev ? prev + " " + transcript : transcript));
       };
       recognition.onend = () => {
         setIsRecording(false);
@@ -249,9 +248,10 @@ export default function Home() {
   };
 
   const handleSendMessage = async () => {
-    const messageText = textInput.current.value.trim();
+    const messageText = chatInput.trim();
 
     if (!messageText && !selectedFile) return;
+    if (isUploading) return;
 
     if (selectedFile) {
       await uploadFile();
@@ -259,7 +259,7 @@ export default function Home() {
 
     if (messageText) {
       sendHumanMessage(messageText);
-      textInput.current.value = "";
+      setChatInput("");
     }
   };
 
@@ -345,55 +345,62 @@ export default function Home() {
         className="grow h-screen flex flex-col-reverse gap-5 "
       >
         {!isDragAccept && conversation != undefined && (
-          <div className="flex flex-col gap-4 mx-2 mb-4 items-center">
-            <div className="border-1 border-opacity-10 border-[#A3A3A3] w-[80%] rounded-xl bg-white flex flex-col">
-              {/* File preview section */}
+          <div className="flex flex-col gap-3 mx-2 mb-6 items-center">
+            <div className="w-[80%] max-w-3xl rounded-[32px] liquid-glass flex flex-col">
               {filePreview && (
-                <div className="relative p-2 border-b">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <img
-                        src={filePreview}
-                        alt="Preview"
-                        className="h-12 w-12 object-cover rounded"
-                      />
-                      <span className="text-sm text-gray-600">
-                        {selectedFile?.name}
-                      </span>
-                    </div>
+                <div className="flex items-center gap-2 px-3 pt-3">
+                  <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-100 rounded-xl max-w-full">
+                    <img
+                      src={filePreview}
+                      alt="Attachment preview"
+                      className="h-8 w-8 object-cover rounded-md flex-shrink-0"
+                    />
+                    <span className="text-sm text-gray-700 truncate max-w-[240px]">
+                      {selectedFile?.name}
+                    </span>
                     <button
+                      type="button"
                       onClick={removeSelectedFile}
-                      className="p-1 rounded-full hover:bg-gray-100"
+                      className="p-0.5 rounded-full hover:bg-gray-200 transition-colors"
+                      aria-label="Remove attachment"
                     >
-                      <X className="w-4 h-4 text-gray-500" />
+                      <X className="w-3.5 h-3.5 text-gray-500" />
                     </button>
                   </div>
                 </div>
               )}
 
-              <div className="w-full">
-                <textarea
-                  className="w-full outline-none resize-none pt-5 px-2"
-                  placeholder="Turn your complex thoughts into graphs..."
-                  ref={textInput}
-                  onKeyUp={(e) => {
-                    if (e.key == "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                ></textarea>
-              </div>
+              <textarea
+                ref={textInput}
+                value={chatInput}
+                onChange={(e) => {
+                  setChatInput(e.target.value);
+                  const el = e.currentTarget;
+                  el.style.height = "auto";
+                  el.style.height = Math.min(el.scrollHeight, 200) + "px";
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                rows={1}
+                placeholder="Turn your complex thoughts into graphs..."
+                className="w-full outline-none resize-none px-4 pt-3 pb-1 text-sm placeholder-gray-400 bg-transparent max-h-[200px]"
+                aria-label="Message"
+              />
 
-              <div className="w-full flex flex-row justify-between items-end">
-                <div className="flex-row m-3 justify-center flex gap-1">
-                  <CircleButton
-                    imgURL={"/paperclip.svg"}
+              <div className="flex flex-row justify-between items-center px-2 pb-2">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
                     onClick={handleFileUploadClick}
-                    imgAlt={"File"}
-                    hoverText={"Choose a file to upload"}
-                    popUpAbove
-                  ></CircleButton>
+                    className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                    aria-label="Attach file"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -402,35 +409,38 @@ export default function Home() {
                     accept="image/*,.pdf,.txt,.docx"
                   />
                 </div>
-                <div className="flex items-center">
+                <div className="flex items-center gap-1.5">
                   <button
-                    className={`p-2 rounded-full bg-black m-1 ${isRecording ? "bg-red-600" : "bg-black"}`}
+                    type="button"
+                    className={`p-1.5 rounded-full transition-colors ${
+                      isRecording
+                        ? "bg-red-600 hover:bg-red-700"
+                        : "bg-black hover:bg-gray-800"
+                    }`}
                     onClick={handleRecordAudio}
                     aria-label={
                       isRecording ? "Stop recording" : "Start recording"
                     }
                   >
-                    <img src="/microphone.svg" className="w-5" alt="Send" />
+                    <img src="/microphone.svg" className="w-3.5" alt="" />
                   </button>
                   <button
-                    className="p-2 rounded-full bg-black m-3 disabled:opacity-50"
+                    type="button"
+                    className="p-1.5 rounded-full bg-black text-white hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     onClick={handleSendMessage}
                     disabled={
-                      isUploading ||
-                      (!textInput.current?.value.trim() && !selectedFile)
+                      isUploading || (!chatInput.trim() && !selectedFile)
                     }
+                    aria-label="Send message"
                   >
                     {isUploading ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     ) : (
-                      <img src="/arrow-up.svg" className="w-5" alt="Send" />
+                      <img src="/arrow-up.svg" className="w-3.5" alt="" />
                     )}
                   </button>
                 </div>
               </div>
-            </div>
-            <div className="text-center text-sm text-gray-500 mb-4">
-              Remembrance can make mistakes. Check important info.
             </div>
           </div>
         )}
@@ -456,7 +466,7 @@ export default function Home() {
                 Relive, preserve, and cherish your most important memories.
               </p>
               <form
-                className="flex w-full max-w-md flex-col gap-2 bg-white/80 border border-[#afaead] shadow-lg rounded-2xl px-3 py-2 transition-all duration-200 focus-within:shadow-2xl focus-within:border-gray-400 backdrop-blur-md"
+                className="flex w-full max-w-md flex-col gap-2 liquid-glass rounded-full px-3 py-2"
                 onSubmit={async (e) => {
                   e.preventDefault();
                   const trimmed = landingInput.trim();
@@ -522,7 +532,7 @@ export default function Home() {
                     aria-label="Attach file"
                     onClick={handleFileUploadClick}
                   >
-                    <Paperclip className="w-5 h-5" />
+                    <Plus className="w-5 h-5" />
                   </Button>
                   <input
                     type="file"

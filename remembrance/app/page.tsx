@@ -2,14 +2,13 @@
 import SideBar from "@/app/components/sidebar";
 import type React from "react";
 
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import type { Conversation } from "@/app/lib/types";
 import CircleButton from "@/app/components/circlebutton";
 import { HumanMessage } from "./components/messages/humanmessage";
 import { BotMessage } from "./components/messages/botmessage";
 import axios from "axios";
-import { auth } from "@/backend/firebaseConfig";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import { UserContext } from "./components/usercontext";
 import { useParams, usePathname } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import { getConversationById, saveConversation } from "@/backend/lib/db";
@@ -31,7 +30,7 @@ export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  const [user, setUser] = useState<User | any>();
+  const user = useContext(UserContext);
   const params = useParams();
   const conversationId = params?.id as string | undefined;
   const [conversation, SetConversation] = useState(
@@ -180,7 +179,7 @@ export default function Home() {
 
     try {
       const response = await axios.post(
-        "http://localhost:5000/upload",
+        `${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/upload`,
         formData,
         {
           headers: { "Content-Type": "multipart/form-data" },
@@ -268,9 +267,9 @@ export default function Home() {
     if (!lastUserMsg) return;
 
     try {
-      const response = await axios.post("http://localhost:5000/query", {
+      const response = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/query`, {
         query: conversation.messages,
-        user_id: user?.uid,
+        user_id: user.uid,
       });
 
       const message = {
@@ -313,16 +312,6 @@ export default function Home() {
       });
     }
   }
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
 
   useEffect(() => {
     if (conversation == undefined) return;

@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+export const dynamic = "force-dynamic";
+
+import { useContext, useEffect, useRef, useState } from "react";
 import SideBar from "../components/sidebar";
 import TreeSidebar from "../components/treeSidebar";
 import { Command, MemoriesRepo, Memory, Topic } from "../lib/types";
 import { poppins } from "../lib/fonts";
 import { All_Commands } from "../lib/commands";
 import Neo4jGraph from "../components/neo4j";
-import { onAuthStateChanged, User } from "firebase/auth";
-import { auth, db } from "@/backend/firebaseConfig";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import "aframe";
+import { UserContext } from "../components/usercontext";
 import NovelEditor from "../components/novelEditor";
 
 const initialRepo: MemoriesRepo = {
@@ -34,7 +33,7 @@ export default function Page() {
   const [current, setCurrent] = useState<Memory | Topic | null>(null);
   const [treeSidebarWidth, setTreeSidebarWidth] = useState(12);
   const [notionPageWidth, setNotionPageWidth] = useState(61.5);
-  const [user, setUser] = useState<User | null>(null);
+  const user = useContext(UserContext);
 
   const [content, setContent] = useState(null);
   const [editingSummary, setEditingSummary] = useState(false);
@@ -47,11 +46,14 @@ export default function Page() {
   const notionResizeRef = useRef<HTMLDivElement | null>(null);
 
   const saveToFirestore = async (updatedRepo: MemoriesRepo) => {
-    if (!user) return;
+    if (!user || typeof window === "undefined") return;
     try {
-      await setDoc(doc(db, "memoryRepos", user.uid), updatedRepo);
+      window.localStorage.setItem(
+        `memoryRepo:${user.uid}`,
+        JSON.stringify(updatedRepo),
+      );
     } catch (error) {
-      console.error("Error saving to Firestore:", error);
+      console.error("Error saving memory repo:", error);
     }
   };
 
@@ -245,18 +247,16 @@ export default function Page() {
   }, [treeSidebarWidth, notionPageWidth]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        const docRef = doc(db, "memoryRepos", firebaseUser.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setRepo(docSnap.data() as MemoriesRepo);
-        }
+    if (!user || typeof window === "undefined") return;
+    const raw = window.localStorage.getItem(`memoryRepo:${user.uid}`);
+    if (raw) {
+      try {
+        setRepo(JSON.parse(raw) as MemoriesRepo);
+      } catch (e) {
+        console.error("Failed to load memory repo:", e);
       }
-    });
-    return () => unsubscribe();
-  }, []);
+    }
+  }, [user]);
 
   useEffect(() => {
     import("aframe");

@@ -1,9 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { MemoriesRepo, Memory, Topic } from "../lib/types";
-import { doc, setDoc, getDoc } from "firebase/firestore";
-import { db } from "@/backend/firebaseConfig";
-import { User } from "firebase/auth";
+import type { AppUser } from "./usercontext";
 import {
   BiChevronRight,
   BiFolder,
@@ -23,7 +21,7 @@ interface TreeSidebarProps {
   onAddCategorization: () => void;
   onUpdateRepo: (repo: MemoriesRepo) => void;
   selectedNode: Memory | Topic | null;
-  user: User | null;
+  user: AppUser | null;
 }
 
 // Delete Confirmation Modal Component
@@ -110,11 +108,14 @@ export default function TreeSidebar({
   }>({ isOpen: false, node: null });
 
   const saveToFirestore = async (updatedRepo: MemoriesRepo) => {
-    if (!user) return;
+    if (!user || typeof window === "undefined") return;
     try {
-      await setDoc(doc(db, "memoryRepos", user.uid), updatedRepo);
+      window.localStorage.setItem(
+        `memoryRepo:${user.uid}`,
+        JSON.stringify(updatedRepo),
+      );
     } catch (error) {
-      console.error("Error saving to Firestore:", error);
+      console.error("Error saving memory repo:", error);
     }
   };
 

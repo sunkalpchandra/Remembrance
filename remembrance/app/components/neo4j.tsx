@@ -161,7 +161,7 @@ export default function Neo4jGraph({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`http://localhost:5000/user/${userId}/graph`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/user/${userId}/graph`, {
           signal: ctrl.signal,
         });
         if (!res.ok) throw new Error("Failed to load graph");
@@ -219,10 +219,10 @@ export default function Neo4jGraph({
       if (exists) return;
       // else ask server to populate, then re-fetch
       try {
-        await fetch(`http://localhost:5000/user/${userId}/populate_graph`, {
+        await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/user/${userId}/populate_graph`, {
           method: "POST",
         });
-        const res = await fetch(`http://localhost:5000/user/${userId}/graph`);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/user/${userId}/graph`);
         if (!res.ok) throw new Error("Failed to fetch after populate");
         const data = await res.json();
         const nodes: NodeT[] = (data.nodes || []).map((n: NodeT) => ({

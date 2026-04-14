@@ -20,7 +20,6 @@
     "clsx": "^2.1.1",
     "d3-force": "^3.0.0",
     "docusaurus-init": "^1.14.7",
-    "firebase": "^11.10.0",
     "fumadocs-core": "^15.6.12",
     "fumadocs-mdx": "^11.7.5",
     "fumadocs-ui": "^15.6.12",

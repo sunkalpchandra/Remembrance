@@ -454,7 +454,7 @@ export default function Home() {
           {conversation == undefined ? (
             <div className="relative z-10 flex flex-col items-center w-full">
               <h1
-                className="text-4xl font-extrabold bg-gradient-to-br from-black via-gray-800 to-gray-600 bg-clip-text text-transparent drop-shadow-lg text-center mb-2 select-none animate-fade-in"
+                className="text-4xl font-extrabold text-gray-900 text-center mb-2 select-none animate-fade-in"
                 style={{ animationFillMode: "both" }}
               >
                 Remembrance

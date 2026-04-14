@@ -396,7 +396,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={handleFileUploadClick}
-                    className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                    className="p-1.5 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                     aria-label="Attach file"
                   >
                     <Plus className="w-4 h-4" />
@@ -454,13 +454,13 @@ export default function Home() {
           {conversation == undefined ? (
             <div className="relative z-10 flex flex-col items-center w-full">
               <h1
-                className="text-4xl font-extrabold text-gray-900 text-center mb-2 select-none animate-fade-in"
+                className="text-4xl font-normal text-gray-900 text-center mb-2 select-none animate-fade-in"
                 style={{ animationFillMode: "both" }}
               >
                 Remembrance
               </h1>
               <p
-                className="text-base text-gray-500 font-medium mb-8 text-center max-w-xl select-none animate-fade-in"
+                className="text-sm text-gray-500 font-medium mb-8 text-center max-w-xl select-none animate-fade-in"
                 style={{ animationDelay: "0.25s", animationFillMode: "both" }}
               >
                 Relive, preserve, and cherish your most important memories.
@@ -532,7 +532,7 @@ export default function Home() {
                     aria-label="Attach file"
                     onClick={handleFileUploadClick}
                   >
-                    <Plus className="w-5 h-5" />
+                    <Plus className="w-5 h-5 text-gray-400" />
                   </Button>
                   <input
                     type="file"

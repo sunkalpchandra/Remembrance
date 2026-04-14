@@ -18,13 +18,10 @@ import {
   BiChevronRight,
   BiHash,
   BiPlus,
-  BiSearch,
   BiPencil,
-  BiSolidDashboard,
   BiCheck,
   BiTrash,
 } from "react-icons/bi";
-import { TfiLayersAlt } from "react-icons/tfi";
 import { BsBookHalf } from "react-icons/bs";
 
 interface SidebarProps {
@@ -291,46 +288,6 @@ export default function SideBar(props: SidebarProps) {
               <span className="text-sm font-medium">New chat</span>
             )}
           </button>
-
-          {/* Search */}
-          <div
-            className={`flex items-center text-gray-700 hover:bg-gray-100 rounded-md cursor-pointer transition-colors duration-75 ${
-              collapsed ? "justify-center p-2" : "gap-3 px-2 py-1.5"
-            }`}
-            title={collapsed ? "Search" : ""}
-          >
-            <BiSearch className="w-4 h-4 flex-shrink-0" />
-            {!collapsed && <span className="text-sm font-medium">Search</span>}
-          </div>
-
-          {/* Memory */}
-          <button
-            onClick={() => {
-              router.push("/repository");
-            }}
-            className={`flex items-center w-full text-gray-700 hover:bg-gray-100 rounded-md cursor-pointer transition-colors duration-75 ${
-              collapsed ? "justify-center p-2" : "gap-3 px-2 py-1.5"
-            }`}
-            title={collapsed ? "Memory Graph" : ""}
-          >
-            <TfiLayersAlt className="w-4 h-4 flex-shrink-0" />
-            {!collapsed && (
-              <span className="text-sm font-medium">Memory Graph</span>
-            )}
-          </button>
-
-          {/* Dashboard */}
-          <div
-            className={`flex items-center text-gray-700 hover:bg-gray-100 rounded-md cursor-pointer transition-colors duration-75 ${
-              collapsed ? "justify-center p-2" : "gap-3 px-2 py-1.5"
-            }`}
-            title={collapsed ? "Dashboard" : ""}
-          >
-            <BiSolidDashboard className="w-4 h-4 flex-shrink-0" />
-            {!collapsed && (
-              <span className="text-sm font-medium">Dashboard</span>
-            )}
-          </div>
 
           {/* Documentation */}
           <button

@@ -30,6 +30,9 @@ export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef<any>(null);
 
+  const [landingInput, setLandingInput] = useState("");
+  const landingInputRef = useRef<HTMLInputElement>(null);
+
   const user = useContext(UserContext);
   const params = useParams();
   const conversationId = params?.id as string | undefined;
@@ -451,33 +454,28 @@ export default function Home() {
                 style={{ animationDelay: "0.25s", animationFillMode: "both" }}
               >
                 Relive, preserve, and cherish your most important memories.
-                Start by asking anything or sharing a thought below.
               </p>
               <form
-                className="flex w-full max-w-xl gap-2 items-center bg-white/80 border border-[#afaead] shadow-lg rounded-full px-6 py-3 transition-all duration-200 focus-within:shadow-2xl focus-within:scale-[1.025] backdrop-blur-md"
+                className="flex w-full max-w-md flex-col gap-2 bg-white/80 border border-[#afaead] shadow-lg rounded-2xl px-3 py-2 transition-all duration-200 focus-within:shadow-2xl focus-within:border-gray-400 backdrop-blur-md"
                 onSubmit={async (e) => {
                   e.preventDefault();
-                  const firstMessage =
-                    (
-                      document.getElementById(
-                        "FirstMessage",
-                      ) as HTMLInputElement
-                    )?.value || "";
+                  const trimmed = landingInput.trim();
 
-                  if (!firstMessage.trim() && !selectedFile) return;
+                  if (!trimmed && !selectedFile) return;
+                  if (isUploading) return;
 
                   if (selectedFile) {
                     await uploadFile();
                   }
 
-                  if (firstMessage.trim()) {
+                  if (trimmed) {
                     const newconversation: Conversation = {
                       name: "Untitled",
                       date: new Date(),
                       messages: [
                         {
                           sentByUser: true,
-                          text: firstMessage,
+                          text: trimmed,
                         },
                       ],
                     };
@@ -485,60 +483,82 @@ export default function Home() {
                     setConversationId(newId);
                     SetConversation(newconversation);
                     saveConversation(user.uid, newconversation, newId);
-                    console.clear();
+                    setLandingInput("");
                     if (path == "/" && newId) {
                       router.prefetch("/chat/" + newId);
                       router.push("/chat/" + newId);
                     }
-
-                    (
-                      document.getElementById(
-                        "FirstMessage",
-                      ) as HTMLInputElement
-                    ).value = "";
                   }
                 }}
                 role="search"
                 aria-label="Start a new conversation"
               >
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full"
-                  aria-label="Attach file"
-                  onClick={handleFileUploadClick}
-                >
-                  <Paperclip className="w-5 h-5" />
-                </Button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  style={{ display: "none" }}
-                  accept="image/*,.pdf,.txt,.docx"
-                />
-                <input
-                  type="text"
-                  id="FirstMessage"
-                  placeholder="Relive anything by asking"
-                  className="flex-1 bg-transparent outline-none text-lg px-2 placeholder-gray-400"
-                  aria-label="Ask a question to start"
-                  autoComplete="off"
-                />
-                <Button
-                  type="submit"
-                  size="icon"
-                  className="rounded-full bg-black text-white hover:bg-gray-900 shadow-md"
-                  aria-label="Start conversation"
-                  disabled={isUploading}
-                >
-                  {isUploading ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                    <ArrowUp className="w-5 h-5" />
-                  )}
-                </Button>
+                {filePreview && (
+                  <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-100 rounded-xl self-start max-w-full">
+                    <img
+                      src={filePreview}
+                      alt="Attachment preview"
+                      className="h-8 w-8 object-cover rounded-md flex-shrink-0"
+                    />
+                    <span className="text-sm text-gray-700 truncate max-w-[240px]">
+                      {selectedFile?.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={removeSelectedFile}
+                      className="p-0.5 rounded-full hover:bg-gray-200 transition-colors"
+                      aria-label="Remove attachment"
+                    >
+                      <X className="w-3.5 h-3.5 text-gray-500" />
+                    </button>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-full flex-shrink-0"
+                    aria-label="Attach file"
+                    onClick={handleFileUploadClick}
+                  >
+                    <Paperclip className="w-5 h-5" />
+                  </Button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    style={{ display: "none" }}
+                    accept="image/*,.pdf,.txt,.docx"
+                  />
+                  <input
+                    type="text"
+                    ref={landingInputRef}
+                    value={landingInput}
+                    onChange={(e) => setLandingInput(e.target.value)}
+                    placeholder="Relive anything by asking"
+                    className="flex-1 min-w-0 bg-transparent outline-none text-sm px-2 placeholder-gray-400"
+                    aria-label="Ask a question to start"
+                    autoComplete="off"
+                    autoFocus
+                    maxLength={2000}
+                  />
+                  <Button
+                    type="submit"
+                    size="icon"
+                    className="rounded-full bg-black text-white hover:bg-gray-900 shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                    aria-label="Start conversation"
+                    disabled={
+                      isUploading || (!landingInput.trim() && !selectedFile)
+                    }
+                  >
+                    {isUploading ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <ArrowUp className="w-5 h-5" />
+                    )}
+                  </Button>
+                </div>
               </form>
             </div>
           ) : !isDragAccept ? (

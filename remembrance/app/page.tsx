@@ -404,12 +404,6 @@ export default function Home() {
               >
                 Remembrance
               </h1>
-              <p
-                className="text-sm text-gray-500 font-medium mb-8 text-center max-w-xl select-none animate-fade-in"
-                style={{ animationDelay: "0.25s", animationFillMode: "both" }}
-              >
-                Relive, preserve, and cherish your most important memories.
-              </p>
               <form
                 className="flex w-full max-w-md flex-col gap-2 liquid-glass rounded-full px-3 py-2"
                 onSubmit={async (e) => {

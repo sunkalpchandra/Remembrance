@@ -43,8 +43,8 @@ export default function Home() {
   const textInput = useRef(null as any as HTMLTextAreaElement);
 
   // New state for file handling
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [filePreviews, setFilePreviews] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const {
     getRootProps,
@@ -63,17 +63,7 @@ export default function Home() {
           dataTransfer.items.add(v);
         });
         fileInputRef.current.files = dataTransfer.files;
-        const file = dataTransfer.files[0];
-        if (!file) return;
-
-        setSelectedFile(file);
-
-        if (file.type.startsWith("image/")) {
-          const previewUrl = URL.createObjectURL(file);
-          setFilePreview(previewUrl);
-        } else {
-          setFilePreview("/file2.svg");
-        }
+        addFiles(Array.from(dataTransfer.files));
       }
     },
   });
@@ -84,24 +74,35 @@ export default function Home() {
   };
   //const files = acceptedFiles.map(file => <li key={file.path}>{file.path}</li>);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setSelectedFile(file);
-
-    // Create preview for images
-    if (file.type.startsWith("image/")) {
-      const previewUrl = URL.createObjectURL(file);
-      setFilePreview(previewUrl);
-    } else {
-      setFilePreview("/file2.svg");
-    }
+  const addFiles = (files: File[]) => {
+    if (!files.length) return;
+    const previews = files.map((f) =>
+      f.type.startsWith("image/") ? URL.createObjectURL(f) : "/file2.svg",
+    );
+    setSelectedFiles((prev) => [...prev, ...files]);
+    setFilePreviews((prev) => [...prev, ...previews]);
   };
 
-  const removeSelectedFile = () => {
-    setSelectedFile(null);
-    setFilePreview(null);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    addFiles(files);
+  };
+
+  const removeFileAt = (index: number) => {
+    setFilePreviews((prev) => {
+      const url = prev[index];
+      if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
+      return prev.filter((_, i) => i !== index);
+    });
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const clearSelectedFiles = () => {
+    filePreviews.forEach((url) => {
+      if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
+    });
+    setSelectedFiles([]);
+    setFilePreviews([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -171,48 +172,50 @@ export default function Home() {
   }
 
   const uploadFile = async () => {
-    if (!selectedFile || !user) return;
+    if (!selectedFiles.length || !user) return;
 
     setIsUploading(true);
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-    formData.append("user_id", user.uid);
-
     try {
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/upload`,
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        },
-      );
+      for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("user_id", user.uid);
 
-      const result = response.data?.message || "Uploaded Successfully";
-      sendHumanMessage(`Uploaded file: ${selectedFile.name}`);
-      SetConversation((prev) =>
-        prev
-          ? {
-              ...prev,
-              messages: [...prev.messages, { sentByUser: false, text: result }],
-            }
-          : undefined,
-      );
+        const response = await axios.post(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/upload`,
+          formData,
+          {
+            headers: { "Content-Type": "multipart/form-data" },
+          },
+        );
+
+        const result = response.data?.message || "Uploaded Successfully";
+        sendHumanMessage(`Uploaded file: ${file.name}`);
+        SetConversation((prev) =>
+          prev
+            ? {
+                ...prev,
+                messages: [...prev.messages, { sentByUser: false, text: result }],
+              }
+            : undefined,
+        );
+      }
     } catch (err: any) {
       console.error("Upload failed: ", err);
       alert("Upload failed, please try again");
     } finally {
       setIsUploading(false);
-      removeSelectedFile();
+      clearSelectedFiles();
     }
   };
 
   const handleSendMessage = async () => {
     const messageText = chatInput.trim();
 
-    if (!messageText && !selectedFile) return;
+    if (!messageText && !selectedFiles.length) return;
     if (isUploading) return;
 
-    if (selectedFile) {
+    if (selectedFiles.length) {
       await uploadFile();
     }
 
@@ -290,11 +293,11 @@ export default function Home() {
   // Clean up object URLs
   useEffect(() => {
     return () => {
-      if (filePreview) {
-        URL.revokeObjectURL(filePreview);
-      }
+      filePreviews.forEach((url) => {
+        if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
+      });
     };
-  }, [filePreview]);
+  }, [filePreviews]);
 
   return (
     <div className="w-screen flex flex-row bg-white">
@@ -306,26 +309,31 @@ export default function Home() {
         {!isDragAccept && conversation != undefined && (
           <div className="flex flex-col gap-3 mx-2 mb-6 items-center">
             <div className="w-[80%] max-w-3xl rounded-2xl liquid-glass flex flex-col">
-              {filePreview && (
-                <div className="flex items-center gap-2 px-3 pt-3">
-                  <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-100 rounded-xl max-w-full">
-                    <img
-                      src={filePreview}
-                      alt="Attachment preview"
-                      className="h-8 w-8 object-cover rounded-md flex-shrink-0"
-                    />
-                    <span className="text-sm text-gray-700 truncate max-w-[240px]">
-                      {selectedFile?.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={removeSelectedFile}
-                      className="p-0.5 rounded-full hover:bg-gray-200 transition-colors"
-                      aria-label="Remove attachment"
+              {selectedFiles.length > 0 && (
+                <div className="flex items-center gap-2 px-3 pt-3 overflow-x-auto no-scrollbar">
+                  {selectedFiles.map((file, i) => (
+                    <div
+                      key={`${file.name}-${i}`}
+                      className="flex items-center gap-2 px-2 py-1.5 bg-gray-100 rounded-xl flex-shrink-0"
                     >
-                      <X className="w-3.5 h-3.5 text-gray-500" />
-                    </button>
-                  </div>
+                      <img
+                        src={filePreviews[i]}
+                        alt="Attachment preview"
+                        className="h-8 w-8 object-cover rounded-md flex-shrink-0"
+                      />
+                      <span className="text-sm text-gray-700 truncate max-w-[180px]">
+                        {file.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeFileAt(i)}
+                        className="p-0.5 rounded-full hover:bg-gray-200 transition-colors"
+                        aria-label="Remove attachment"
+                      >
+                        <X className="w-3.5 h-3.5 text-gray-500" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -366,6 +374,7 @@ export default function Home() {
                     onChange={handleFileChange}
                     style={{ display: "none" }}
                     accept="image/*,.pdf,.txt,.docx"
+                    multiple
                   />
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -374,7 +383,7 @@ export default function Home() {
                     className="p-1.5 rounded-full bg-black text-white hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     onClick={handleSendMessage}
                     disabled={
-                      isUploading || (!chatInput.trim() && !selectedFile)
+                      isUploading || (!chatInput.trim() && !selectedFiles.length)
                     }
                     aria-label="Send message"
                   >
@@ -399,21 +408,48 @@ export default function Home() {
           {conversation == undefined ? (
             <div className="relative z-10 flex flex-col items-center w-full">
               <h1
-                className="text-4xl font-normal text-gray-900 text-center mb-2 select-none animate-fade-in"
+                className="text-4xl font-normal text-gray-900 text-center mb-6 select-none animate-fade-in"
                 style={{ animationFillMode: "both" }}
               >
                 Remembrance
               </h1>
+              {selectedFiles.length > 0 && (
+                <div className="w-full max-w-md mb-2 flex items-center gap-2 overflow-x-auto no-scrollbar">
+                  {selectedFiles.map((file, i) => (
+                    <div
+                      key={`${file.name}-${i}`}
+                      className="flex items-center gap-2 px-2 py-1.5 bg-gray-100 rounded-xl flex-shrink-0"
+                    >
+                      <img
+                        src={filePreviews[i]}
+                        alt="Attachment preview"
+                        className="h-8 w-8 object-cover rounded-md flex-shrink-0"
+                      />
+                      <span className="text-sm text-gray-700 truncate max-w-[180px]">
+                        {file.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeFileAt(i)}
+                        className="p-0.5 rounded-full hover:bg-gray-200 transition-colors"
+                        aria-label="Remove attachment"
+                      >
+                        <X className="w-3.5 h-3.5 text-gray-500" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <form
                 className="flex w-full max-w-md flex-col gap-2 liquid-glass rounded-full px-3 py-2"
                 onSubmit={async (e) => {
                   e.preventDefault();
                   const trimmed = landingInput.trim();
 
-                  if (!trimmed && !selectedFile) return;
+                  if (!trimmed && !selectedFiles.length) return;
                   if (isUploading) return;
 
-                  if (selectedFile) {
+                  if (selectedFiles.length) {
                     await uploadFile();
                   }
 
@@ -442,26 +478,6 @@ export default function Home() {
                 role="search"
                 aria-label="Start a new conversation"
               >
-                {filePreview && (
-                  <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-100 rounded-xl self-start max-w-full">
-                    <img
-                      src={filePreview}
-                      alt="Attachment preview"
-                      className="h-8 w-8 object-cover rounded-md flex-shrink-0"
-                    />
-                    <span className="text-sm text-gray-700 truncate max-w-[240px]">
-                      {selectedFile?.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={removeSelectedFile}
-                      className="p-0.5 rounded-full hover:bg-gray-200 transition-colors"
-                      aria-label="Remove attachment"
-                    >
-                      <X className="w-3.5 h-3.5 text-gray-500" />
-                    </button>
-                  </div>
-                )}
                 <div className="flex items-center gap-2">
                   <Button
                     type="button"
@@ -479,6 +495,7 @@ export default function Home() {
                     onChange={handleFileChange}
                     style={{ display: "none" }}
                     accept="image/*,.pdf,.txt,.docx"
+                    multiple
                   />
                   <input
                     type="text"
@@ -498,7 +515,7 @@ export default function Home() {
                     className="rounded-full bg-black text-white hover:bg-gray-900 shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                     aria-label="Start conversation"
                     disabled={
-                      isUploading || (!landingInput.trim() && !selectedFile)
+                      isUploading || (!landingInput.trim() && !selectedFiles.length)
                     }
                   >
                     {isUploading ? (

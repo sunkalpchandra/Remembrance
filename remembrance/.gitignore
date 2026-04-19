@@ -45,3 +45,6 @@ next-env.d.ts
 *temp
 *docs-3315a-firebase-adminsdk-lw73m-c27400fd79.json
 *uploads
+
+# clerk configuration (can include secrets)
+/.clerk/

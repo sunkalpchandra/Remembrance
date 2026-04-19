@@ -1,5 +1,6 @@
 "use client";
 import SideBar from "@/app/components/sidebar";
+import { io } from "socket.io-client";
 import type React from "react";
 
 import { useContext, useEffect, useRef, useState } from "react";
@@ -202,7 +203,10 @@ export default function Home() {
           prev
             ? {
                 ...prev,
-                messages: [...prev.messages, { sentByUser: false, text: result }],
+                messages: [
+                  ...prev.messages,
+                  { sentByUser: false, text: result },
+                ],
               }
             : undefined,
         );
@@ -239,75 +243,207 @@ export default function Home() {
     if (!lastUserMsg) return;
 
     // Add empty placeholder message that we'll stream into
-    const placeholder = { sentByUser: false, text: "" };
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const placeholder = {
+      sentByUser: false,
+      text: " ",
+      status: "Connecting...",
+      request_id: requestId,
+      streamState: "streaming" as const,
+      thinkingText: "",
+    };
     SetConversation((prev) =>
-      prev ? { ...prev, messages: [...prev.messages, placeholder] } : prev
+      prev ? { ...prev, messages: [...prev.messages, placeholder] } : prev,
     );
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
-      const res = await fetch(`${backendUrl}/query/stream`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: conversation.messages, user_id: user.uid, profile }),
-      });
-
-      if (!res.ok || !res.body) throw new Error("Stream failed");
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = "";
-      let finalMemories: string[] = [];
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const raw = decoder.decode(value, { stream: true });
-        for (const line of raw.split("\n")) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const payload = JSON.parse(line.slice(6));
-            if (payload.text) {
-              accumulated += payload.text;
-              const snapshot = accumulated;
-              SetConversation((prev) => {
-                if (!prev) return prev;
-                const msgs = [...prev.messages];
-                msgs[msgs.length - 1] = { sentByUser: false, text: snapshot };
-                return { ...prev, messages: msgs };
-              });
-            }
-            if (payload.done) {
-              finalMemories = payload.memories || [];
-            }
-            if (payload.error) {
-              const errText = `Sorry, the model is busy right now. Please try again in a moment. (${payload.error})`;
-              SetConversation((prev) => {
-                if (!prev) return prev;
-                const msgs = [...prev.messages];
-                msgs[msgs.length - 1] = { sentByUser: false, text: errText };
-                return { ...prev, messages: msgs };
-              });
-            }
-          } catch {}
-        }
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
+      if (!(window as any).chatSocket) {
+        (window as any).chatSocket = io(backendUrl, {
+          transports: ["websocket"],
+        });
       }
+      const socket = (window as any).chatSocket;
 
-      const latestMemories = finalMemories.map((memory: string) => {
-        const firstSentence = memory.split(".")[0];
-        return { title: firstSentence.slice(0, 40) + (firstSentence.length > 40 ? "..." : ""), memoryText: memory };
+      // Clean up previous listeners
+      socket.off("connect");
+      socket.off("status");
+      socket.off("thinking_chunk");
+      socket.off("answer_chunk");
+      socket.off("done");
+      socket.off("error");
+      socket.off("connect_error");
+
+      let accumulatedThinking = "";
+      let accumulatedAnswer = "";
+      let finalMemories: string[] = [];
+      let didReceiveResponse = false;
+
+      const queryPayload = {
+        history: conversation.messages.slice(0, -1).map((m) => ({
+          role: m.sentByUser ? "user" : "assistant",
+          content: m.text,
+        })),
+        query: lastUserMsg,
+        user_id: user.uid,
+        profile,
+        request_id: requestId,
+      };
+
+      socket.on("status", (payload: any) => {
+        if (payload?.request_id && payload.request_id !== requestId) return;
+        didReceiveResponse = true;
+        SetConversation((prev) => {
+          if (!prev) return prev;
+          const msgs = [...prev.messages];
+          const current = msgs[msgs.length - 1] as any;
+          if (current?.request_id && current.request_id !== requestId)
+            return prev;
+          msgs[msgs.length - 1] = {
+            ...current,
+            request_id: requestId,
+            streamState: "streaming",
+            status: payload.status,
+          };
+          return { ...prev, messages: msgs };
+        });
       });
 
-      SetConversation((prev) =>
-        prev ? { ...prev, latestMemories } : prev
-      );
+      socket.on("thinking_chunk", (payload: any) => {
+        if (payload?.request_id && payload.request_id !== requestId) return;
+        didReceiveResponse = true;
+        accumulatedThinking += payload.text || "";
+        SetConversation((prev) => {
+          if (!prev) return prev;
+          const msgs = [...prev.messages];
+          const current = msgs[msgs.length - 1] as any;
+          if (current?.request_id && current.request_id !== requestId)
+            return prev;
+          msgs[msgs.length - 1] = {
+            ...current,
+            request_id: requestId,
+            streamState: "streaming",
+            sentByUser: false,
+            text: accumulatedAnswer || accumulatedThinking,
+            thinkingText: accumulatedThinking,
+          };
+          return { ...prev, messages: msgs };
+        });
+      });
+
+      socket.on("answer_chunk", (payload: any) => {
+        if (payload?.request_id && payload.request_id !== requestId) return;
+        didReceiveResponse = true;
+        accumulatedAnswer += payload.text || "";
+        SetConversation((prev) => {
+          if (!prev) return prev;
+          const msgs = [...prev.messages];
+          const current = msgs[msgs.length - 1] as any;
+          if (current?.request_id && current.request_id !== requestId)
+            return prev;
+          msgs[msgs.length - 1] = {
+            ...current,
+            request_id: requestId,
+            streamState: "streaming",
+            sentByUser: false,
+            text: accumulatedAnswer,
+            thinkingText: accumulatedThinking,
+          };
+          return { ...prev, messages: msgs };
+        });
+      });
+
+      socket.on("done", (payload: any) => {
+        if (payload?.request_id && payload.request_id !== requestId) return;
+        didReceiveResponse = true;
+        finalMemories = payload.memories || [];
+        const latestMemories = finalMemories.map((memory: string) => {
+          const firstSentence = memory.split(".")[0];
+          return {
+            title:
+              firstSentence.slice(0, 40) +
+              (firstSentence.length > 40 ? "..." : ""),
+            memoryText: memory,
+          };
+        });
+        SetConversation((prev) => {
+          if (!prev) return prev;
+          const msgs = [...prev.messages];
+          const current = msgs[msgs.length - 1] as any;
+          if (current?.request_id && current.request_id !== requestId)
+            return prev;
+          msgs[msgs.length - 1] = {
+            ...current,
+            request_id: requestId,
+            streamState: "done",
+            sentByUser: false,
+            text:
+              accumulatedAnswer || current.text || accumulatedThinking || "",
+            thinkingText: accumulatedThinking,
+            status: "Done",
+          };
+          return { ...prev, latestMemories, messages: msgs };
+        });
+      });
+
+      socket.on("error", (payload: any) => {
+        if (payload?.request_id && payload.request_id !== requestId) return;
+        didReceiveResponse = true;
+        const errText = `Sorry, the model is busy right now. Please try again in a moment. (${payload.message || payload.error})`;
+        SetConversation((prev) => {
+          if (!prev) return prev;
+          const msgs = [...prev.messages];
+          const current = msgs[msgs.length - 1] as any;
+          if (current?.request_id && current.request_id !== requestId)
+            return prev;
+          msgs[msgs.length - 1] = {
+            ...current,
+            request_id: requestId,
+            streamState: "error",
+            sentByUser: false,
+            text: errText,
+          };
+          return { ...prev, messages: msgs };
+        });
+      });
+
+      const emitQuery = () => {
+        socket.emit("query_ws", queryPayload);
+      };
+
+      // Bind listeners first, then emit to avoid first-message race conditions
+      emitQuery();
+
+      // Retry once if the first emit is lost during initial handshake
+      setTimeout(() => {
+        if (!didReceiveResponse) {
+          emitQuery();
+        }
+      }, 1200);
+
+      socket.on("connect_error", (error: any) => {
+        console.error("Socket error", error);
+        SetConversation((prev) => {
+          if (!prev) return prev;
+          const msgs = [...prev.messages];
+          msgs[msgs.length - 1] = {
+            sentByUser: false,
+            text: "Connection error occurred.",
+          };
+          return { ...prev, messages: msgs };
+        });
+      });
     } catch (err) {
       console.error("Stream error:", err);
       SetConversation((prev) => {
         if (!prev) return prev;
+
         const msgs = [...prev.messages];
-        msgs[msgs.length - 1] = { sentByUser: false, text: "Sorry, there was an error generating a response." };
+        msgs[msgs.length - 1] = {
+          sentByUser: false,
+          text: "Sorry, there was an error generating a response.",
+        };
         return { ...prev, messages: msgs };
       });
     }
@@ -371,6 +507,7 @@ export default function Home() {
               </div>
             )}
             <form
+              key="chat-form"
               className="flex w-fit flex-col gap-2 liquid-glass rounded-full p-1"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -409,7 +546,7 @@ export default function Home() {
                     }
                   }}
                   placeholder={typewriterText}
-                  className="w-80 bg-transparent outline-none text-sm px-2 placeholder-gray-400"
+                  className="w-[40rem] max-w-[70vw] bg-transparent outline-none text-lg py-1 px-2 placeholder-gray-400"
                   aria-label="Message"
                   autoComplete="off"
                   maxLength={2000}
@@ -417,16 +554,16 @@ export default function Home() {
                 <Button
                   type="submit"
                   size="icon"
-                  className="w-7 h-7 rounded-full bg-black text-white hover:bg-gray-900 shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                  className="w-9 h-9 rounded-full bg-black text-white hover:bg-gray-900 shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                   aria-label="Send message"
                   disabled={
                     isUploading || (!chatInput.trim() && !selectedFiles.length)
                   }
                 >
                   {isUploading ? (
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   ) : (
-                    <ArrowUp className="w-3.5 h-3.5" />
+                    <ArrowUp className="w-4 h-4" />
                   )}
                 </Button>
               </div>
@@ -444,7 +581,7 @@ export default function Home() {
               }`}
             >
               <h1
-                className="text-4xl font-normal text-gray-900 text-center mb-6 select-none animate-fade-in"
+                className="text-6xl font-normal text-gray-900 text-center mb-8 select-none animate-fade-in"
                 style={{ animationFillMode: "both" }}
               >
                 Remembrance
@@ -477,6 +614,7 @@ export default function Home() {
                 </div>
               )}
               <form
+                key="landing-form"
                 className="flex w-fit flex-col gap-2 liquid-glass rounded-full p-1"
                 onSubmit={async (e) => {
                   e.preventDefault();
@@ -519,16 +657,16 @@ export default function Home() {
                 role="search"
                 aria-label="Start a new conversation"
               >
-                <div className="flex items-center gap-2 pl-2 pr-1">
+                <div className="flex items-center gap-2 pl-2 pr-1 py-1">
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="w-7 h-7 rounded-full flex-shrink-0"
+                    className="w-9 h-9 rounded-full flex-shrink-0"
                     aria-label="Attach file"
                     onClick={handleFileUploadClick}
                   >
-                    <Plus className="w-4 h-4 text-gray-400" />
+                    <Plus className="w-5 h-5 text-gray-400" />
                   </Button>
                   <input
                     type="file"
@@ -544,7 +682,7 @@ export default function Home() {
                     value={landingInput}
                     onChange={(e) => setLandingInput(e.target.value)}
                     placeholder={typewriterText}
-                    className="w-80 bg-transparent outline-none text-sm px-2 placeholder-gray-400"
+                    className="w-[40rem] max-w-[70vw] bg-transparent outline-none text-lg py-1 px-2 placeholder-gray-400"
                     aria-label="Ask a question to start"
                     autoComplete="off"
                     autoFocus
@@ -553,16 +691,17 @@ export default function Home() {
                   <Button
                     type="submit"
                     size="icon"
-                    className="w-7 h-7 rounded-full bg-black text-white hover:bg-gray-900 shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                    className="w-9 h-9 rounded-full bg-black text-white hover:bg-gray-900 shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                     aria-label="Start conversation"
                     disabled={
-                      isUploading || (!landingInput.trim() && !selectedFiles.length)
+                      isUploading ||
+                      (!landingInput.trim() && !selectedFiles.length)
                     }
                   >
                     {isUploading ? (
-                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     ) : (
-                      <ArrowUp className="w-3.5 h-3.5" />
+                      <ArrowUp className="w-4 h-4" />
                     )}
                   </Button>
                 </div>
@@ -576,16 +715,14 @@ export default function Home() {
                 .filter((e) => !e.isMemorySnippet)
                 .map((e, i) => {
                   if (e.sentByUser) {
-                    return (
-                      <HumanMessage message={e} key={i + e.text}></HumanMessage>
-                    );
+                    return <HumanMessage message={e} key={i}></HumanMessage>;
                   } else {
                     return (
                       <BotMessage
                         message={e}
                         time={40}
                         botName={"remembrance"}
-                        key={i + e.text}
+                        key={i}
                         suggestions={
                           conversation.latestMemories?.slice(0, 5) || []
                         }

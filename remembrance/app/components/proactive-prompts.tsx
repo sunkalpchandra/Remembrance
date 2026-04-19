@@ -10,12 +10,13 @@ export function ProactivePrompts({ userId, onSelect }: Props) {
   const [prompts, setPrompts] = useState<string[]>([]);
 
   useEffect(() => {
-    const url = `${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"}/proactive/${userId}`;
+    const url = `${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001"}/proactive/${userId}`;
     let aborted = false;
     fetch(url)
       .then((r) => r.json())
       .then((data) => {
-        if (!aborted && Array.isArray(data?.prompts)) setPrompts(data.prompts.slice(0, 3));
+        if (!aborted && Array.isArray(data?.prompts))
+          setPrompts(data.prompts.slice(0, 3));
       })
       .catch(() => {});
     return () => {

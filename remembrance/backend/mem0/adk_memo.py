@@ -1,27 +1,35 @@
 """
 Hi, I'm Goku!
 """
-import os
-import uuid
+
 import asyncio
-import threading
 import contextvars
+import os
 import pprint
+import threading
+import uuid
 
-from prompt import SYSTEM_PROMPT
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify, send_from_directory, Response, stream_with_context
+from flask import (
+    Flask,
+    Response,
+    jsonify,
+    request,
+    send_from_directory,
+    stream_with_context,
+)
 from flask_cors import CORS
-from werkzeug.utils import secure_filename
-
+from flask_sock import Sock
+from google import genai
 from google.adk.agents import LlmAgent
-from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from google.genai.types import Content, Part
-from google import genai
+from mem0 import Memory, MemoryClient
+from prompt import SYSTEM_PROMPT
+from werkzeug.utils import secure_filename
 
-from mem0 import MemoryClient, Memory
 # import firebase_admin
 # from firebase_admin import credentials, storage
 
@@ -29,10 +37,10 @@ from mem0 import MemoryClient, Memory
 load_dotenv()
 
 google_api_key = os.getenv("GOOGLE_API_KEY")
-memo_api_key   = os.getenv("MEM0_API_KEY") or os.getenv("MEMO_API_KEY")
+memo_api_key = os.getenv("MEM0_API_KEY") or os.getenv("MEMO_API_KEY")
 # openai.api_key = os.getenv("OPENAI_API_KEY")
 
-model = "gemini-2.5-flash"                 # LLM model to use
+model = "gemini-2.5-flash"  # LLM model to use
 
 mem0_client = MemoryClient(api_key=memo_api_key)
 
@@ -41,7 +49,7 @@ novel_client = genai.Client(api_key=google_api_key)
 app_name = "memory_alzheimers_assistant_app"
 
 current_user_id_var = contextvars.ContextVar("current_user_id", default=None)
-thread_local        = threading.local()
+thread_local = threading.local()
 
 # ----------------------------- FIREBASE SETUP --------------------------------
 # TODO: Add Firebase credentials file to enable Firebase functionality
@@ -53,6 +61,7 @@ thread_local        = threading.local()
 
 # ----------------------------- MEMORY HELPERS --------------------------------
 memory_cache = {}
+
 
 def get_memory_from_user(user_id: str) -> Memory:
     """
@@ -99,13 +108,18 @@ def get_memory_from_user(user_id: str) -> Memory:
             },
             "llm": {
                 "provider": "gemini",
-                "config": {"model": model, "temperature": 0.0, "api_key": google_api_key},
+                "config": {
+                    "model": model,
+                    "temperature": 0.0,
+                    "api_key": google_api_key,
+                },
             },
         }
 
     mem = Memory.from_config(config_dict=user_config)
     memory_cache[user_id] = mem
     return mem
+
 
 def test_neo4j_connection(user_id: str):
     try:
@@ -114,15 +128,17 @@ def test_neo4j_connection(user_id: str):
         # Test with a simple message
         test_result = memory.add(
             messages=[{"role": "user", "content": "Test message for Neo4j connection"}],
-            user_id=user_id
+            user_id=user_id,
         )
         print(f"[DEBUG] Neo4j test successful: {test_result}")
         return True
     except Exception as e:
         print(f"[ERROR] Neo4j test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 # ----------------------- TOOL FUNCTIONS FOR THE AGENT ------------------------
 # def save_user_info(information: str, **kwargs) -> dict:
@@ -147,8 +163,13 @@ def test_neo4j_connection(user_id: str):
 #         print(f"[ERROR] Exception in save_user_info: {e}")
 #         return {"status": "error", "message": f"Failed to save: {str(e)}"}
 
+
 def save_user_info(information: str, **kwargs) -> dict:
-    user_id = kwargs.get("user_id") or current_user_id_var.get() or getattr(thread_local, "user_id", None)
+    user_id = (
+        kwargs.get("user_id")
+        or current_user_id_var.get()
+        or getattr(thread_local, "user_id", None)
+    )
     if not user_id:
         return {"status": "error", "message": "user_id is missing"}
 
@@ -160,7 +181,7 @@ def save_user_info(information: str, **kwargs) -> dict:
             messages=[{"role": "user", "content": information}],
             user_id=user_id,
             metadata={"type": "client_information", "app": app_name, "userId": user_id},
-            output_format="v1.1"
+            output_format="v1.1",
         )
 
         # Save to local Neo4j
@@ -172,21 +193,35 @@ def save_user_info(information: str, **kwargs) -> dict:
             print(f"[ERROR] Neo4j save failed: {neo4j_error}")
             # Continue execution - don't fail the whole function
 
-        return {"status": "saved", "details": response, "message": f"Successfully saved: {information}"}
+        return {
+            "status": "saved",
+            "details": response,
+            "message": f"Successfully saved: {information}",
+        }
     except Exception as e:
         print(f"[ERROR] Exception in save_user_info: {e}")
         return {"status": "error", "message": f"Failed to save: {str(e)}"}
 
+
 request_memory_results = {}
 
+
 def retrieve_user_info(query: str, **kwargs) -> dict:
-    user_id = kwargs.get("user_id") or current_user_id_var.get() or getattr(thread_local, "user_id", None)
+    user_id = (
+        kwargs.get("user_id")
+        or current_user_id_var.get()
+        or getattr(thread_local, "user_id", None)
+    )
     if not user_id:
         return {"status": "error", "message": "user_id is missing"}
 
     try:
-        print(f"[DEBUG] RETRIEVE_USER_INFO called for user_id={user_id}, query='{query}'")
-        results = mem0_client.search(query=query, user_id=user_id, limit=10, output_format="v1.1")
+        print(
+            f"[DEBUG] RETRIEVE_USER_INFO called for user_id={user_id}, query='{query}'"
+        )
+        results = mem0_client.search(
+            query=query, user_id=user_id, limit=10, output_format="v1.1"
+        )
 
         if results and results.get("results"):
             memories = [m["memory"] for m in results["results"]]
@@ -198,8 +233,13 @@ def retrieve_user_info(query: str, **kwargs) -> dict:
         print(f"[ERROR] Exception in retrieve_user_info: {e}")
         return {"status": "error", "message": f"Failed to retrieve: {str(e)}"}
 
+
 def delete_user_info(query: str, **kwargs) -> dict:
-    user_id = kwargs.get("user_id") or current_user_id_var.get() or getattr(thread_local, "user_id", None)
+    user_id = (
+        kwargs.get("user_id")
+        or current_user_id_var.get()
+        or getattr(thread_local, "user_id", None)
+    )
     if not user_id:
         return {"status": "error", "message": "user_id is missing"}
     try:
@@ -207,12 +247,17 @@ def delete_user_info(query: str, **kwargs) -> dict:
         response = mem0_client.delete(
             messages=[{"role": "user", "content": query}],
             user_id=user_id,
-            output_format="v1.1"
+            output_format="v1.1",
         )
-        return {"status": "deleted", "details": response, "message": f"Successfully deleted: {query}"}
+        return {
+            "status": "deleted",
+            "details": response,
+            "message": f"Successfully deleted: {query}",
+        }
     except Exception as e:
         print(f"[ERROR] Exception in delete_user_info: {e}")
         return {"status": "error", "message": f"Failed to delete: {str(e)}"}
+
 
 # ------------------------------- LLM AGENT -----------------------------------
 memory_agent = LlmAgent(
@@ -225,6 +270,7 @@ memory_agent = LlmAgent(
 
 # ---------------------------- SESSION & RUNNER -------------------------------
 session_service = InMemorySessionService()
+
 
 async def process_query_async(messages, user_id: str):
     current_user_id_var.set(user_id)
@@ -240,7 +286,9 @@ async def process_query_async(messages, user_id: str):
         session_id=session_id,
     )
 
-    runner = Runner(agent=memory_agent, app_name=app_name, session_service=session_service)
+    runner = Runner(
+        agent=memory_agent, app_name=app_name, session_service=session_service
+    )
 
     # Normalise input
     if isinstance(messages, types.Content):
@@ -268,9 +316,23 @@ async def process_query_async(messages, user_id: str):
 
     return final_response, session_id, request_memory_results.get(user_id, [])
 
+
 # ------------------------------- FLASK API -----------------------------------
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True, allow_headers="*", methods=["GET", "POST", "OPTIONS"])
+CORS(
+    app,
+    resources={r"/*": {"origins": "*"}},
+    supports_credentials=True,
+    allow_headers="*",
+    methods=["GET", "POST", "OPTIONS"],
+)
+
+
+try:
+    sock = Sock(app)
+except NameError:
+    sock = Sock()
+
 
 @app.route("/query", methods=["POST"])
 def handle_query():
@@ -278,12 +340,14 @@ def handle_query():
     if not data:
         return jsonify({"status": "error", "message": "No JSON data provided"}), 400
 
-    query    = data.get("query")
+    query = data.get("query")
     messages = data.get("messages")
-    user_id  = data.get("user_id")
+    user_id = data.get("user_id")
 
     if not user_id or (not messages and not query):
-        return jsonify({"status": "error", "message": "Missing messages or user_id"}), 400
+        return jsonify(
+            {"status": "error", "message": "Missing messages or user_id"}
+        ), 400
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -292,17 +356,21 @@ def handle_query():
             process_query_async(messages or query, user_id)
         )
         response_text = result or "I'm here to help you with your memories."
-        return jsonify({
-            "status": "success",
-            "result_return": response_text,
-            "session_id": session_id,
-            "user_id": user_id,
-            "memories": memories,
-        })
+        return jsonify(
+            {
+                "status": "success",
+                "result_return": response_text,
+                "session_id": session_id,
+                "user_id": user_id,
+                "memories": memories,
+            }
+        )
     finally:
         loop.close()
 
+
 MEM0_SEARCH_TIMEOUT_S = 1.5  # never block streaming on a slow Mem0 lookup
+
 
 def _format_profile(profile: dict) -> str:
     if not profile:
@@ -314,7 +382,9 @@ def _format_profile(profile: dict) -> str:
         parts.append(f"Patient name: {name}" + (f" (age {age})" if age else ""))
     family = profile.get("family") or []
     if family:
-        fam_str = ", ".join(f"{f.get('name')} ({f.get('relation')})" for f in family if f.get("name"))
+        fam_str = ", ".join(
+            f"{f.get('name')} ({f.get('relation')})" for f in family if f.get("name")
+        )
         if fam_str:
             parts.append(f"Family: {fam_str}")
     places = profile.get("places") or []
@@ -329,28 +399,37 @@ def _format_profile(profile: dict) -> str:
 @app.route("/query/stream", methods=["POST"])
 def handle_query_stream():
     import json as json_mod
+
     data = request.json
     if not data:
         return jsonify({"status": "error", "message": "No JSON data provided"}), 400
 
     messages = data.get("messages") or []
-    user_id  = data.get("user_id")
-    profile  = data.get("profile") or {}
+    user_id = data.get("user_id")
+    profile = data.get("profile") or {}
 
     if not user_id or not messages:
-        return jsonify({"status": "error", "message": "Missing messages or user_id"}), 400
+        return jsonify(
+            {"status": "error", "message": "Missing messages or user_id"}
+        ), 400
 
-    latest_msg = messages[-1].get("text", "") if isinstance(messages, list) and messages else ""
+    latest_msg = (
+        messages[-1].get("text", "") if isinstance(messages, list) and messages else ""
+    )
     profile_block = _format_profile(profile)
 
     # Kick off Mem0 search in parallel; we'll join with a tight timeout
     mem_holder = {"memories": []}
+
     def _search():
         try:
-            res = mem0_client.search(query=latest_msg, user_id=user_id, limit=8, output_format="v1.1")
+            res = mem0_client.search(
+                query=latest_msg, user_id=user_id, limit=8, output_format="v1.1"
+            )
             mem_holder["memories"] = [m["memory"] for m in (res.get("results") or [])]
         except Exception as e:
             print(f"[WARN] mem0 search failed: {e}")
+
     search_thread = threading.Thread(target=_search, daemon=True)
     search_thread.start()
     search_thread.join(timeout=MEM0_SEARCH_TIMEOUT_S)
@@ -360,13 +439,19 @@ def handle_query_stream():
     if profile_block:
         context_parts.append(f"Identity context:\n{profile_block}")
     if memories:
-        context_parts.append("Relevant past memories:\n" + "\n".join(f"- {m}" for m in memories))
-    context = "\n\n".join(context_parts) if context_parts else "No prior context yet — this is an early conversation."
+        context_parts.append(
+            "Relevant past memories:\n" + "\n".join(f"- {m}" for m in memories)
+        )
+    context = (
+        "\n\n".join(context_parts)
+        if context_parts
+        else "No prior context yet — this is an early conversation."
+    )
 
     def generate():
         collected = []
         # Try primary model, fall back to 2.0-flash if overloaded (503)
-        models_to_try = [model, "gemini-2.0-flash", "gemini-1.5-flash"]
+        models_to_try = [model, "gemini-2.5-flash"]
         last_err = None
         for attempt_model in models_to_try:
             collected = []
@@ -374,7 +459,9 @@ def handle_query_stream():
                 stream = novel_client.models.generate_content_stream(
                     model=attempt_model,
                     contents=f"{context}\n\nUser said: {latest_msg}",
-                    config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_PROMPT
+                    ),
                 )
                 for chunk in stream:
                     if chunk.text:
@@ -387,9 +474,14 @@ def handle_query_stream():
                 err_str = str(e)
                 print(f"[WARN] model {attempt_model} failed: {err_str[:120]}")
                 # Retry on overloaded (503) or quota-exhausted (429) — other models have separate quotas
-                retryable = any(
-                    tok in err_str for tok in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED")
-                ) or "overloaded" in err_str.lower() or "quota" in err_str.lower()
+                retryable = (
+                    any(
+                        tok in err_str
+                        for tok in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED")
+                    )
+                    or "overloaded" in err_str.lower()
+                    or "quota" in err_str.lower()
+                )
                 if not retryable:
                     break
         if last_err is not None and not collected:
@@ -412,6 +504,7 @@ def handle_query_stream():
                 )
             except Exception as e:
                 print(f"[WARN] mem0 save failed: {e}")
+
         threading.Thread(target=save_mem, daemon=True).start()
 
     return Response(
@@ -419,6 +512,126 @@ def handle_query_stream():
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@sock.route("/query/ws")
+def handle_query_ws(ws):
+    import json as json_mod
+
+    while True:
+        data = ws.receive()
+        if not data:
+            break
+        req = json_mod.loads(data)
+        messages = req.get("messages") or []
+        user_id = req.get("user_id")
+        profile = req.get("profile") or {}
+
+        if not user_id or not messages:
+            ws.send(
+                json_mod.dumps(
+                    {"status": "error", "message": "Missing messages or user_id"}
+                )
+            )
+            continue
+
+        latest_msg = (
+            messages[-1].get("text", "")
+            if isinstance(messages, list) and messages
+            else ""
+        )
+        profile_block = _format_profile(profile)
+
+        ws.send(json_mod.dumps({"status": "Searching memories..."}))
+        mem_holder = {"memories": []}
+
+        def _search():
+            try:
+                res = mem0_client.search(
+                    query=latest_msg, user_id=user_id, limit=8, output_format="v1.1"
+                )
+                mem_holder["memories"] = [
+                    m["memory"] for m in (res.get("results") or [])
+                ]
+            except Exception as e:
+                print(f"[WARN] mem0 search failed: {e}")
+
+        search_thread = threading.Thread(target=_search, daemon=True)
+        search_thread.start()
+        search_thread.join(timeout=MEM0_SEARCH_TIMEOUT_S)
+        memories = mem_holder["memories"]
+
+        context_parts = []
+        if profile_block:
+            context_parts.append(f"Identity context:\n{profile_block}")
+        if memories:
+            context_parts.append(
+                "Relevant past memories:\n" + "\n".join(f"- {m}" for m in memories)
+            )
+        context = (
+            "\n\n".join(context_parts)
+            if context_parts
+            else "No prior context yet — this is an early conversation."
+        )
+
+        ws.send(json_mod.dumps({"status": "Thinking..."}))
+        collected = []
+        models_to_try = [model, "gemini-2.5-flash"]
+        last_err = None
+        for attempt_model in models_to_try:
+            collected = []
+            try:
+                stream = novel_client.models.generate_content_stream(
+                    model=attempt_model,
+                    contents=f"{context}\n\nUser said: {latest_msg}",
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_PROMPT
+                    ),
+                )
+                for chunk in stream:
+                    if chunk.text:
+                        collected.append(chunk.text)
+                        ws.send(json_mod.dumps({"text": chunk.text}))
+                last_err = None
+                break  # success
+            except Exception as e:
+                last_err = e
+                err_str = str(e)
+                print(f"[WARN] model {attempt_model} failed: {err_str[:120]}")
+                retryable = (
+                    any(
+                        tok in err_str
+                        for tok in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED")
+                    )
+                    or "overloaded" in err_str.lower()
+                    or "quota" in err_str.lower()
+                )
+                if not retryable:
+                    break
+
+        if last_err is not None and not collected:
+            ws.send(json_mod.dumps({"error": str(last_err)}))
+            continue
+
+        ws.send(json_mod.dumps({"done": True, "memories": memories}))
+
+        full_text = "".join(collected)
+
+        def save_mem():
+            try:
+                mem0_client.add(
+                    messages=[
+                        {"role": "user", "content": latest_msg},
+                        {"role": "assistant", "content": full_text},
+                    ],
+                    user_id=user_id,
+                    output_format="v1.1",
+                )
+            except Exception as e:
+                print(f"[WARN] mem0 save failed: {e}")
+
+        threading.Thread(target=save_mem, daemon=True).start()
+
 
 @app.route("/proactive/<user_id>", methods=["GET"])
 def proactive_prompt(user_id):
@@ -432,7 +645,11 @@ def proactive_prompt(user_id):
     try:
         res = mem0_client.get_all(user_id=user_id, output_format="v1.1")
         items = res.get("results") if isinstance(res, dict) else res
-        memories = [m.get("memory") for m in (items or []) if isinstance(m, dict) and m.get("memory")]
+        memories = [
+            m.get("memory")
+            for m in (items or [])
+            if isinstance(m, dict) and m.get("memory")
+        ]
     except Exception as e:
         print(f"[WARN] proactive fetch failed: {e}")
         return jsonify({"prompts": fallback})
@@ -450,9 +667,13 @@ def proactive_prompt(user_id):
                 "invite them to revisit or expand on these themes. Return ONLY a JSON array of 3 strings, no prose.\n\n"
                 f"{sample}"
             ),
-            config=types.GenerateContentConfig(thinking_config=types.ThinkingConfig(thinking_budget=0)),
+            config=types.GenerateContentConfig(
+                thinking_config=types.ThinkingConfig(thinking_budget=0)
+            ),
         )
-        import json as json_mod, re
+        import json as json_mod
+        import re
+
         text = (resp.text or "").strip()
         match = re.search(r"\[.*\]", text, re.DOTALL)
         prompts = json_mod.loads(match.group(0)) if match else fallback
@@ -462,6 +683,7 @@ def proactive_prompt(user_id):
     except Exception as e:
         print(f"[WARN] proactive generation failed: {e}")
         return jsonify({"prompts": fallback})
+
 
 @app.route("/graph/<user_id>", methods=["GET"])
 def memory_graph(user_id):
@@ -481,7 +703,7 @@ def memory_graph(user_id):
     if not memories:
         return jsonify({"entities": [], "memories": []})
 
-    sample = "\n".join(f"{i+1}. {m['memory']}" for i, m in enumerate(memories[:40]))
+    sample = "\n".join(f"{i + 1}. {m['memory']}" for i, m in enumerate(memories[:40]))
     try:
         resp = novel_client.models.generate_content(
             model=model,
@@ -492,9 +714,13 @@ def memory_graph(user_id):
                 '[{"name":"Robert","type":"person","memories":[1,3,7]}, ...]\n\n'
                 f"{sample}"
             ),
-            config=types.GenerateContentConfig(thinking_config=types.ThinkingConfig(thinking_budget=0)),
+            config=types.GenerateContentConfig(
+                thinking_config=types.ThinkingConfig(thinking_budget=0)
+            ),
         )
-        import json as json_mod, re
+        import json as json_mod
+        import re
+
         text = (resp.text or "").strip()
         match = re.search(r"\[.*\]", text, re.DOTALL)
         entities = json_mod.loads(match.group(0)) if match else []
@@ -504,47 +730,64 @@ def memory_graph(user_id):
 
     return jsonify({"entities": entities, "memories": memories})
 
+
 @app.route("/upload", methods=["POST"])
 def upload_file():
     if "file" not in request.files:
         return jsonify({"status": "error", "message": "No file uploaded"}), 400
 
-    file    = request.files["file"]
+    file = request.files["file"]
     user_id = request.form.get("user_id")
     if not file or not user_id:
-        return jsonify({"status": "error", "message": "File and user_id are required"}), 400
+        return jsonify(
+            {"status": "error", "message": "File and user_id are required"}
+        ), 400
 
-    filename     = secure_filename(file.filename)
-    upload_dir   = os.path.join("uploads", user_id)
+    filename = secure_filename(file.filename)
+    upload_dir = os.path.join("uploads", user_id)
     os.makedirs(upload_dir, exist_ok=True)
 
     saved_name = f"{uuid.uuid4().hex}_{filename}"
-    file_path  = os.path.join(upload_dir, saved_name)
+    file_path = os.path.join(upload_dir, saved_name)
     file.save(file_path)
 
     base_url = os.getenv("PUBLIC_BACKEND_URL") or request.host_url.rstrip("/")
     public_url = f"{base_url}/uploads/{user_id}/{saved_name}"
 
-    prompt_text = f"I have uploaded an image here: {public_url}. Please describe this image."
+    prompt_text = (
+        f"I have uploaded an image here: {public_url}. Please describe this image."
+    )
 
     gemini_message = Content(role="user", parts=[Part(text=prompt_text)])
 
     mem0_client.add(
-        messages=[{"role": "user", "content": f"Uploaded an image: {filename} (URL: {public_url})"}],
+        messages=[
+            {
+                "role": "user",
+                "content": f"Uploaded an image: {filename} (URL: {public_url})",
+            }
+        ],
         user_id=user_id,
-        metadata={"type": "file_upload", "filename": filename, "upload_path": file_path},
-        output_format="v1.1"
+        metadata={
+            "type": "file_upload",
+            "filename": filename,
+            "upload_path": file_path,
+        },
+        output_format="v1.1",
     )
 
     summary, session_id, _ = asyncio.run(process_query_async(gemini_message, user_id))
     print("File '{filename}' uploaded and analyzed.")
-    return jsonify({
-        "status": "success",
-        "message": f"File '{filename}' uploaded and analyzed.",
-        "summary": summary,
-        "local_path": file_path,
-        "url": public_url,
-    })
+    return jsonify(
+        {
+            "status": "success",
+            "message": f"File '{filename}' uploaded and analyzed.",
+            "summary": summary,
+            "local_path": file_path,
+            "url": public_url,
+        }
+    )
+
 
 @app.route("/uploads/<user_id>/<filename>")
 def serve_uploaded_file(user_id, filename):
@@ -558,6 +801,7 @@ neo4jUsername = os.getenv("NEO4J_USERNAME")
 neo4jPassword = os.getenv("NEO4J_PASSWORD")
 neo4jDb = os.getenv("NEO4J_DATABASE", "neo4j")
 
+
 @app.route("/test_neo4j/<user_id>", methods=["GET"])
 def test_neo4j(user_id: str):
     text = "me park today see dog with red collar"
@@ -565,14 +809,12 @@ def test_neo4j(user_id: str):
     memory.add(text=text)
     return jsonify({"message": "Memory added for user", "user_id": user_id})
 
+
 @app.route("/user/<user_id>/test_graph", methods=["POST"])
 def test_get_user_graph(user_id: str):
     from neo4j import GraphDatabase
 
-    driver = GraphDatabase.driver(
-        neo4jUrl,
-        auth=(neo4jUsername, neo4jPassword)
-    )
+    driver = GraphDatabase.driver(neo4jUrl, auth=(neo4jUsername, neo4jPassword))
 
     query = """
     MATCH (m:Memory {userId: $user_id})
@@ -588,6 +830,7 @@ def test_get_user_graph(user_id: str):
 
         return jsonify({"status": "success", "user_id": user_id, "nodes": results})
 
+
 def safe_dict(items):
     result = {}
     for k, v in items:
@@ -598,13 +841,16 @@ def safe_dict(items):
 
     return result
 
+
 @app.route("/user/<user_id>/graph", methods=["GET"])
 def get_user_graph(user_id: str):
     from neo4j import GraphDatabase
 
     try:
         print(f"[DEBUG] Fetching graph for user_id: {user_id}")
-        with GraphDatabase.driver(uri=neo4jUrl, auth=(neo4jUsername, neo4jPassword)) as driver:
+        with GraphDatabase.driver(
+            uri=neo4jUrl, auth=(neo4jUsername, neo4jPassword)
+        ) as driver:
             with driver.session(database=neo4jDb) as session:
                 query = """
                 MATCH (u:User {userId: $user_id})-[:HAS_MEMORY]->(m:Memory)
@@ -625,32 +871,41 @@ def get_user_graph(user_id: str):
                     mem_id_str = str(mem_node.id)
 
                     if user_id_str not in seen_nodes:
-                        graph["nodes"].append({
-                            "id": user_id_str,
-                            "label": user_node.get("name", "User"),
-                            "properties": safe_dict(user_node.items())
-                        })
+                        graph["nodes"].append(
+                            {
+                                "id": user_id_str,
+                                "label": user_node.get("name", "User"),
+                                "properties": safe_dict(user_node.items()),
+                            }
+                        )
                         seen_nodes.add(user_id_str)
 
                     if mem_id_str not in seen_nodes:
-                        graph["nodes"].append({
-                            "id": mem_id_str,
-                            "label": mem_node.get("summary", mem_node.get("content", "Memory"))[:20],
-                            "properties": safe_dict(mem_node.items())
-                        })
+                        graph["nodes"].append(
+                            {
+                                "id": mem_id_str,
+                                "label": mem_node.get(
+                                    "summary", mem_node.get("content", "Memory")
+                                )[:20],
+                                "properties": safe_dict(mem_node.items()),
+                            }
+                        )
                         seen_nodes.add(mem_id_str)
 
-                    graph["links"].append({
-                        "source": user_id_str,
-                        "target": mem_id_str,
-                        "type": "HAS_MEMORY"
-                    })
+                    graph["links"].append(
+                        {
+                            "source": user_id_str,
+                            "target": mem_id_str,
+                            "type": "HAS_MEMORY",
+                        }
+                    )
 
                 return jsonify(graph)
 
     except Exception as e:
         print(f"[ERROR] in /graph: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/ai/generate", methods=["POST"])
 def novel_ai_generate():
@@ -670,12 +925,19 @@ def novel_ai_generate():
             contents=query,
             config=types.GenerateContentConfig(
                 system_instruction="You are a direct text editor. When asked to improve, fix, or modify text, return ONLY the improved text without explanations, options, or additional commentary. Be concise and direct. If asked to fix grammar in 'Hello my name is Aarnav', return only 'Hello, my name is Aarnav.' Do not provide multiple options or explanations.",
-                thinking_config=types.ThinkingConfig(thinking_budget=0) # we are broke, so thinking is disabled for now
-            )
+                thinking_config=types.ThinkingConfig(
+                    thinking_budget=0
+                ),  # we are broke, so thinking is disabled for now
+            ),
         )
 
         if not response:
-            return jsonify({"status": "error", "error": "There was an error in our model, please try again"})
+            return jsonify(
+                {
+                    "status": "error",
+                    "error": "There was an error in our model, please try again",
+                }
+            )
 
         return jsonify({"status": "success", "message": response.text})
 
@@ -683,15 +945,14 @@ def novel_ai_generate():
         print(f"[ERROR] in /api/ai/generate: {error}")
         return jsonify({"status": "error", "error": str(error)}), 500
 
+
 @app.route("/user/<user_id>/populate_graph", methods=["POST"])
 def populate_graph_from_mem0(user_id):
-    from neo4j import GraphDatabase
     import json
 
-    driver = GraphDatabase.driver(
-        neo4jUrl,
-        auth=(neo4jUsername, neo4jPassword)
-    )
+    from neo4j import GraphDatabase
+
+    driver = GraphDatabase.driver(neo4jUrl, auth=(neo4jUsername, neo4jPassword))
 
     try:
         # Get all memories for the user
@@ -705,7 +966,9 @@ def populate_graph_from_mem0(user_id):
             memories = results
         else:
             print(f"[ERROR] Unexpected response format: {type(results)}")
-            return jsonify({"status": "error", "message": "Unexpected response format from Mem0"}), 500
+            return jsonify(
+                {"status": "error", "message": "Unexpected response format from Mem0"}
+            ), 500
 
         print(f"[DEBUG] Found {len(memories)} memories to process")
 
@@ -724,20 +987,27 @@ def populate_graph_from_mem0(user_id):
                     metadata = mem.get("metadata", {})
                     created_at = mem.get("created_at")
 
-
                     # Create summary (first 50 chars)
-                    summary = memory_content[:50] + "..." if len(memory_content) > 50 else memory_content
+                    summary = (
+                        memory_content[:50] + "..."
+                        if len(memory_content) > 50
+                        else memory_content
+                    )
 
                     # Convert metadata to JSON string (Neo4j can store strings)
                     metadata_json = json.dumps(metadata) if metadata else "{}"
 
                     # Extract individual metadata fields as separate properties
-                    metadata_type = metadata.get("type", "") if isinstance(metadata, dict) else ""
-                    metadata_app = metadata.get("app", "") if isinstance(metadata, dict) else ""
+                    metadata_type = (
+                        metadata.get("type", "") if isinstance(metadata, dict) else ""
+                    )
+                    metadata_app = (
+                        metadata.get("app", "") if isinstance(metadata, dict) else ""
+                    )
 
                     exists_result = session.run(
                         "MATCH (m:Memory {id: $memory_id}) RETURN m LIMIT 1",
-                        memory_id=memory_id
+                        memory_id=memory_id,
                     )
 
                     if exists_result.single():
@@ -745,7 +1015,8 @@ def populate_graph_from_mem0(user_id):
                         continue
 
                     # Insert into Neo4j with proper data types
-                    session.run("""
+                    session.run(
+                        """
                         MERGE (u:User {userId: $user_id})
                         CREATE (m:Memory {
                             id: $memory_id,
@@ -759,14 +1030,14 @@ def populate_graph_from_mem0(user_id):
                         })
                         MERGE (u)-[:HAS_MEMORY]->(m)
                     """,
-                    user_id=user_id,
-                    memory_id=memory_id,
-                    content=memory_content,
-                    summary=summary,
-                    created_at=created_at,
-                    metadata_json=metadata_json,
-                    metadata_type=metadata_type,
-                    metadata_app=metadata_app
+                        user_id=user_id,
+                        memory_id=memory_id,
+                        content=memory_content,
+                        summary=summary,
+                        created_at=created_at,
+                        metadata_json=metadata_json,
+                        metadata_type=metadata_type,
+                        metadata_app=metadata_app,
                     )
 
                     count += 1
@@ -778,38 +1049,50 @@ def populate_graph_from_mem0(user_id):
         driver.close()
 
         if count == 0:
-            return jsonify({
-                "status": "complete",
-                "message": "No new memories left to add. All are appened to neo4j",
-                "total_found": len(memories),
-                "total_inserted": count
-            })
+            return jsonify(
+                {
+                    "status": "complete",
+                    "message": "No new memories left to add. All are appened to neo4j",
+                    "total_found": len(memories),
+                    "total_inserted": count,
+                }
+            )
 
-        return jsonify({
-            "status": "success",
-            "message": f"{count} memories written to Neo4j for {user_id}",
-            "total_found": len(memories),
-            "total_inserted": count
-        })
+        return jsonify(
+            {
+                "status": "success",
+                "message": f"{count} memories written to Neo4j for {user_id}",
+                "total_found": len(memories),
+                "total_inserted": count,
+            }
+        )
 
     except Exception as e:
         print(f"[ERROR] Failed to populate Neo4j: {e}")
         import traceback
+
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
+
 @app.route("/health", methods=["GET"])
 def health_check():
-    return jsonify({"status": "healthy", "service": "memory_assistant", "version": "1.1"})
+    return jsonify(
+        {"status": "healthy", "service": "memory_assistant", "version": "1.1"}
+    )
+
 
 @app.route("/user/<user_id>/memories", methods=["GET"])
 def get_user_memories(user_id):
     try:
         results = mem0_client.get_all(user_id=user_id)
         memories = [m.get("memory", str(m)) for m in results] if results else []
-        return jsonify({"status": "success", "memories": memories, "count": len(memories)})
+        return jsonify(
+            {"status": "success", "memories": memories, "count": len(memories)}
+        )
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 # --------------------------- MAIN ENTRY POINT --------------------------------
 if __name__ == "__main__":

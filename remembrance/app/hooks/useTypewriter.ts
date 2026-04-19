@@ -16,15 +16,22 @@ export function useTypewriter() {
   const [displayed, setDisplayed] = useState("");
   const [phraseIdx, setPhraseIdx] = useState(0);
   const [typing, setTyping] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+
     const target = PHRASES[phraseIdx];
 
     if (typing) {
       if (displayed.length < target.length) {
         const t = setTimeout(
           () => setDisplayed(target.slice(0, displayed.length + 1)),
-          TYPE_SPEED
+          TYPE_SPEED,
         );
         return () => clearTimeout(t);
       } else {
@@ -35,7 +42,7 @@ export function useTypewriter() {
       if (displayed.length > 0) {
         const t = setTimeout(
           () => setDisplayed(displayed.slice(0, -1)),
-          DELETE_SPEED
+          DELETE_SPEED,
         );
         return () => clearTimeout(t);
       } else {

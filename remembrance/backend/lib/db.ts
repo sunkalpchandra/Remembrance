@@ -4,15 +4,33 @@ function storageKey(userID: string, conversationId?: string) {
     : `conv-index:${userID}`;
 }
 
+function isLocalStorageAvailable(): boolean {
+  try {
+    return (
+      typeof window !== "undefined" &&
+      typeof window.localStorage !== "undefined" &&
+      typeof window.localStorage.getItem === "function"
+    );
+  } catch {
+    return false;
+  }
+}
+
 function readIndex(userID: string): string[] {
-  if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(storageKey(userID));
-  return raw ? JSON.parse(raw) : [];
+  if (!isLocalStorageAvailable()) return [];
+  try {
+    const raw = window.localStorage.getItem(storageKey(userID));
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
 }
 
 function writeIndex(userID: string, ids: string[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(storageKey(userID), JSON.stringify(ids));
+  if (!isLocalStorageAvailable()) return;
+  try {
+    window.localStorage.setItem(storageKey(userID), JSON.stringify(ids));
+  } catch {}
 }
 
 export async function saveConversation(
@@ -20,44 +38,60 @@ export async function saveConversation(
   conversation: any,
   conversationId: string,
 ) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(
-    storageKey(userID, conversationId),
-    JSON.stringify(conversation),
-  );
-  const ids = readIndex(userID);
-  if (!ids.includes(conversationId)) {
-    ids.push(conversationId);
-    writeIndex(userID, ids);
-  }
+  if (!isLocalStorageAvailable()) return;
+  try {
+    window.localStorage.setItem(
+      storageKey(userID, conversationId),
+      JSON.stringify(conversation),
+    );
+    const ids = readIndex(userID);
+    if (!ids.includes(conversationId)) {
+      ids.push(conversationId);
+      writeIndex(userID, ids);
+    }
+  } catch {}
 }
 
 export async function getConversationsForUser(userId: string) {
-  if (typeof window === "undefined") return [];
-  const ids = readIndex(userId);
-  return ids
-    .map((id) => {
-      const raw = window.localStorage.getItem(storageKey(userId, id));
-      if (!raw) return null;
-      return { id, ...JSON.parse(raw) };
-    })
-    .filter(Boolean) as any[];
+  if (!isLocalStorageAvailable()) return [];
+  try {
+    const ids = readIndex(userId);
+    return ids
+      .map((id) => {
+        try {
+          const raw = window.localStorage.getItem(storageKey(userId, id));
+          if (!raw) return null;
+          return { id, ...JSON.parse(raw) };
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean) as any[];
+  } catch {
+    return [];
+  }
 }
 
 export async function getConversationById(userId: string, id: string) {
-  if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(storageKey(userId, id));
-  return raw ? JSON.parse(raw) : null;
+  if (!isLocalStorageAvailable()) return null;
+  try {
+    const raw = window.localStorage.getItem(storageKey(userId, id));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function deleteConversation(
   userID: string,
   conversationId: string,
 ) {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(storageKey(userID, conversationId));
-  writeIndex(
-    userID,
-    readIndex(userID).filter((id) => id !== conversationId),
-  );
+  if (!isLocalStorageAvailable()) return;
+  try {
+    window.localStorage.removeItem(storageKey(userID, conversationId));
+    writeIndex(
+      userID,
+      readIndex(userID).filter((id) => id !== conversationId),
+    );
+  } catch {}
 }

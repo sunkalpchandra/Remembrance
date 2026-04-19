@@ -14,6 +14,7 @@ import { getConversationById, saveConversation } from "@/backend/lib/db";
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/novel/ui/button";
 import { Plus, ArrowUp, X } from "lucide-react";
+import { RotatingPhotos } from "@/app/components/rotating-photos";
 import { useDropzone } from "react-dropzone";
 import { text } from "stream/consumers";
 
@@ -399,12 +400,7 @@ export default function Home() {
           </div>
         )}
         <div className="grow w-full flex items-center flex-col justify-center p-2 relative min-h-[80vh]">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 flex items-center justify-center z-0"
-          >
-            <div className="w-[600px] h-[400px] bg-gradient-to-br from-blue-100 via-purple-100 to-transparent rounded-full blur-3xl opacity-60 animate-bounce-shadow" />
-          </div>
+          <RotatingPhotos />
           {conversation == undefined ? (
             <div className="relative z-10 flex flex-col items-center w-full">
               <h1
@@ -512,16 +508,16 @@ export default function Home() {
                   <Button
                     type="submit"
                     size="icon"
-                    className="rounded-full bg-black text-white hover:bg-gray-900 shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                    className="w-7 h-7 rounded-full bg-black text-white hover:bg-gray-900 shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                     aria-label="Start conversation"
                     disabled={
                       isUploading || (!landingInput.trim() && !selectedFiles.length)
                     }
                   >
                     {isUploading ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     ) : (
-                      <ArrowUp className="w-5 h-5" />
+                      <ArrowUp className="w-3.5 h-3.5" />
                     )}
                   </Button>
                 </div>

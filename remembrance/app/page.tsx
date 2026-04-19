@@ -532,7 +532,7 @@ export default function Home() {
                     value={landingInput}
                     onChange={(e) => setLandingInput(e.target.value)}
                     placeholder={typewriterText}
-                    className="w-96 bg-transparent outline-none text-sm px-2 placeholder-gray-400"
+                    className="w-80 bg-transparent outline-none text-sm px-2 placeholder-gray-400"
                     aria-label="Ask a question to start"
                     autoComplete="off"
                     autoFocus

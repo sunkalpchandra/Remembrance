@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, ReactNode } from "react";
+import { useUser } from "@clerk/nextjs";
 
 export interface AppUser {
   uid: string;
@@ -8,18 +9,32 @@ export interface AppUser {
   displayName: string;
 }
 
-const demoUser: AppUser = {
-  uid: "demo-user",
-  email: "demo@remembrance.local",
-  displayName: "Demo User",
+const anonymousUser: AppUser = {
+  uid: "anonymous",
+  email: "",
+  displayName: "Guest",
 };
 
-export const UserContext = createContext<AppUser>(demoUser);
+export const UserContext = createContext<AppUser>(anonymousUser);
 
 export default function UserContextProvider({
   children,
 }: {
   children: ReactNode;
 }) {
-  return <UserContext.Provider value={demoUser}>{children}</UserContext.Provider>;
+  const { user, isLoaded } = useUser();
+
+  const appUser: AppUser = isLoaded && user
+    ? {
+        uid: user.id,
+        email: user.primaryEmailAddress?.emailAddress || "",
+        displayName:
+          user.fullName ||
+          user.firstName ||
+          user.primaryEmailAddress?.emailAddress ||
+          "Friend",
+      }
+    : anonymousUser;
+
+  return <UserContext.Provider value={appUser}>{children}</UserContext.Provider>;
 }

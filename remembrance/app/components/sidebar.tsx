@@ -226,17 +226,19 @@ const BaseOptions = [
 export default function SideBar(props: SidebarProps) {
   const router = useRouter();
   const user = useContext(UserContext);
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem("sidebar-collapsed") === "true";
-  });
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("sidebar-collapsed");
+      if (saved !== null) setCollapsed(saved === "true");
+    } catch {}
+  }, []);
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
       const next = !prev;
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("sidebar-collapsed", String(next));
-      }
+      try { localStorage.setItem("sidebar-collapsed", String(next)); } catch {}
       return next;
     });
   };

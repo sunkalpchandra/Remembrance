@@ -232,49 +232,68 @@ export default function Home() {
     const lastUserMsg = conversation.messages.at(-1)?.text;
     if (!lastUserMsg) return;
 
+    // Add empty placeholder message that we'll stream into
+    const placeholder = { sentByUser: false, text: "" };
+    SetConversation((prev) =>
+      prev ? { ...prev, messages: [...prev.messages, placeholder] } : prev
+    );
+
     try {
-      const response = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/query`, {
-        query: conversation.messages,
-        user_id: user.uid,
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+      const res = await fetch(`${backendUrl}/query/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: conversation.messages, user_id: user.uid }),
       });
 
-      const message = {
-        sentByUser: false,
-        text: response.data?.result_return || "No response given from server",
-      };
+      if (!res.ok || !res.body) throw new Error("Stream failed");
 
-      const memorySnippet = response.data?.memories || [];
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+      let finalMemories: string[] = [];
 
-      const latestMemories = memorySnippet.map((memory: string) => {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const raw = decoder.decode(value, { stream: true });
+        for (const line of raw.split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const payload = JSON.parse(line.slice(6));
+            if (payload.text) {
+              accumulated += payload.text;
+              const snapshot = accumulated;
+              SetConversation((prev) => {
+                if (!prev) return prev;
+                const msgs = [...prev.messages];
+                msgs[msgs.length - 1] = { sentByUser: false, text: snapshot };
+                return { ...prev, messages: msgs };
+              });
+            }
+            if (payload.done) {
+              finalMemories = payload.memories || [];
+            }
+          } catch {}
+        }
+      }
+
+      const latestMemories = finalMemories.map((memory: string) => {
         const firstSentence = memory.split(".")[0];
-        const words = firstSentence.split("");
-        const title =
-          words.length > 5
-            ? words.slice(0, 5).join(" ") + "..."
-            : firstSentence;
-
-        return {
-          title: title,
-          memoryText: memory,
-        };
+        return { title: firstSentence.slice(0, 40) + (firstSentence.length > 40 ? "..." : ""), memoryText: memory };
       });
 
-      SetConversation({
-        ...conversation,
-        messages: [...conversation.messages, message],
-        latestMemories,
-      });
+      SetConversation((prev) =>
+        prev ? { ...prev, latestMemories } : prev
+      );
     } catch (err) {
-      console.error("Error: ", err);
-      SetConversation({
-        ...conversation,
-        messages: [
-          ...conversation.messages,
-          {
-            sentByUser: false,
-            text: "Sorry, there was an error generating a response from our model.",
-          },
-        ],
+      console.error("Stream error:", err);
+      SetConversation((prev) => {
+        if (!prev) return prev;
+        const msgs = [...prev.messages];
+        msgs[msgs.length - 1] = { sentByUser: false, text: "Sorry, there was an error generating a response." };
+        return { ...prev, messages: msgs };
       });
     }
   }
@@ -400,7 +419,7 @@ export default function Home() {
           </div>
         )}
         <div className="grow w-full flex items-center flex-col justify-center p-2 relative min-h-[80vh]">
-          <RotatingPhotos />
+          {conversation == undefined && <RotatingPhotos />}
           {conversation == undefined ? (
             <div className="relative z-10 flex flex-col items-center w-full">
               <h1

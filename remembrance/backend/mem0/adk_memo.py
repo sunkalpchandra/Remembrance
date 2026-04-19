@@ -10,7 +10,7 @@ import pprint
 
 from prompt import SYSTEM_PROMPT
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
@@ -301,6 +301,72 @@ def handle_query():
         })
     finally:
         loop.close()
+
+@app.route("/query/stream", methods=["POST"])
+def handle_query_stream():
+    import json as json_mod
+    data = request.json
+    if not data:
+        return jsonify({"status": "error", "message": "No JSON data provided"}), 400
+
+    messages = data.get("messages") or []
+    user_id  = data.get("user_id")
+
+    if not user_id or not messages:
+        return jsonify({"status": "error", "message": "Missing messages or user_id"}), 400
+
+    latest_msg = messages[-1].get("text", "") if isinstance(messages, list) and messages else ""
+
+    # Retrieve relevant memories
+    try:
+        mem_results = mem0_client.search(query=latest_msg, user_id=user_id, limit=10, output_format="v1.1")
+        memories = [m["memory"] for m in (mem_results.get("results") or [])]
+    except Exception as e:
+        print(f"[WARN] mem0 search failed: {e}")
+        memories = []
+
+    memory_context = "\n".join(memories) if memories else "No previous memories found."
+
+    def generate():
+        full_text = ""
+        collected = []
+        try:
+            stream = novel_client.models.generate_content_stream(
+                model=model,
+                contents=f"Relevant memories about this user:\n{memory_context}\n\nUser: {latest_msg}",
+                config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
+            )
+            for chunk in stream:
+                if chunk.text:
+                    collected.append(chunk.text)
+                    yield f"data: {json_mod.dumps({'text': chunk.text})}\n\n"
+        except Exception as e:
+            yield f"data: {json_mod.dumps({'error': str(e)})}\n\n"
+            return
+
+        yield f"data: {json_mod.dumps({'done': True, 'memories': memories})}\n\n"
+
+        full_text = "".join(collected)
+
+        def save_mem():
+            try:
+                mem0_client.add(
+                    messages=[
+                        {"role": "user", "content": latest_msg},
+                        {"role": "assistant", "content": full_text},
+                    ],
+                    user_id=user_id,
+                    output_format="v1.1",
+                )
+            except Exception as e:
+                print(f"[WARN] mem0 save failed: {e}")
+        threading.Thread(target=save_mem, daemon=True).start()
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 @app.route("/upload", methods=["POST"])
 def upload_file():

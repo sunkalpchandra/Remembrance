@@ -34,19 +34,15 @@ export function RotatingPhotos() {
       className="pointer-events-none absolute inset-0 overflow-hidden"
       style={{ zIndex: 0 }}
     >
-      {/* single centre anchor */}
       <div style={{ position: "absolute", top: "50%", left: "50%" }}>
         {RINGS.map((ring, ri) =>
           Array.from({ length: ring.count }).map((_, i) => {
             const photo = PHOTOS[idx++ % PHOTOS.length];
-            // phase each photo evenly: negative delay = already N seconds in
             const delay = -(ring.duration / ring.count) * i;
-            const spinName   = `spin-r${ri}`;
-            const unspinName = `unspin-r${ri}`;
 
             return (
               <React.Fragment key={`r${ri}-i${i}`}>
-                {/* arm: rotates around the centre anchor (transform-origin 0 0) */}
+                {/* arm rotates around centre */}
                 <div
                   style={{
                     position: "absolute",
@@ -55,29 +51,32 @@ export function RotatingPhotos() {
                     width: ring.radius,
                     height: 0,
                     transformOrigin: "0 0",
-                    animation: `${spinName} ${ring.duration}s linear infinite`,
+                    animation: `spin-r${ri} ${ring.duration}s linear infinite`,
                     animationDirection: ring.dir === 1 ? "normal" : "reverse",
                     animationDelay: `${delay}s`,
                   }}
                 >
-                  {/* photo at tip of arm — counter-rotates to stay upright */}
+                  {/*
+                    Photo at arm tip, rotated 90° CW relative to arm.
+                    This makes the photo portrait (tall) and keeps its
+                    bottom edge always pointing inward toward the center.
+                    Center of photo is placed at (radius, 0) in arm-space.
+                  */}
                   <div
                     style={{
                       position: "absolute",
-                      left: ring.radius - ring.w / 2,
-                      top: -ring.h / 2,
-                      width: ring.w,
-                      height: ring.h,
-                      animation: `${unspinName} ${ring.duration}s linear infinite`,
-                      animationDirection: ring.dir === 1 ? "normal" : "reverse",
-                      animationDelay: `${delay}s`,
+                      left: ring.radius - ring.h / 2,
+                      top: -ring.w / 2,
+                      width: ring.h,
+                      height: ring.w,
+                      transform: "rotate(90deg)",
                     }}
                   >
                     <img
                       src={photo}
                       alt=""
-                      width={ring.w}
-                      height={ring.h}
+                      width={ring.h}
+                      height={ring.w}
                       style={{
                         width: "100%",
                         height: "100%",
@@ -98,12 +97,9 @@ export function RotatingPhotos() {
       </div>
 
       <style>{`
-        @keyframes spin-r0   { from { transform: rotate(0deg);   } to { transform: rotate(360deg);  } }
-        @keyframes unspin-r0 { from { transform: rotate(0deg);   } to { transform: rotate(-360deg); } }
-        @keyframes spin-r1   { from { transform: rotate(0deg);   } to { transform: rotate(360deg);  } }
-        @keyframes unspin-r1 { from { transform: rotate(0deg);   } to { transform: rotate(-360deg); } }
-        @keyframes spin-r2   { from { transform: rotate(0deg);   } to { transform: rotate(360deg);  } }
-        @keyframes unspin-r2 { from { transform: rotate(0deg);   } to { transform: rotate(-360deg); } }
+        @keyframes spin-r0 { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes spin-r1 { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes spin-r2 { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
     </div>
   );

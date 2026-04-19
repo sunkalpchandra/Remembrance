@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/novel/ui/button";
 import { Plus, ArrowUp, X } from "lucide-react";
 import { RotatingPhotos } from "@/app/components/rotating-photos";
+import { useTypewriter } from "@/app/hooks/useTypewriter";
 import { useDropzone } from "react-dropzone";
 import { text } from "stream/consumers";
 
@@ -28,6 +29,7 @@ export default function Home() {
   const dropDownRef = useRef<HTMLDivElement | null>(null);
 
   const [landingInput, setLandingInput] = useState("");
+  const typewriterText = useTypewriter();
   const landingInputRef = useRef<HTMLInputElement>(null);
 
   const [chatInput, setChatInput] = useState("");
@@ -517,7 +519,7 @@ export default function Home() {
                     ref={landingInputRef}
                     value={landingInput}
                     onChange={(e) => setLandingInput(e.target.value)}
-                    placeholder="Relive anything by asking"
+                    placeholder={typewriterText}
                     className="flex-1 min-w-0 bg-transparent outline-none text-sm px-2 placeholder-gray-400"
                     aria-label="Ask a question to start"
                     autoComplete="off"

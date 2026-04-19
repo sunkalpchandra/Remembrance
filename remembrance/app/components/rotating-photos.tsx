@@ -20,9 +20,9 @@ const PHOTOS = [
 
 // 3 rings — portrait photos, images repeat to fill each ring
 const RINGS = [
-  { count: 7, radius: 300, duration: 65,  w: 68,  h: 100, dir:  1 },
-  { count: 8, radius: 510, duration: 95,  w: 76,  h: 112, dir: -1 },
-  { count: 8, radius: 730, duration: 130, w: 84,  h: 124, dir:  1 },
+  { count: 7, radius: 300, duration: 65,  w: 86,  h: 118, dir:  1 },
+  { count: 8, radius: 510, duration: 95,  w: 96,  h: 132, dir: -1 },
+  { count: 8, radius: 730, duration: 130, w: 106, h: 146, dir:  1 },
 ];
 
 export function RotatingPhotos() {
@@ -34,6 +34,17 @@ export function RotatingPhotos() {
       className="pointer-events-none absolute inset-0 overflow-hidden"
       style={{ zIndex: 0 }}
     >
+      {/* white radial fade masking the centre */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "radial-gradient(ellipse 42% 38% at 50% 50%, white 30%, transparent 100%)",
+          zIndex: 1,
+          pointerEvents: "none",
+        }}
+      />
+
       <div style={{ position: "absolute", top: "50%", left: "50%" }}>
         {RINGS.map((ring, ri) =>
           Array.from({ length: ring.count }).map((_, i) => {
@@ -81,7 +92,7 @@ export function RotatingPhotos() {
                         width: "100%",
                         height: "100%",
                         objectFit: "cover",
-                        borderRadius: 12,
+                        borderRadius: 6,
                         boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
                         display: "block",
                       }}

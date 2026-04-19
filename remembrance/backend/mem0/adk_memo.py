@@ -386,8 +386,11 @@ def handle_query_stream():
                 last_err = e
                 err_str = str(e)
                 print(f"[WARN] model {attempt_model} failed: {err_str[:120]}")
-                # Only retry on overloaded / transient errors
-                if "503" not in err_str and "UNAVAILABLE" not in err_str and "overloaded" not in err_str.lower():
+                # Retry on overloaded (503) or quota-exhausted (429) — other models have separate quotas
+                retryable = any(
+                    tok in err_str for tok in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED")
+                ) or "overloaded" in err_str.lower() or "quota" in err_str.lower()
+                if not retryable:
                     break
         if last_err is not None and not collected:
             yield f"data: {json_mod.dumps({'error': str(last_err)})}\n\n"

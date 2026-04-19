@@ -16,6 +16,9 @@ import { Button } from "@/app/components/novel/ui/button";
 import { Plus, ArrowUp, X } from "lucide-react";
 import { RotatingPhotos } from "@/app/components/rotating-photos";
 import { useTypewriter } from "@/app/hooks/useTypewriter";
+import { useProfile } from "@/app/hooks/useProfile";
+import { IdentityPanel } from "@/app/components/identity-panel";
+import { ProactivePrompts } from "@/app/components/proactive-prompts";
 import { useDropzone } from "react-dropzone";
 import { text } from "stream/consumers";
 
@@ -32,6 +35,7 @@ export default function Home() {
   const [landingTransitioning, setLandingTransitioning] = useState(false);
   const typewriterText = useTypewriter();
   const landingInputRef = useRef<HTMLInputElement>(null);
+  const { profile } = useProfile();
 
   const [chatInput, setChatInput] = useState("");
 
@@ -246,7 +250,7 @@ export default function Home() {
       const res = await fetch(`${backendUrl}/query/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: conversation.messages, user_id: user.uid }),
+        body: JSON.stringify({ messages: conversation.messages, user_id: user.uid, profile }),
       });
 
       if (!res.ok || !res.body) throw new Error("Stream failed");
@@ -555,9 +559,11 @@ export default function Home() {
                   </Button>
                 </div>
               </form>
+              <ProactivePrompts userId={user.uid} onSelect={(p) => setLandingInput(p)} />
             </div>
           ) : !isDragAccept ? (
             <div className="w-full h-full flex flex-col items-center overflow-y-scroll relative max-h-[80vh] mt-5 gap-9">
+              <IdentityPanel profile={profile} />
               <div className="my-5"></div>
               {conversation.messages
                 .filter((e) => !e.isMemorySnippet)

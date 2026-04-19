@@ -302,6 +302,30 @@ def handle_query():
     finally:
         loop.close()
 
+MEM0_SEARCH_TIMEOUT_S = 1.5  # never block streaming on a slow Mem0 lookup
+
+def _format_profile(profile: dict) -> str:
+    if not profile:
+        return ""
+    parts = []
+    name = profile.get("patientName")
+    age = profile.get("age")
+    if name:
+        parts.append(f"Patient name: {name}" + (f" (age {age})" if age else ""))
+    family = profile.get("family") or []
+    if family:
+        fam_str = ", ".join(f"{f.get('name')} ({f.get('relation')})" for f in family if f.get("name"))
+        if fam_str:
+            parts.append(f"Family: {fam_str}")
+    places = profile.get("places") or []
+    if places:
+        parts.append(f"Important places: {', '.join(places)}")
+    notes = profile.get("notes")
+    if notes:
+        parts.append(f"Notes: {notes}")
+    return "\n".join(parts)
+
+
 @app.route("/query/stream", methods=["POST"])
 def handle_query_stream():
     import json as json_mod
@@ -311,29 +335,40 @@ def handle_query_stream():
 
     messages = data.get("messages") or []
     user_id  = data.get("user_id")
+    profile  = data.get("profile") or {}
 
     if not user_id or not messages:
         return jsonify({"status": "error", "message": "Missing messages or user_id"}), 400
 
     latest_msg = messages[-1].get("text", "") if isinstance(messages, list) and messages else ""
+    profile_block = _format_profile(profile)
 
-    # Retrieve relevant memories
-    try:
-        mem_results = mem0_client.search(query=latest_msg, user_id=user_id, limit=10, output_format="v1.1")
-        memories = [m["memory"] for m in (mem_results.get("results") or [])]
-    except Exception as e:
-        print(f"[WARN] mem0 search failed: {e}")
-        memories = []
+    # Kick off Mem0 search in parallel; we'll join with a tight timeout
+    mem_holder = {"memories": []}
+    def _search():
+        try:
+            res = mem0_client.search(query=latest_msg, user_id=user_id, limit=8, output_format="v1.1")
+            mem_holder["memories"] = [m["memory"] for m in (res.get("results") or [])]
+        except Exception as e:
+            print(f"[WARN] mem0 search failed: {e}")
+    search_thread = threading.Thread(target=_search, daemon=True)
+    search_thread.start()
+    search_thread.join(timeout=MEM0_SEARCH_TIMEOUT_S)
+    memories = mem_holder["memories"]
 
-    memory_context = "\n".join(memories) if memories else "No previous memories found."
+    context_parts = []
+    if profile_block:
+        context_parts.append(f"Identity context:\n{profile_block}")
+    if memories:
+        context_parts.append("Relevant past memories:\n" + "\n".join(f"- {m}" for m in memories))
+    context = "\n\n".join(context_parts) if context_parts else "No prior context yet — this is an early conversation."
 
     def generate():
-        full_text = ""
         collected = []
         try:
             stream = novel_client.models.generate_content_stream(
                 model=model,
-                contents=f"Relevant memories about this user:\n{memory_context}\n\nUser: {latest_msg}",
+                contents=f"{context}\n\nUser said: {latest_msg}",
                 config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
             )
             for chunk in stream:
@@ -367,6 +402,90 @@ def handle_query_stream():
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+@app.route("/proactive/<user_id>", methods=["GET"])
+def proactive_prompt(user_id):
+    """Return 3 warm conversation starters derived from past memories.
+    Falls back to generic prompts if Mem0 has nothing yet."""
+    fallback = [
+        "What did you love doing on weekends?",
+        "Who were the people closest to you growing up?",
+        "What places have always felt like home?",
+    ]
+    try:
+        res = mem0_client.get_all(user_id=user_id, output_format="v1.1")
+        items = res.get("results") if isinstance(res, dict) else res
+        memories = [m.get("memory") for m in (items or []) if isinstance(m, dict) and m.get("memory")]
+    except Exception as e:
+        print(f"[WARN] proactive fetch failed: {e}")
+        return jsonify({"prompts": fallback})
+
+    if not memories:
+        return jsonify({"prompts": fallback})
+
+    try:
+        sample = "\n".join(f"- {m}" for m in memories[:20])
+        resp = novel_client.models.generate_content(
+            model=model,
+            contents=(
+                "Below are memories a person with mild cognitive decline has shared previously. "
+                "Generate 3 short, warm, open-ended conversation starters (under 12 words each) that gently "
+                "invite them to revisit or expand on these themes. Return ONLY a JSON array of 3 strings, no prose.\n\n"
+                f"{sample}"
+            ),
+            config=types.GenerateContentConfig(thinking_config=types.ThinkingConfig(thinking_budget=0)),
+        )
+        import json as json_mod, re
+        text = (resp.text or "").strip()
+        match = re.search(r"\[.*\]", text, re.DOTALL)
+        prompts = json_mod.loads(match.group(0)) if match else fallback
+        if not isinstance(prompts, list) or not prompts:
+            prompts = fallback
+        return jsonify({"prompts": prompts[:3]})
+    except Exception as e:
+        print(f"[WARN] proactive generation failed: {e}")
+        return jsonify({"prompts": fallback})
+
+@app.route("/graph/<user_id>", methods=["GET"])
+def memory_graph(user_id):
+    """Derive an entity graph from Mem0 memories (no Neo4j required).
+    Uses Gemini to extract people / places / events and groups memories by entity."""
+    try:
+        res = mem0_client.get_all(user_id=user_id, output_format="v1.1")
+        items = res.get("results") if isinstance(res, dict) else res
+        memories = [
+            {"id": m.get("id"), "memory": m.get("memory")}
+            for m in (items or [])
+            if isinstance(m, dict) and m.get("memory")
+        ]
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    if not memories:
+        return jsonify({"entities": [], "memories": []})
+
+    sample = "\n".join(f"{i+1}. {m['memory']}" for i, m in enumerate(memories[:40]))
+    try:
+        resp = novel_client.models.generate_content(
+            model=model,
+            contents=(
+                "Extract the key entities mentioned in these memories. For each entity, return its name, "
+                "type (person | place | event | object), and the memory numbers that mention it. "
+                "Return ONLY a JSON array like:\n"
+                '[{"name":"Robert","type":"person","memories":[1,3,7]}, ...]\n\n'
+                f"{sample}"
+            ),
+            config=types.GenerateContentConfig(thinking_config=types.ThinkingConfig(thinking_budget=0)),
+        )
+        import json as json_mod, re
+        text = (resp.text or "").strip()
+        match = re.search(r"\[.*\]", text, re.DOTALL)
+        entities = json_mod.loads(match.group(0)) if match else []
+    except Exception as e:
+        print(f"[WARN] graph extraction failed: {e}")
+        entities = []
+
+    return jsonify({"entities": entities, "memories": memories})
 
 @app.route("/upload", methods=["POST"])
 def upload_file():

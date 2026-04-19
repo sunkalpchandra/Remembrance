@@ -18,11 +18,11 @@ const PHOTOS = [
   "/photos/rectangle15.webp",
 ];
 
-// 3 rings — portrait photos, images repeat to fill each ring
+// 3 rings — portrait photos (w < h), images repeat to fill each ring
 const RINGS = [
-  { count: 7, radius: 300, duration: 65,  w: 86,  h: 118, dir:  1 },
-  { count: 8, radius: 510, duration: 95,  w: 96,  h: 132, dir: -1 },
-  { count: 8, radius: 730, duration: 130, w: 106, h: 146, dir:  1 },
+  { count: 7, radius: 300, duration: 65,  w: 62,  h: 96,  dir:  1 },
+  { count: 8, radius: 510, duration: 95,  w: 70,  h: 108, dir: -1 },
+  { count: 8, radius: 730, duration: 130, w: 78,  h: 120, dir:  1 },
 ];
 
 export function RotatingPhotos() {
@@ -67,27 +67,24 @@ export function RotatingPhotos() {
                     animationDelay: `${delay}s`,
                   }}
                 >
-                  {/*
-                    Photo at arm tip, rotated 90° CW relative to arm.
-                    This makes the photo portrait (tall) and keeps its
-                    bottom edge always pointing inward toward the center.
-                    Center of photo is placed at (radius, 0) in arm-space.
-                  */}
+                  {/* photo centred at arm tip, counter-rotates to stay upright */}
                   <div
                     style={{
                       position: "absolute",
-                      left: ring.radius - ring.h / 2,
-                      top: -ring.w / 2,
-                      width: ring.h,
-                      height: ring.w,
-                      transform: "rotate(90deg)",
+                      left: ring.radius - ring.w / 2,
+                      top: -ring.h / 2,
+                      width: ring.w,
+                      height: ring.h,
+                      animation: `unspin-r${ri} ${ring.duration}s linear infinite`,
+                      animationDirection: ring.dir === 1 ? "normal" : "reverse",
+                      animationDelay: `${delay}s`,
                     }}
                   >
                     <img
                       src={photo}
                       alt=""
-                      width={ring.h}
-                      height={ring.w}
+                      width={ring.w}
+                      height={ring.h}
                       style={{
                         width: "100%",
                         height: "100%",
@@ -108,9 +105,12 @@ export function RotatingPhotos() {
       </div>
 
       <style>{`
-        @keyframes spin-r0 { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes spin-r1 { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes spin-r2 { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes spin-r0   { from { transform: rotate(0deg);   } to { transform: rotate(360deg);  } }
+        @keyframes unspin-r0 { from { transform: rotate(0deg);   } to { transform: rotate(-360deg); } }
+        @keyframes spin-r1   { from { transform: rotate(0deg);   } to { transform: rotate(360deg);  } }
+        @keyframes unspin-r1 { from { transform: rotate(0deg);   } to { transform: rotate(-360deg); } }
+        @keyframes spin-r2   { from { transform: rotate(0deg);   } to { transform: rotate(360deg);  } }
+        @keyframes unspin-r2 { from { transform: rotate(0deg);   } to { transform: rotate(-360deg); } }
       `}</style>
     </div>
   );

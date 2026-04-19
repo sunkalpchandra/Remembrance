@@ -29,6 +29,7 @@ export default function Home() {
   const dropDownRef = useRef<HTMLDivElement | null>(null);
 
   const [landingInput, setLandingInput] = useState("");
+  const [landingTransitioning, setLandingTransitioning] = useState(false);
   const typewriterText = useTypewriter();
   const landingInputRef = useRef<HTMLInputElement>(null);
 
@@ -423,7 +424,13 @@ export default function Home() {
         <div className="grow w-full flex items-center flex-col justify-center p-2 relative min-h-[80vh]">
           {conversation == undefined && <RotatingPhotos />}
           {conversation == undefined ? (
-            <div className="relative z-10 flex flex-col items-center w-full">
+            <div
+              className={`relative z-10 flex flex-col items-center w-full transition-all duration-300 ease-out ${
+                landingTransitioning
+                  ? "opacity-0 translate-y-2 scale-[0.98] pointer-events-none"
+                  : "opacity-100 translate-y-0 scale-100"
+              }`}
+            >
               <h1
                 className="text-4xl font-normal text-gray-900 text-center mb-6 select-none animate-fade-in"
                 style={{ animationFillMode: "both" }}
@@ -482,20 +489,25 @@ export default function Home() {
                       ],
                     };
                     const newId: string = uuidv4();
-                    setConversationId(newId);
-                    SetConversation(newconversation);
-                    saveConversation(user.uid, newconversation, newId);
-                    setLandingInput("");
-                    if (path == "/" && newId) {
-                      router.prefetch("/chat/" + newId);
-                      router.push("/chat/" + newId);
-                    }
+                    if (path == "/" && newId) router.prefetch("/chat/" + newId);
+
+                    // 1. trigger fade-out of landing UI
+                    setLandingTransitioning(true);
+
+                    // 2. after the fade-out, swap to chat state and navigate
+                    setTimeout(() => {
+                      setConversationId(newId);
+                      SetConversation(newconversation);
+                      saveConversation(user.uid, newconversation, newId);
+                      setLandingInput("");
+                      if (path == "/" && newId) router.push("/chat/" + newId);
+                    }, 280);
                   }
                 }}
                 role="search"
                 aria-label="Start a new conversation"
               >
-                <div className="flex items-center gap-2 pl-2 pr-2">
+                <div className="flex items-center gap-2 pl-2 pr-1">
                   <Button
                     type="button"
                     variant="ghost"

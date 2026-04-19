@@ -282,6 +282,15 @@ export default function Home() {
             if (payload.done) {
               finalMemories = payload.memories || [];
             }
+            if (payload.error) {
+              const errText = `Sorry, the model is busy right now. Please try again in a moment. (${payload.error})`;
+              SetConversation((prev) => {
+                if (!prev) return prev;
+                const msgs = [...prev.messages];
+                msgs[msgs.length - 1] = { sentByUser: false, text: errText };
+                return { ...prev, messages: msgs };
+              });
+            }
           } catch {}
         }
       }
@@ -335,94 +344,94 @@ export default function Home() {
       >
         {!isDragAccept && conversation != undefined && (
           <div className="flex flex-col gap-3 mx-2 mb-6 items-center">
-            <div className="w-[80%] max-w-3xl rounded-2xl liquid-glass flex flex-col">
-              {selectedFiles.length > 0 && (
-                <div className="flex items-center gap-2 px-3 pt-3 overflow-x-auto no-scrollbar">
-                  {selectedFiles.map((file, i) => (
-                    <div
-                      key={`${file.name}-${i}`}
-                      className="flex items-center gap-2 px-2 py-1.5 bg-gray-100 rounded-xl flex-shrink-0"
+            {selectedFiles.length > 0 && (
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-md">
+                {selectedFiles.map((file, i) => (
+                  <div
+                    key={`${file.name}-${i}`}
+                    className="flex items-center gap-2 px-2 py-1.5 bg-gray-100 rounded-xl flex-shrink-0"
+                  >
+                    <img
+                      src={filePreviews[i]}
+                      alt="Attachment preview"
+                      className="h-8 w-8 object-cover rounded-md flex-shrink-0"
+                    />
+                    <span className="text-sm text-gray-700 truncate max-w-[180px]">
+                      {file.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeFileAt(i)}
+                      className="p-0.5 rounded-full hover:bg-gray-200 transition-colors"
+                      aria-label="Remove attachment"
                     >
-                      <img
-                        src={filePreviews[i]}
-                        alt="Attachment preview"
-                        className="h-8 w-8 object-cover rounded-md flex-shrink-0"
-                      />
-                      <span className="text-sm text-gray-700 truncate max-w-[180px]">
-                        {file.name}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => removeFileAt(i)}
-                        className="p-0.5 rounded-full hover:bg-gray-200 transition-colors"
-                        aria-label="Remove attachment"
-                      >
-                        <X className="w-3.5 h-3.5 text-gray-500" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <textarea
-                ref={textInput}
-                value={chatInput}
-                onChange={(e) => {
-                  setChatInput(e.target.value);
-                  const el = e.currentTarget;
-                  el.style.height = "auto";
-                  el.style.height = Math.min(el.scrollHeight, 200) + "px";
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-                rows={1}
-                placeholder="Turn your complex thoughts into graphs..."
-                className="w-full outline-none resize-none px-4 pt-3 pb-1 text-sm placeholder-gray-400 bg-transparent max-h-[200px]"
-                aria-label="Message"
-              />
-
-              <div className="flex flex-row justify-between items-center px-2 pb-2">
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={handleFileUploadClick}
-                    className="p-1.5 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-                    aria-label="Attach file"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    style={{ display: "none" }}
-                    accept="image/*,.pdf,.txt,.docx"
-                    multiple
-                  />
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    className="p-1.5 rounded-full bg-black text-white hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    onClick={handleSendMessage}
-                    disabled={
-                      isUploading || (!chatInput.trim() && !selectedFiles.length)
-                    }
-                    aria-label="Send message"
-                  >
-                    {isUploading ? (
-                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <img src="/arrow-up.svg" className="w-3.5" alt="" />
-                    )}
-                  </button>
-                </div>
+                      <X className="w-3.5 h-3.5 text-gray-500" />
+                    </button>
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
+            <form
+              className="flex w-fit flex-col gap-2 liquid-glass rounded-full p-1"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendMessage();
+              }}
+              role="search"
+              aria-label="Send message"
+            >
+              <div className="flex items-center gap-2 pl-2 pr-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="w-7 h-7 rounded-full flex-shrink-0"
+                  aria-label="Attach file"
+                  onClick={handleFileUploadClick}
+                >
+                  <Plus className="w-4 h-4 text-gray-400" />
+                </Button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  style={{ display: "none" }}
+                  accept="image/*,.pdf,.txt,.docx"
+                  multiple
+                />
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  placeholder="Ask anything"
+                  className="w-80 bg-transparent outline-none text-sm px-2 placeholder-gray-400"
+                  aria-label="Message"
+                  autoComplete="off"
+                  maxLength={2000}
+                />
+                <Button
+                  type="submit"
+                  size="icon"
+                  className="w-7 h-7 rounded-full bg-black text-white hover:bg-gray-900 shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                  aria-label="Send message"
+                  disabled={
+                    isUploading || (!chatInput.trim() && !selectedFiles.length)
+                  }
+                >
+                  {isUploading ? (
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <ArrowUp className="w-3.5 h-3.5" />
+                  )}
+                </Button>
+              </div>
+            </form>
           </div>
         )}
         <div className="grow w-full flex items-center flex-col justify-center p-2 relative min-h-[80vh]">

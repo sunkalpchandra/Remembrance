@@ -365,18 +365,32 @@ def handle_query_stream():
 
     def generate():
         collected = []
-        try:
-            stream = novel_client.models.generate_content_stream(
-                model=model,
-                contents=f"{context}\n\nUser said: {latest_msg}",
-                config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
-            )
-            for chunk in stream:
-                if chunk.text:
-                    collected.append(chunk.text)
-                    yield f"data: {json_mod.dumps({'text': chunk.text})}\n\n"
-        except Exception as e:
-            yield f"data: {json_mod.dumps({'error': str(e)})}\n\n"
+        # Try primary model, fall back to 2.0-flash if overloaded (503)
+        models_to_try = [model, "gemini-2.0-flash", "gemini-1.5-flash"]
+        last_err = None
+        for attempt_model in models_to_try:
+            collected = []
+            try:
+                stream = novel_client.models.generate_content_stream(
+                    model=attempt_model,
+                    contents=f"{context}\n\nUser said: {latest_msg}",
+                    config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
+                )
+                for chunk in stream:
+                    if chunk.text:
+                        collected.append(chunk.text)
+                        yield f"data: {json_mod.dumps({'text': chunk.text})}\n\n"
+                last_err = None
+                break  # success
+            except Exception as e:
+                last_err = e
+                err_str = str(e)
+                print(f"[WARN] model {attempt_model} failed: {err_str[:120]}")
+                # Only retry on overloaded / transient errors
+                if "503" not in err_str and "UNAVAILABLE" not in err_str and "overloaded" not in err_str.lower():
+                    break
+        if last_err is not None and not collected:
+            yield f"data: {json_mod.dumps({'error': str(last_err)})}\n\n"
             return
 
         yield f"data: {json_mod.dumps({'done': True, 'memories': memories})}\n\n"

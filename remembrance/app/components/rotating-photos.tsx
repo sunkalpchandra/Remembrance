@@ -18,11 +18,12 @@ const PHOTOS = [
   "/photos/rectangle15.webp",
 ];
 
-// 3 rings: inner(4) middle(5) outer(5) — alternate CW/CCW
+// 3 rings with large radii so photos spread across the full viewport
+// inner ring just inside viewport edges, outer ring extends well beyond
 const RINGS = [
-  { count: 4, radius: 190, duration: 55, w: 86,  h: 64,  dir: 1  },
-  { count: 5, radius: 320, duration: 80, w: 105, h: 78,  dir: -1 },
-  { count: 5, radius: 460, duration: 110, w: 124, h: 92, dir: 1  },
+  { count: 5, radius: 320, duration: 60,  w: 90,  h: 68,  dir:  1 },
+  { count: 5, radius: 530, duration: 90,  w: 110, h: 82,  dir: -1 },
+  { count: 4, radius: 760, duration: 120, w: 130, h: 96,  dir:  1 },
 ];
 
 export function RotatingPhotos() {

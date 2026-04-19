@@ -495,16 +495,16 @@ export default function Home() {
                 role="search"
                 aria-label="Start a new conversation"
               >
-                <div className="flex items-center gap-1 pl-2">
+                <div className="flex items-center gap-2 pl-2 pr-2">
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="rounded-full flex-shrink-0"
+                    className="w-7 h-7 rounded-full flex-shrink-0"
                     aria-label="Attach file"
                     onClick={handleFileUploadClick}
                   >
-                    <Plus className="w-5 h-5 text-gray-400" />
+                    <Plus className="w-4 h-4 text-gray-400" />
                   </Button>
                   <input
                     type="file"

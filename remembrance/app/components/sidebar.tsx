@@ -226,7 +226,20 @@ const BaseOptions = [
 export default function SideBar(props: SidebarProps) {
   const router = useRouter();
   const user = useContext(UserContext);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("sidebar-collapsed") === "true";
+  });
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("sidebar-collapsed", String(next));
+      }
+      return next;
+    });
+  };
   const [chatsExpanded, setChatsExpanded] = useState(true);
 
   const handleNewChat = () => {
@@ -254,7 +267,7 @@ export default function SideBar(props: SidebarProps) {
             </div>
           )}
           <button
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={toggleCollapsed}
             className={`hover:bg-gray-200 rounded-md transition-colors duration-75 ${collapsed ? "p-2" : "p-1.5"}`}
           >
             <BiChevronRight

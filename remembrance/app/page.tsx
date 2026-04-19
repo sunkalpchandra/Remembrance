@@ -18,7 +18,6 @@ import { RotatingPhotos } from "@/app/components/rotating-photos";
 import { useTypewriter } from "@/app/hooks/useTypewriter";
 import { useProfile } from "@/app/hooks/useProfile";
 import { IdentityPanel } from "@/app/components/identity-panel";
-import { ProactivePrompts } from "@/app/components/proactive-prompts";
 import { useDropzone } from "react-dropzone";
 import { text } from "stream/consumers";
 
@@ -568,7 +567,6 @@ export default function Home() {
                   </Button>
                 </div>
               </form>
-              <ProactivePrompts userId={user.uid} onSelect={(p) => setLandingInput(p)} />
             </div>
           ) : !isDragAccept ? (
             <div className="w-full h-full flex flex-col items-center overflow-y-scroll relative max-h-[80vh] mt-5 gap-9">

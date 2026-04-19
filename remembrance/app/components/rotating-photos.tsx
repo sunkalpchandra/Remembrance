@@ -18,11 +18,11 @@ const PHOTOS = [
   "/photos/rectangle15.webp",
 ];
 
-// 3 rings — portrait photos, evenly spaced radii
+// 3 rings — portrait photos, images repeat to fill each ring
 const RINGS = [
-  { count: 5, radius: 300, duration: 65,  w: 68,  h: 100, dir:  1 },
-  { count: 5, radius: 510, duration: 95,  w: 76,  h: 112, dir: -1 },
-  { count: 4, radius: 730, duration: 130, w: 84,  h: 124, dir:  1 },
+  { count: 7, radius: 300, duration: 65,  w: 68,  h: 100, dir:  1 },
+  { count: 8, radius: 510, duration: 95,  w: 76,  h: 112, dir: -1 },
+  { count: 8, radius: 730, duration: 130, w: 84,  h: 124, dir:  1 },
 ];
 
 export function RotatingPhotos() {

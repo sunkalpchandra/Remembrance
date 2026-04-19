@@ -1,7 +1,0 @@
-flask
-python-dotenv
-flask_cors
-mem0ai
-google-adk
-google-genai
-neo4j

@@ -14,7 +14,7 @@ import { v4 as uuidv4 } from "uuid";
 import { getConversationById, saveConversation } from "@/backend/lib/db";
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/novel/ui/button";
-import { Plus, ArrowUp, X } from "lucide-react";
+import { Plus, ArrowUp, X, ChevronDown, Check } from "lucide-react";
 import { RotatingPhotos } from "@/app/components/rotating-photos";
 import { useTypewriter } from "@/app/hooks/useTypewriter";
 import { useProfile } from "@/app/hooks/useProfile";
@@ -76,6 +76,16 @@ export default function Home() {
     },
   });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedModel, setSelectedModel] = useState("max");
+
+  useEffect(() => {
+    try {
+      const savedModel = localStorage.getItem("selected-model");
+      if (savedModel) {
+        setSelectedModel(savedModel);
+      }
+    } catch {}
+  }, []);
 
   const handleFileUploadClick = () => {
     fileInputRef.current?.click();
@@ -138,8 +148,6 @@ export default function Home() {
     };
 
     if (dropDown) {
-      document.addEventListener("mousedown", handleClickOutside);
-    } else {
       document.addEventListener("mousedown", handleClickOutside);
     }
 
@@ -287,6 +295,7 @@ export default function Home() {
         })),
         query: lastUserMsg,
         user_id: user.uid,
+        model_id: selectedModel,
         profile,
         request_id: requestId,
       };
@@ -325,7 +334,7 @@ export default function Home() {
             request_id: requestId,
             streamState: "streaming",
             sentByUser: false,
-            text: accumulatedAnswer || accumulatedThinking,
+            text: accumulatedAnswer,
             thinkingText: accumulatedThinking,
           };
           return { ...prev, messages: msgs };
@@ -378,8 +387,7 @@ export default function Home() {
             request_id: requestId,
             streamState: "done",
             sentByUser: false,
-            text:
-              accumulatedAnswer || current.text || accumulatedThinking || "",
+            text: accumulatedAnswer || current.text || "",
             thinkingText: accumulatedThinking,
             status: "Done",
           };
@@ -451,6 +459,8 @@ export default function Home() {
 
   useEffect(() => {
     if (conversation == undefined) return;
+    if (path === "/" && !conversationId) return;
+
     const last = conversation.messages.at(-1);
     if (last?.sentByUser) {
       sendBotMessage();
@@ -459,7 +469,7 @@ export default function Home() {
     setTimeout(() => {
       scrollRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
-  }, [conversation]);
+  }, [conversation, path, conversationId]);
 
   // Clean up object URLs
   useEffect(() => {
@@ -471,11 +481,55 @@ export default function Home() {
   }, [filePreviews]);
 
   return (
-    <div className="w-screen flex flex-row bg-white">
+    <div className="w-screen flex flex-row bg-white relative">
       <SideBar selected={0}></SideBar>
       <div
+        className="absolute top-4 right-6 z-50 animate-fade-in"
+        ref={dropDownRef}
+      >
+        <button
+          onClick={() => setDropDown(!dropDown)}
+          className="bg-white/60 backdrop-blur-md border border-gray-200 text-gray-700 text-sm rounded-xl hover:bg-gray-50 flex items-center justify-between w-40 px-3 py-2 shadow-sm outline-none cursor-pointer transition-all hover:shadow-md font-medium"
+        >
+          <span className="truncate">
+            Model:{" "}
+            {selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1)}
+          </span>
+          <ChevronDown
+            className={`w-4 h-4 text-gray-500 transition-transform ${dropDown ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {dropDown && (
+          <div className="absolute top-full mt-2 right-0 w-40 bg-white border border-gray-200 rounded-xl shadow-lg py-1 overflow-hidden">
+            {[
+              { id: "max", name: "Max" },
+              { id: "high", name: "High" },
+              { id: "medium", name: "Medium" },
+            ].map((model) => (
+              <button
+                key={model.id}
+                className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center justify-between transition-colors"
+                onClick={() => {
+                  setSelectedModel(model.id);
+                  setDropDown(false);
+                  try {
+                    localStorage.setItem("selected-model", model.id);
+                  } catch {}
+                }}
+              >
+                <span>{model.name}</span>
+                {selectedModel === model.id && (
+                  <Check className="w-4 h-4 text-black" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div
         {...getRootProps({ className: "dropzone" })}
-        className="grow h-screen flex flex-col-reverse gap-5 "
+        className="grow h-screen flex flex-col-reverse gap-5 relative"
       >
         {!isDragAccept && conversation != undefined && (
           <div className="flex flex-col gap-3 mx-2 mb-16 items-center">

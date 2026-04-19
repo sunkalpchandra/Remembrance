@@ -34,25 +34,8 @@ export function BotMessage(props: BotProps) {
   }, []);
   return (
     <div className="w-[80%] flex flex-col gap-2 text-gray-800 animate-fade-in">
-      {!props.message.text || props.message.text.trim() === "" ? (
-        <div className="flex items-center gap-2 text-gray-500">
-          <div className="flex space-x-1">
-            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-          </div>
-          <span className="text-sm ml-2 italic animate-pulse">
-            {props.message.status || "Remembrance is thinking..."}
-          </span>
-        </div>
-      ) : (
-        <p className="w-full whitespace-pre-line leading-relaxed">
-          {props.message.text}
-        </p>
-      )}
-
       {thinkingText && thinkingText.trim().length > 0 && (
-        <div className="mt-1 rounded-xl border border-gray-200 bg-gray-50">
+        <div className="mb-2 mt-1 rounded-xl border border-gray-200 bg-gray-50">
           <button
             type="button"
             onClick={() => setShowThoughts((prev) => !prev)}
@@ -70,6 +53,23 @@ export function BotMessage(props: BotProps) {
             </div>
           )}
         </div>
+      )}
+
+      {!props.message.text || props.message.text.trim() === "" ? (
+        <div className="flex items-center gap-2 text-gray-500">
+          <div className="flex space-x-1">
+            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+          </div>
+          <span className="text-sm ml-2 italic animate-pulse">
+            {props.message.status || "Remembrance is thinking..."}
+          </span>
+        </div>
+      ) : (
+        <p className="w-full whitespace-pre-line leading-relaxed">
+          {props.message.text}
+        </p>
       )}
 
       {props.suggestions.length > 0 && (

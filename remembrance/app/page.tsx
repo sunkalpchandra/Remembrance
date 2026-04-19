@@ -456,7 +456,7 @@ export default function Home() {
                 </div>
               )}
               <form
-                className="flex w-full max-w-md flex-col gap-2 liquid-glass rounded-full px-3 py-2"
+                className="flex w-full max-w-md flex-col gap-2 liquid-glass rounded-full p-1 pr-1"
                 onSubmit={async (e) => {
                   e.preventDefault();
                   const trimmed = landingInput.trim();
@@ -493,7 +493,7 @@ export default function Home() {
                 role="search"
                 aria-label="Start a new conversation"
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 pl-2">
                   <Button
                     type="button"
                     variant="ghost"

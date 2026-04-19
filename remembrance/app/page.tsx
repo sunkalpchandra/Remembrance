@@ -342,7 +342,7 @@ export default function Home() {
         className="grow h-screen flex flex-col-reverse gap-5 "
       >
         {!isDragAccept && conversation != undefined && (
-          <div className="flex flex-col gap-3 mx-2 mb-6 items-center">
+          <div className="flex flex-col gap-3 mx-2 mb-16 items-center">
             {selectedFiles.length > 0 && (
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-md">
                 {selectedFiles.map((file, i) => (
@@ -408,7 +408,7 @@ export default function Home() {
                       handleSendMessage();
                     }
                   }}
-                  placeholder="Ask anything"
+                  placeholder={typewriterText}
                   className="w-80 bg-transparent outline-none text-sm px-2 placeholder-gray-400"
                   aria-label="Message"
                   autoComplete="off"

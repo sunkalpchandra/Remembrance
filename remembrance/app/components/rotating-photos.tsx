@@ -67,24 +67,29 @@ export function RotatingPhotos() {
                     animationDelay: `${delay}s`,
                   }}
                 >
-                  {/* photo centred at arm tip, counter-rotates to stay upright */}
+                  {/*
+                    Container is landscape (h×w) in layout so that after
+                    rotate(90deg) it visually appears portrait (w×h).
+                    The 90° CW rotation maps the photo's bottom (+y) to the
+                    -x direction in arm space = always toward centre.
+                    No counter-rotation: the photo rotates with the arm.
+                  */}
                   <div
                     style={{
                       position: "absolute",
-                      left: ring.radius - ring.w / 2,
-                      top: -ring.h / 2,
-                      width: ring.w,
-                      height: ring.h,
-                      animation: `unspin-r${ri} ${ring.duration}s linear infinite`,
-                      animationDirection: ring.dir === 1 ? "normal" : "reverse",
-                      animationDelay: `${delay}s`,
+                      left: ring.radius - ring.h / 2,
+                      top: -ring.w / 2,
+                      width: ring.h,
+                      height: ring.w,
+                      transform: "rotate(90deg)",
+                      transformOrigin: "center center",
                     }}
                   >
                     <img
                       src={photo}
                       alt=""
-                      width={ring.w}
-                      height={ring.h}
+                      width={ring.h}
+                      height={ring.w}
                       style={{
                         width: "100%",
                         height: "100%",
@@ -105,12 +110,9 @@ export function RotatingPhotos() {
       </div>
 
       <style>{`
-        @keyframes spin-r0   { from { transform: rotate(0deg);   } to { transform: rotate(360deg);  } }
-        @keyframes unspin-r0 { from { transform: rotate(0deg);   } to { transform: rotate(-360deg); } }
-        @keyframes spin-r1   { from { transform: rotate(0deg);   } to { transform: rotate(360deg);  } }
-        @keyframes unspin-r1 { from { transform: rotate(0deg);   } to { transform: rotate(-360deg); } }
-        @keyframes spin-r2   { from { transform: rotate(0deg);   } to { transform: rotate(360deg);  } }
-        @keyframes unspin-r2 { from { transform: rotate(0deg);   } to { transform: rotate(-360deg); } }
+        @keyframes spin-r0 { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes spin-r1 { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes spin-r2 { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
     </div>
   );

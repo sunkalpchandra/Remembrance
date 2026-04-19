@@ -22,8 +22,7 @@ import {
   BiCheck,
   BiTrash,
 } from "react-icons/bi";
-import { Show, UserButton } from "@clerk/nextjs";
-import Link from "next/link";
+import { UserButton } from "@clerk/nextjs";
 import { TfiLayersAlt } from "react-icons/tfi";
 
 interface SidebarProps {
@@ -338,51 +337,20 @@ export default function SideBar(props: SidebarProps) {
         )}
       </div>
 
-      {/* Auth footer */}
+      {/* Account footer */}
       <div className={`border-t border-gray-200 ${collapsed ? "p-2 flex justify-center" : "px-3 py-3"}`}>
-        <Show when="signed-out">
-          {collapsed ? (
-            <Link
-              href="/sign-in"
-              className="p-2 rounded-md hover:bg-gray-100 text-gray-600"
-              title="Sign in"
-              aria-label="Sign in"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12H3m0 0l4-4m-4 4l4 4m8-11V5a2 2 0 012-2h4a2 2 0 012 2v14a2 2 0 01-2 2h-4a2 2 0 01-2-2v-2" />
-              </svg>
-            </Link>
-          ) : (
-            <div className="flex gap-2">
-              <Link
-                href="/sign-in"
-                className="flex-1 px-3 py-1.5 text-sm text-center rounded-md border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors"
-              >
-                Sign in
-              </Link>
-              <Link
-                href="/sign-up"
-                className="flex-1 px-3 py-1.5 text-sm text-center rounded-md bg-black text-white hover:bg-gray-800 transition-colors"
-              >
-                Sign up
-              </Link>
-            </div>
+        <div className={`flex items-center ${collapsed ? "" : "gap-2"}`}>
+          <UserButton
+            appearance={{
+              elements: { avatarBox: "w-8 h-8" },
+            }}
+          />
+          {!collapsed && (
+            <span className="text-sm text-gray-700 truncate">
+              {user?.displayName || "Account"}
+            </span>
           )}
-        </Show>
-        <Show when="signed-in">
-          <div className={`flex items-center ${collapsed ? "" : "gap-2"}`}>
-            <UserButton
-              appearance={{
-                elements: { avatarBox: "w-8 h-8" },
-              }}
-            />
-            {!collapsed && (
-              <span className="text-sm text-gray-700 truncate">
-                {user?.displayName || "Account"}
-              </span>
-            )}
-          </div>
-        </Show>
+        </div>
       </div>
     </div>
   );

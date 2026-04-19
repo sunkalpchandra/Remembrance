@@ -9,7 +9,7 @@ import React, {
 } from "react";
 
 const ForceGraph2D = dynamic(
-  () => import("react-force-graph").then((mod) => mod.ForceGraph2D),
+  () => import("react-force-graph-2d").then((mod) => mod.default),
   { ssr: false },
 );
 

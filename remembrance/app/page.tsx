@@ -458,7 +458,7 @@ export default function Home() {
                 </div>
               )}
               <form
-                className="flex w-full max-w-md flex-col gap-2 liquid-glass rounded-full p-1 pr-1"
+                className="flex w-fit flex-col gap-2 liquid-glass rounded-full p-1"
                 onSubmit={async (e) => {
                   e.preventDefault();
                   const trimmed = landingInput.trim();
@@ -520,7 +520,7 @@ export default function Home() {
                     value={landingInput}
                     onChange={(e) => setLandingInput(e.target.value)}
                     placeholder={typewriterText}
-                    className="flex-1 min-w-0 bg-transparent outline-none text-sm px-2 placeholder-gray-400"
+                    className="w-64 bg-transparent outline-none text-sm px-2 placeholder-gray-400"
                     aria-label="Ask a question to start"
                     autoComplete="off"
                     autoFocus

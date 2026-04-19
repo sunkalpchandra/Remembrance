@@ -226,14 +226,10 @@ const BaseOptions = [
 export default function SideBar(props: SidebarProps) {
   const router = useRouter();
   const user = useContext(UserContext);
-  const [collapsed, setCollapsed] = useState(false);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("sidebar-collapsed");
-      if (saved !== null) setCollapsed(saved === "true");
-    } catch {}
-  }, []);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try { return localStorage.getItem("sidebar-collapsed") === "true"; } catch { return false; }
+  });
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -252,6 +248,7 @@ export default function SideBar(props: SidebarProps) {
 
   return (
     <div
+      suppressHydrationWarning
       className={`transition-all duration-150 h-screen ${
         collapsed ? "w-16" : "w-64"
       } bg-gray-50 border-r border-gray-200 flex flex-col`}

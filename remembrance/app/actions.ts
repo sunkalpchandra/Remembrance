@@ -12,6 +12,13 @@ export async function createConversation(name: string, id?: string) {
   try {
     const { userId } = await auth();
 
+    // Validate that id is a valid UUID to prevent DB type errors
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (id && !uuidRegex.test(id)) {
+      return { success: false, error: "Invalid conversation ID format" };
+    }
+
     if (!userId) {
       throw new Error(
         "Unauthorized: You must be signed in to create a conversation.",
@@ -71,6 +78,13 @@ export async function getConversationById(conversationId: string) {
       throw new Error(
         "Unauthorized: You must be signed in to view conversations.",
       );
+    }
+
+    // Validate that conversationId is a valid UUID to prevent DB type errors
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(conversationId)) {
+      return { success: false, error: "Invalid conversation ID format" };
     }
 
     const conversation = await db
@@ -163,6 +177,13 @@ export async function deleteConversationAction(conversationId: string) {
       );
     }
 
+    // Validate that conversationId is a valid UUID to prevent DB type errors
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(conversationId)) {
+      return { success: false, error: "Invalid conversation ID format" };
+    }
+
     await db
       .delete(conversations)
       .where(
@@ -190,6 +211,13 @@ export async function saveMessage(
 ) {
   try {
     const { userId } = await auth();
+
+    // Validate that conversationId is a valid UUID to prevent DB type errors
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(conversationId)) {
+      return { success: false, error: "Invalid conversation ID format" };
+    }
 
     if (!userId) {
       throw new Error("Unauthorized: You must be signed in to save a message.");

@@ -64,6 +64,25 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
+  // Redirect caregivers to dashboard if they access non-dashboard routes
+  if (
+    hasCompletedOnboarding &&
+    userRole === "caregiver" &&
+    !req.nextUrl.pathname.startsWith("/dashboard") &&
+    !req.nextUrl.pathname.startsWith("/api")
+  ) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  // Restrict /dashboard access to caregivers only
+  if (
+    hasCompletedOnboarding &&
+    req.nextUrl.pathname.startsWith("/dashboard") &&
+    userRole !== "caregiver"
+  ) {
+    return NextResponse.redirect(new URL("/", req.url));
+  }
+
   return NextResponse.next();
 });
 

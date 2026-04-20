@@ -61,11 +61,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     startTransition(async () => {
       const result = await deleteAccount();
       if (result.success) {
-        try {
-          await signOut();
-        } catch (e) {
-          // Ignore if sign out fails because session is already destroyed
-        }
         window.location.href = "/sign-in";
       } else {
         alert(result.error || "Failed to delete account");
@@ -79,7 +74,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     { id: "general", label: "General", icon: Settings },
     { id: "caregiver", label: "Caregiver", icon: UserPlus },
     { id: "account", label: "Account", icon: User },
-  ];
+  ].filter(
+    (tab) =>
+      tab.id !== "caregiver" || user?.publicMetadata?.role !== "caregiver",
+  );
 
   return (
     <div

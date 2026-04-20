@@ -109,9 +109,7 @@ function SideBarChatList({ userId }: { userId: string | any }) {
 
   const handleChatClick = (chatId: string) => {
     if (editingId) return; // Don't navigate if we're editing
-    if (typeof window !== "undefined") {
-      window.history.pushState({}, "", `/chat/${chatId}`);
-    }
+    router.push(`/chat/${chatId}`);
   };
 
   const startEditing = (
@@ -140,9 +138,7 @@ function SideBarChatList({ userId }: { userId: string | any }) {
 
       setChats((prev) => prev.filter((chat) => chat.id !== chatId));
       if (currentId === chatId) {
-        if (typeof window !== "undefined") {
-          window.history.pushState({}, "", "/");
-        }
+        router.push("/");
       }
     } catch (error: any) {
       console.error("Failed to delete chat: ", error);
@@ -282,9 +278,7 @@ export default function SideBar(props: SidebarProps) {
   const [chatsExpanded, setChatsExpanded] = useState(true);
 
   const handleNewChat = () => {
-    if (typeof window !== "undefined") {
-      window.history.pushState({}, "", "/");
-    }
+    router.push("/");
     setChatsExpanded(true);
   };
 
@@ -359,9 +353,7 @@ export default function SideBar(props: SidebarProps) {
             {/* Memory Graph */}
             <button
               onClick={() => {
-                if (typeof window !== "undefined") {
-                  window.history.pushState({}, "", "/repository");
-                }
+                router.push("/repository");
               }}
               className={`flex items-center w-full text-gray-700 hover:bg-gray-100 rounded-md cursor-pointer transition-colors duration-75 ${
                 collapsed ? "justify-center p-2" : "gap-3 px-2 py-1.5"

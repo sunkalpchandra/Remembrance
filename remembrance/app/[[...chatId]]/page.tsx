@@ -4,10 +4,10 @@ import { io } from "socket.io-client";
 import type React from "react";
 import { useContext, useEffect, useRef, useState } from "react";
 import type { Conversation } from "@/app/lib/types";
-import { HumanMessage } from "./components/messages/humanmessage";
-import { BotMessage } from "./components/messages/botmessage";
+import { HumanMessage } from "@/app/components/messages/humanmessage";
+import { BotMessage } from "@/app/components/messages/botmessage";
 import axios from "axios";
-import { UserContext } from "./components/usercontext";
+import { UserContext } from "@/app/components/usercontext";
 import { useParams, usePathname } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -25,12 +25,13 @@ import {
   LuSignalMedium,
   LuSignalZero,
 } from "react-icons/lu";
-import { RotatingPhotos } from "@/app/components/rotating-photos";
 import { useTypewriter } from "@/app/hooks/useTypewriter";
 import { useProfile } from "@/app/hooks/useProfile";
 import { IdentityPanel } from "@/app/components/identity-panel";
 import { useDropzone } from "react-dropzone";
 import { text } from "stream/consumers";
+
+const conversationCache: Record<string, Conversation> = {};
 
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -52,14 +53,17 @@ export default function Home() {
   const { getToken } = useAuth();
   const user = useContext(UserContext);
   const params = useParams();
-  const [conversation, SetConversation] = useState(
-    undefined as Conversation | undefined,
+  const initialId = (params?.chatId as string[])?.at(-1) || undefined;
+  const [conversation, SetConversation] = useState<Conversation | undefined>(
+    initialId ? conversationCache[initialId] : undefined,
   );
   const [ConversationId, setConversationId] = useState<string | undefined>(
-    params?.id as string | undefined,
+    initialId,
   );
   const conversationId = ConversationId;
+  const currentConversationId = useRef<string | undefined>(ConversationId);
   const textInput = useRef(null as any as HTMLTextAreaElement);
+  const isGeneratingRef = useRef(false);
 
   // New state for file handling
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -138,36 +142,35 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const handleLocationChange = () => {
-      const match = window.location.pathname.match(/\/chat\/([^/]+)/);
-      const newId = match ? match[1] : undefined;
-      setConversationId(newId);
-      if (!newId && window.location.pathname === "/") {
-        SetConversation(undefined);
-      }
-    };
-
-    window.addEventListener("popstate", handleLocationChange);
-    const originalPushState = window.history.pushState;
-    window.history.pushState = function (...args) {
-      originalPushState.apply(window.history, args);
-      handleLocationChange();
-    };
-
-    handleLocationChange();
-
-    return () => {
-      window.removeEventListener("popstate", handleLocationChange);
-      window.history.pushState = originalPushState;
-    };
-  }, []);
+    const newId = (params?.chatId as string[])?.at(-1) || undefined;
+    setConversationId(newId);
+    if (!newId && path === "/") {
+      SetConversation(undefined);
+    } else if (newId !== ConversationId) {
+      SetConversation(newId ? conversationCache[newId] : undefined);
+    }
+  }, [params?.chatId, path, ConversationId]);
 
   useEffect(() => {
+    currentConversationId.current = ConversationId;
     if (ConversationId && user) {
       getConversationById(ConversationId)
         .then((res) => {
+          if (currentConversationId.current !== ConversationId) return;
           if (res.success && res.data) {
-            SetConversation(res.data as unknown as Conversation);
+            SetConversation((prev) => {
+              const fetched = res.data as unknown as Conversation;
+              if (
+                prev &&
+                prev.messages &&
+                fetched.messages &&
+                prev.messages.length >= fetched.messages.length
+              ) {
+                return prev;
+              }
+              conversationCache[ConversationId] = fetched;
+              return fetched;
+            });
           } else if (!res.success) {
             console.error("Failed to load conversation:", res.error);
           }
@@ -177,6 +180,12 @@ export default function Home() {
         });
     }
   }, [ConversationId, user]);
+
+  useEffect(() => {
+    if (ConversationId && conversation) {
+      conversationCache[ConversationId] = conversation;
+    }
+  }, [conversation, ConversationId]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -278,6 +287,9 @@ export default function Home() {
         },
       ];
       SetConversation({ ...newconversation });
+      if (convoId) {
+        conversationCache[convoId] = { ...newconversation };
+      }
 
       if (convoId) {
         saveMessage(convoId, msg, true).catch(console.error);
@@ -347,12 +359,10 @@ export default function Home() {
       const newConvoId = await sendHumanMessage(messageText);
       setChatInput("");
       if (path === "/" && newConvoId) {
-        if (typeof window !== "undefined")
-          window.history.pushState({}, "", "/chat/" + newConvoId);
+        router.push("/chat/" + newConvoId);
       }
     } else if (path === "/" && activeConvoId) {
-      if (typeof window !== "undefined")
-        window.history.pushState({}, "", "/chat/" + activeConvoId);
+      router.push("/chat/" + activeConvoId);
     }
   };
 
@@ -362,19 +372,27 @@ export default function Home() {
     const lastUserMsg = conversation.messages.at(-1)?.text;
     if (!lastUserMsg) return;
 
+    if (isGeneratingRef.current) return;
+    isGeneratingRef.current = true;
+
     // Add empty placeholder message that we'll stream into
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const currentSocket = (window as any).chatSocket;
     const placeholder = {
       sentByUser: false,
       text: " ",
-      status: "Connecting...",
+      status: currentSocket?.connected ? undefined : "Connecting...",
       request_id: requestId,
       streamState: "streaming" as const,
       thinkingText: "",
     };
-    SetConversation((prev) =>
-      prev ? { ...prev, messages: [...prev.messages, placeholder] } : prev,
-    );
+    SetConversation((prev) => {
+      const next = prev
+        ? { ...prev, messages: [...prev.messages, placeholder] }
+        : prev;
+      if (conversationId && next) conversationCache[conversationId] = next;
+      return next;
+    });
 
     try {
       const backendUrl =
@@ -435,7 +453,7 @@ export default function Home() {
             resolve();
           });
 
-          socket.once("connect_error", (err) => {
+          socket.once("connect_error", (err: any) => {
             clearTimeout(timeout);
             console.error("[Socket] Connection error:", err);
             reject(err);
@@ -475,20 +493,8 @@ export default function Home() {
       socket.on("status", (payload: any) => {
         if (payload?.request_id && payload.request_id !== requestId) return;
         didReceiveResponse = true;
-        SetConversation((prev) => {
-          if (!prev) return prev;
-          const msgs = [...prev.messages];
-          const current = msgs[msgs.length - 1] as any;
-          if (current?.request_id && current.request_id !== requestId)
-            return prev;
-          msgs[msgs.length - 1] = {
-            ...current,
-            request_id: requestId,
-            streamState: "streaming",
-            status: payload.status,
-          };
-          return { ...prev, messages: msgs };
-        });
+        // Don't update status field - it's only for connection messages
+        // Backend status updates (Thinking, Synthesizing, etc) should not display
       });
 
       socket.on("thinking_chunk", (payload: any) => {
@@ -568,6 +574,7 @@ export default function Home() {
           };
           return { ...prev, latestMemories, messages: msgs };
         });
+        isGeneratingRef.current = false;
 
         if (conversationId && finalText) {
           await saveMessage(conversationId, finalText, false);
@@ -593,6 +600,7 @@ export default function Home() {
           };
           return { ...prev, messages: msgs };
         });
+        isGeneratingRef.current = false;
       });
 
       socket.on("connect_error", (error: any) => {
@@ -606,6 +614,7 @@ export default function Home() {
           };
           return { ...prev, messages: msgs };
         });
+        isGeneratingRef.current = false;
       });
 
       const emitQuery = () => {
@@ -633,6 +642,7 @@ export default function Home() {
         };
         return { ...prev, messages: msgs };
       });
+      isGeneratingRef.current = false;
     }
   }
 
@@ -847,7 +857,6 @@ export default function Home() {
           </div>
         )}
         <div className="grow w-full flex items-center flex-col justify-center p-2 relative min-h-[80vh]">
-          {conversation == undefined && <RotatingPhotos />}
           {conversation == undefined ? (
             <div
               className={`relative z-10 flex flex-col items-center w-full transition-all duration-300 ease-out ${

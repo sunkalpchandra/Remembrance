@@ -60,18 +60,23 @@ export function BotMessage(props: BotProps) {
         </div>
       )}
 
-      {!props.message.text || props.message.text.trim() === "" ? (
-        <div className="flex items-center gap-2 text-gray-500">
-          <div className="flex space-x-1">
-            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+      {(!props.message.text || props.message.text.trim() === "") &&
+        !thinkingText && (
+          <div className="flex items-center gap-2 text-gray-500">
+            <div className="flex space-x-1">
+              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+            </div>
+            {props.message.status && (
+              <span className="text-sm ml-2 italic animate-pulse">
+                {props.message.status}
+              </span>
+            )}
           </div>
-          <span className="text-sm ml-2 italic animate-pulse">
-            {props.message.status || "Remembrance is thinking..."}
-          </span>
-        </div>
-      ) : (
+        )}
+
+      {props.message.text && props.message.text.trim() !== "" && (
         <div className="w-full leading-relaxed [&_p]:mb-3 [&_strong]:font-bold [&_em]:italic [&_ul]:list-disc [&_ul]:ml-5 [&_ul]:mb-3 [&_ol]:list-decimal [&_ol]:ml-5 [&_ol]:mb-3 [&_table]:border-collapse [&_table]:w-full [&_table]:mb-4 [&_th]:border [&_th]:border-gray-300 [&_th]:p-2 [&_th]:bg-gray-100 [&_td]:border [&_td]:border-gray-300 [&_td]:p-2 [&_a]:text-blue-600 [&_a]:underline [&_pre]:bg-gray-100 [&_pre]:p-3 [&_pre]:rounded-md [&_pre]:overflow-x-auto [&_pre]:mb-3 [&_code]:bg-gray-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-md [&_code]:text-sm [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mb-3 [&_h3]:text-lg [&_h3]:font-bold [&_h3]:mb-2">
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}

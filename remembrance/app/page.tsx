@@ -174,21 +174,55 @@ export default function Home() {
     // Relying on server actions for discrete updates instead of continuous bulk saving
   }, [conversation, conversationId, user]);
 
-  // Monitor socket connection status
+  // Initialize and monitor socket connection
   useEffect(() => {
-    const checkSocket = setInterval(() => {
-      const socket = (window as any).chatSocket;
-      if (socket) {
-        console.log(
-          "[Socket] Current status - Connected:",
-          socket.connected,
-          "ID:",
-          socket.id,
-        );
+    let checkSocket: NodeJS.Timeout;
+
+    const initSocket = async () => {
+      try {
+        const clerkToken = await getToken();
+        if (!clerkToken) return;
+
+        const backendUrl =
+          process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
+
+        if (!(window as any).chatSocket) {
+          console.log("[Socket] Initializing connection on mount");
+          const socket = io(backendUrl, {
+            transports: ["websocket"],
+            auth: { token: clerkToken },
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionAttempts: 5,
+          });
+          (window as any).chatSocket = socket;
+        } else if (!(window as any).chatSocket.connected) {
+          (window as any).chatSocket.auth = { token: clerkToken };
+          (window as any).chatSocket.connect();
+        }
+
+        checkSocket = setInterval(() => {
+          const socket = (window as any).chatSocket;
+          if (socket) {
+            console.log(
+              "[Socket] Current status - Connected:",
+              socket.connected,
+              "ID:",
+              socket.id,
+            );
+          }
+        }, 5000);
+      } catch (err) {
+        console.error("[Socket] Failed to initialize on mount:", err);
       }
-    }, 5000);
-    return () => clearInterval(checkSocket);
-  }, []);
+    };
+
+    initSocket();
+
+    return () => {
+      if (checkSocket) clearInterval(checkSocket);
+    };
+  }, [getToken]);
 
   async function sendHumanMessage(msg: string) {
     let newconversation = conversation;

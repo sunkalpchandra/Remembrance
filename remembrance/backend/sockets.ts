@@ -56,11 +56,19 @@ export function initSockets(server: HttpServer) {
         `[Socket] User fetched: ${user.id}, role: ${user.publicMetadata?.role}`,
       );
 
-      if (user.publicMetadata?.role !== "patient") {
+      if (
+        user.publicMetadata?.role !== "patient" &&
+        user.publicMetadata?.role !== "individual" &&
+        user.publicMetadata?.role !== undefined
+      ) {
         console.error(
-          `[Socket] Auth failed for ${verified.sub}: User role is "${user.publicMetadata?.role}", expected "patient"`,
+          `[Socket] Auth failed for ${verified.sub}: User role is "${user.publicMetadata?.role}", expected "patient" or "individual"`,
         );
-        return next(new Error("Authentication error: User is not a patient"));
+        return next(
+          new Error(
+            "Authentication error: User is not a patient or individual",
+          ),
+        );
       }
 
       socket.data.userId = verified.sub;

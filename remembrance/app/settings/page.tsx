@@ -50,7 +50,12 @@ export default function SettingsPage() {
     startTransition(async () => {
       const result = await deleteAccount();
       if (result.success) {
-        await signOut({ redirectUrl: "/sign-in" });
+        try {
+          await signOut();
+        } catch (e) {
+          // Ignore if sign out fails because session is already destroyed
+        }
+        window.location.href = "/sign-in";
       } else {
         alert(result.error || "Failed to delete account");
       }

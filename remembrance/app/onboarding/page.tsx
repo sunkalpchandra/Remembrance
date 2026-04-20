@@ -3,12 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { completeOnboarding } from "./actions";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useSession } from "@clerk/nextjs";
 import { FaHandHoldingHeart, FaPerson, FaPersonSkating } from "react-icons/fa6";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { user } = useUser();
+  const { session } = useSession();
   const [isPending, startTransition] = useTransition();
   const [role, setRole] = useState<"individual" | "caregiver" | null>(null);
   const [error, setError] = useState("");
@@ -31,6 +32,7 @@ export default function OnboardingPage() {
 
       if (result.success) {
         await user.reload();
+        await session?.reload();
         router.push(role === "caregiver" ? "/dashboard" : "/");
         router.refresh();
       } else {

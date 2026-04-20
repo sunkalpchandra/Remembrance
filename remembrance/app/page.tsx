@@ -10,7 +10,11 @@ import axios from "axios";
 import { UserContext } from "./components/usercontext";
 import { useParams, usePathname } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
-import { getConversationById } from "@/app/actions";
+import {
+  getConversationById,
+  createConversation,
+  saveMessage,
+} from "@/app/actions";
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/novel/ui/button";
 import { Plus, ArrowUp, X, ChevronDown, Check } from "lucide-react";
@@ -48,13 +52,13 @@ export default function Home() {
   const { getToken } = useAuth();
   const user = useContext(UserContext);
   const params = useParams();
-  const conversationId = params?.id as string | undefined;
   const [conversation, SetConversation] = useState(
     undefined as Conversation | undefined,
   );
   const [ConversationId, setConversationId] = useState<string | undefined>(
-    undefined,
+    params?.id as string | undefined,
   );
+  const conversationId = ConversationId;
   const textInput = useRef(null as any as HTMLTextAreaElement);
 
   // New state for file handling
@@ -134,12 +138,36 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (conversationId && user) {
-      getConversationById(conversationId)
+    const handleLocationChange = () => {
+      const match = window.location.pathname.match(/\/chat\/([^/]+)/);
+      const newId = match ? match[1] : undefined;
+      setConversationId(newId);
+      if (!newId && window.location.pathname === "/") {
+        SetConversation(undefined);
+      }
+    };
+
+    window.addEventListener("popstate", handleLocationChange);
+    const originalPushState = window.history.pushState;
+    window.history.pushState = function (...args) {
+      originalPushState.apply(window.history, args);
+      handleLocationChange();
+    };
+
+    handleLocationChange();
+
+    return () => {
+      window.removeEventListener("popstate", handleLocationChange);
+      window.history.pushState = originalPushState;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (ConversationId && user) {
+      getConversationById(ConversationId)
         .then((res) => {
           if (res.success && res.data) {
             SetConversation(res.data as unknown as Conversation);
-            setConversationId(conversationId);
           } else if (!res.success) {
             console.error("Failed to load conversation:", res.error);
           }
@@ -148,7 +176,7 @@ export default function Home() {
           console.error("Error loading conversation:", err);
         });
     }
-  }, [conversationId, user]);
+  }, [ConversationId, user]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -229,17 +257,16 @@ export default function Home() {
     let convoId = conversationId;
 
     if (newconversation == undefined || !convoId) {
-      const { createConversation } = await import("@/app/actions");
-      const res = await createConversation("New Conversation");
-      if (res.success && res.data) {
-        convoId = res.data.id;
-        setConversationId(convoId);
-        newconversation = {
-          name: "New Conversation",
-          date: new Date(),
-          messages: [],
-        };
-      }
+      convoId = uuidv4();
+      setConversationId(convoId);
+      newconversation = {
+        name: "New Conversation",
+        date: new Date(),
+        messages: [],
+      };
+
+      // Fire-and-forget background creation
+      createConversation("New Conversation", convoId).catch(console.error);
     }
 
     if (newconversation) {
@@ -253,15 +280,16 @@ export default function Home() {
       SetConversation({ ...newconversation });
 
       if (convoId) {
-        const { saveMessage } = await import("@/app/actions");
-        await saveMessage(convoId, msg, true);
+        saveMessage(convoId, msg, true).catch(console.error);
       }
     }
+    return convoId;
   }
 
   const uploadFile = async () => {
-    if (!selectedFiles.length || !user) return;
+    if (!selectedFiles.length || !user) return conversationId;
 
+    let lastConvoId = conversationId;
     setIsUploading(true);
     try {
       for (const file of selectedFiles) {
@@ -278,7 +306,7 @@ export default function Home() {
         );
 
         const result = response.data?.message || "Uploaded Successfully";
-        sendHumanMessage(`Uploaded file: ${file.name}`);
+        lastConvoId = await sendHumanMessage(`Uploaded file: ${file.name}`);
         SetConversation((prev) =>
           prev
             ? {
@@ -298,21 +326,33 @@ export default function Home() {
       setIsUploading(false);
       clearSelectedFiles();
     }
+    return lastConvoId;
   };
 
-  const handleSendMessage = async () => {
-    const messageText = chatInput.trim();
+  const handleSendMessage = async (customMessageText?: string) => {
+    const messageText = (
+      customMessageText !== undefined ? customMessageText : chatInput
+    ).trim();
 
     if (!messageText && !selectedFiles.length) return;
     if (isUploading) return;
 
+    let activeConvoId = conversationId;
+
     if (selectedFiles.length) {
-      await uploadFile();
+      activeConvoId = (await uploadFile()) || activeConvoId;
     }
 
     if (messageText) {
-      await sendHumanMessage(messageText);
+      const newConvoId = await sendHumanMessage(messageText);
       setChatInput("");
+      if (path === "/" && newConvoId) {
+        if (typeof window !== "undefined")
+          window.history.pushState({}, "", "/chat/" + newConvoId);
+      }
+    } else if (path === "/" && activeConvoId) {
+      if (typeof window !== "undefined")
+        window.history.pushState({}, "", "/chat/" + activeConvoId);
     }
   };
 
@@ -340,40 +380,42 @@ export default function Home() {
       const backendUrl =
         process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
 
-      let clerkToken: string | null = null;
-      try {
-        clerkToken = await getToken();
-      } catch (tokenErr) {
-        console.error("[Socket] Failed to get Clerk token:", tokenErr);
-        throw new Error("Failed to get authentication token");
-      }
-
-      if (!clerkToken) {
-        throw new Error("Missing Clerk session token");
-      }
-
-      console.log("[Socket] Connecting to backend at:", backendUrl);
-
       let socket = (window as any).chatSocket;
 
-      if (!socket) {
-        console.log("[Socket] Creating new socket connection with auth token");
-        socket = io(backendUrl, {
-          transports: ["websocket"],
-          auth: {
+      if (!socket || !socket.connected) {
+        let clerkToken: string | null = null;
+        try {
+          clerkToken = await getToken();
+        } catch (tokenErr) {
+          console.error("[Socket] Failed to get Clerk token:", tokenErr);
+          throw new Error("Failed to get authentication token");
+        }
+
+        if (!clerkToken) {
+          throw new Error("Missing Clerk session token");
+        }
+
+        console.log("[Socket] Connecting to backend at:", backendUrl);
+
+        if (!socket) {
+          console.log(
+            "[Socket] Creating new socket connection with auth token",
+          );
+          socket = io(backendUrl, {
+            transports: ["websocket"],
+            auth: {
+              token: clerkToken,
+            },
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionAttempts: 5,
+          });
+          (window as any).chatSocket = socket;
+        } else {
+          console.log("[Socket] Reusing existing socket connection");
+          socket.auth = {
             token: clerkToken,
-          },
-          reconnection: true,
-          reconnectionDelay: 1000,
-          reconnectionAttempts: 5,
-        });
-        (window as any).chatSocket = socket;
-      } else {
-        console.log("[Socket] Reusing existing socket connection");
-        socket.auth = {
-          token: clerkToken,
-        };
-        if (!socket.connected) {
+          };
           console.log("[Socket] Reconnecting socket");
           socket.connect();
         }
@@ -528,7 +570,6 @@ export default function Home() {
         });
 
         if (conversationId && finalText) {
-          const { saveMessage } = await import("@/app/actions");
           await saveMessage(conversationId, finalText, false);
         }
       });
@@ -597,7 +638,6 @@ export default function Home() {
 
   useEffect(() => {
     if (conversation == undefined) return;
-    if (path === "/" && !conversationId) return;
 
     const last = conversation.messages.at(-1);
     if (last?.sentByUser) {
@@ -607,6 +647,7 @@ export default function Home() {
     setTimeout(() => {
       scrollRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation, path, conversationId]);
 
   // Clean up object URLs
@@ -851,73 +892,18 @@ export default function Home() {
               <form
                 key="landing-form"
                 className="flex w-[90%] md:w-fit flex-col gap-2 liquid-glass rounded-full p-1"
-                onSubmit={async (e) => {
+                onSubmit={(e) => {
                   e.preventDefault();
-                  const trimmed = landingInput.trim();
-
-                  if (!trimmed && !selectedFiles.length) return;
+                  if (!landingInput.trim() && !selectedFiles.length) return;
                   if (isUploading) return;
 
-                  try {
-                    if (selectedFiles.length) {
-                      await uploadFile();
-                    }
-
-                    if (trimmed) {
-                      setLandingTransitioning(true);
-
-                      const { createConversation, saveMessage } =
-                        await import("@/app/actions");
-                      const res = await createConversation("New Conversation");
-
-                      if (!res.success || !res.data) {
-                        console.error(
-                          "Failed to create conversation:",
-                          res.error,
-                        );
-                        setLandingTransitioning(false);
-                        alert(
-                          "Failed to create conversation. Please try again.",
-                        );
-                        return;
-                      }
-
-                      const newId = res.data.id;
-                      const saveRes = await saveMessage(newId, trimmed, true);
-
-                      if (!saveRes.success) {
-                        console.error("Failed to save message:", saveRes.error);
-                        setLandingTransitioning(false);
-                        alert("Failed to save message. Please try again.");
-                        return;
-                      }
-
-                      const newconversation: Conversation = {
-                        name: "New Conversation",
-                        date: new Date(),
-                        messages: [
-                          {
-                            sentByUser: true,
-                            text: trimmed,
-                          },
-                        ],
-                      };
-
-                      if (path == "/" && newId)
-                        router.prefetch("/chat/" + newId);
-
-                      setTimeout(() => {
-                        setConversationId(newId);
-                        SetConversation(newconversation);
-                        setLandingInput("");
-                        if (path == "/" && newId) router.push("/chat/" + newId);
-                      }, 280);
-                    }
-                  } catch (error) {
+                  setLandingTransitioning(true);
+                  handleSendMessage(landingInput).catch((error) => {
                     console.error("Error in landing form submission:", error);
                     setLandingTransitioning(false);
                     alert("An error occurred. Please try again.");
-                  }
+                  });
+                  setLandingInput("");
                 }}
                 role="search"
                 aria-label="Start a new conversation"

@@ -8,7 +8,7 @@ import { eq, desc, and } from "drizzle-orm";
 /**
  * Creates a new conversation for the authenticated user.
  */
-export async function createConversation(name: string) {
+export async function createConversation(name: string, id?: string) {
   try {
     const { userId } = await auth();
 
@@ -21,6 +21,7 @@ export async function createConversation(name: string) {
     const insertedConversation = await db
       .insert(conversations)
       .values({
+        ...(id ? { id } : {}),
         userId,
         name,
       })

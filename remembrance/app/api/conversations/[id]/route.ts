@@ -6,26 +6,28 @@ import { eq, and } from "drizzle-orm";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { userId } = await auth();
 
     if (!userId) {
       return NextResponse.json(
-        { error: "Unauthorized: You must be signed in to rename conversations." },
-        { status: 401 }
+        {
+          error: "Unauthorized: You must be signed in to rename conversations.",
+        },
+        { status: 401 },
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const { name } = body;
 
     if (!name || typeof name !== "string") {
       return NextResponse.json(
         { error: "Name is required and must be a string." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -38,35 +40,40 @@ export async function PATCH(
     if (updated.length === 0) {
       return NextResponse.json(
         { error: "Conversation not found or unauthorized." },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    return NextResponse.json({ success: true, data: updated[0] }, { status: 200 });
+    return NextResponse.json(
+      { success: true, data: updated[0] },
+      { status: 200 },
+    );
   } catch (error) {
     console.error("Error updating conversation:", error);
     return NextResponse.json(
       { error: "Failed to update conversation" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { userId } = await auth();
 
     if (!userId) {
       return NextResponse.json(
-        { error: "Unauthorized: You must be signed in to delete conversations." },
-        { status: 401 }
+        {
+          error: "Unauthorized: You must be signed in to delete conversations.",
+        },
+        { status: 401 },
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     const deleted = await db
       .delete(conversations)
@@ -76,7 +83,7 @@ export async function DELETE(
     if (deleted.length === 0) {
       return NextResponse.json(
         { error: "Conversation not found or unauthorized." },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -85,7 +92,7 @@ export async function DELETE(
     console.error("Error deleting conversation:", error);
     return NextResponse.json(
       { error: "Failed to delete conversation" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

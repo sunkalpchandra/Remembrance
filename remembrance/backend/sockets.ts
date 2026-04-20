@@ -3,6 +3,18 @@ import { Server as HttpServer } from "http";
 import { models } from "./models";
 import { SYSTEM_PROMPT } from "./prompt";
 import OpenAI from "openai";
+import { verifyToken, createClerkClient } from "@clerk/backend";
+
+if (!process.env.CLERK_SECRET_KEY) {
+  console.error(
+    "[Socket] ERROR: CLERK_SECRET_KEY environment variable is not set!",
+  );
+  console.error(
+    "[Socket] Socket.io authentication will fail without this key.",
+  );
+}
+
+const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
 
 // In-memory store for the port, representing the Mem0 graph/vector memory
 // In a full production app, this would integrate with Neo4j or a Vector DB.
@@ -16,18 +28,90 @@ export function initSockets(server: HttpServer) {
     },
   });
 
+  io.use(async (socket, next) => {
+    console.log(`[Socket] Auth middleware - Socket ID: ${socket.id}`);
+
+    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+    if (!token) {
+      console.error(`[Socket] Auth failed for ${socket.id}: No token provided`);
+      return next(new Error("Authentication error: No token provided"));
+    }
+
+    console.log(`[Socket] Token received for ${socket.id}, verifying...`);
+
+    try {
+      const verified = await verifyToken(token as string, {
+        secretKey: process.env.CLERK_SECRET_KEY,
+      });
+
+      console.log(`[Socket] Token verified for user: ${verified.sub}`);
+
+      if (!verified.sub) {
+        console.error(`[Socket] Auth failed: No sub in verified token`);
+        return next(new Error("Authentication error: Invalid token"));
+      }
+
+      const user = await clerk.users.getUser(verified.sub);
+      console.log(
+        `[Socket] User fetched: ${user.id}, role: ${user.publicMetadata?.role}`,
+      );
+
+      if (user.publicMetadata?.role !== "patient") {
+        console.error(
+          `[Socket] Auth failed for ${verified.sub}: User role is "${user.publicMetadata?.role}", expected "patient"`,
+        );
+        return next(new Error("Authentication error: User is not a patient"));
+      }
+
+      socket.data.userId = verified.sub;
+      console.log(
+        `[Socket] Auth successful for ${socket.id} (User: ${verified.sub})`,
+      );
+      next();
+    } catch (err) {
+      console.error(`[Socket] Auth error for ${socket.id}:`, err);
+      console.error(`[Socket] Error details:`, {
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
+      next(new Error("Authentication error"));
+    }
+  });
+
   io.on("connection", (socket) => {
-    console.log(`[Socket] Client connected: ${socket.id}`);
+    console.log(
+      `[Socket] Client connected: ${socket.id} (User: ${socket.data.userId})`,
+    );
 
     // Port of `handle_query_ws` from adk_memo.py
     socket.on("query_ws", async (data) => {
       const {
-        user_id = "default_user",
+        user_id,
         query,
         model_id = "glm-5",
         history = [],
         request_id,
       } = data;
+
+      const authenticatedUserId = socket.data.userId as string | undefined;
+
+      if (!authenticatedUserId) {
+        socket.emit("error", {
+          message: "Unauthorized: missing authenticated user.",
+          request_id,
+        });
+        return;
+      }
+
+      if (user_id && user_id !== authenticatedUserId) {
+        socket.emit("error", {
+          message: "Unauthorized: user_id does not match authenticated user.",
+          request_id,
+        });
+        return;
+      }
+
+      const effectiveUserId = authenticatedUserId;
 
       if (!query) {
         socket.emit("error", {
@@ -38,7 +122,7 @@ export function initSockets(server: HttpServer) {
       }
 
       console.log(
-        `[Socket] Received query from ${user_id} using model ${model_id}: ${query}`,
+        `[Socket] Received query from ${effectiveUserId} using model ${model_id}: ${query}`,
       );
 
       try {
@@ -176,8 +260,9 @@ export function initSockets(server: HttpServer) {
               });
               try {
                 const args = JSON.parse(toolCall.function.arguments);
-                if (!memoryStore.has(user_id)) memoryStore.set(user_id, []);
-                memoryStore.get(user_id)!.push(args.info);
+                if (!memoryStore.has(effectiveUserId))
+                  memoryStore.set(effectiveUserId, []);
+                memoryStore.get(effectiveUserId)!.push(args.info);
                 functionResponse = `Successfully saved memory: ${args.info}`;
               } catch (e) {
                 functionResponse = "Failed to parse tool arguments.";
@@ -187,10 +272,10 @@ export function initSockets(server: HttpServer) {
                 status: "Searching memories...",
                 request_id,
               });
-              const mems = memoryStore.get(user_id) || [];
+              const userMem = memoryStore.get(effectiveUserId) || [];
               functionResponse =
-                mems.length > 0
-                  ? `User Memories:\n${mems.join("\n")}`
+                userMem.length > 0
+                  ? `User Memories:\n${userMem.join("\n")}`
                   : "No previous memories found for this user.";
             }
 

@@ -40,4 +40,10 @@ export const models: modelSchema[] = [
     modelID: "openai-gpt-oss-120b",
     provider: digitalOceanProvider,
   },
+  {
+    name: "low",
+    id: "low",
+    modelID: "google/gemini-3-flash-preview",
+    provider: hackClubProvider,
+  },
 ];

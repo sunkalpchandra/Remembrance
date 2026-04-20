@@ -1,5 +1,6 @@
 "use client";
 import { Profile } from "@/app/hooks/useProfile";
+import { useEffect, useState } from "react";
 
 const todayStr = () =>
   new Date().toLocaleDateString(undefined, {
@@ -10,11 +11,17 @@ const todayStr = () =>
   });
 
 export function IdentityPanel({ profile }: { profile: Profile }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const hasAnything =
     profile.patientName ||
     (profile.family && profile.family.length > 0) ||
     (profile.places && profile.places.length > 0);
-  if (!hasAnything) return null;
+  if (!hasAnything || !mounted) return null;
 
   return (
     <div className="w-full max-w-3xl mx-auto px-5 py-3 border-b border-gray-100 bg-white/60 backdrop-blur-sm">
@@ -29,9 +36,7 @@ export function IdentityPanel({ profile }: { profile: Profile }) {
       {profile.family && profile.family.length > 0 && (
         <div className="mt-1 text-sm text-gray-600">
           Family:&nbsp;
-          {profile.family
-            .map((f) => `${f.name} (${f.relation})`)
-            .join(" · ")}
+          {profile.family.map((f) => `${f.name} (${f.relation})`).join(" · ")}
         </div>
       )}
       {profile.places && profile.places.length > 0 && (

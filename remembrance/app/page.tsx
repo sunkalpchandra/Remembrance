@@ -2,7 +2,6 @@
 import SideBar from "@/app/components/sidebar";
 import { io } from "socket.io-client";
 import type React from "react";
-
 import { useContext, useEffect, useRef, useState } from "react";
 import type { Conversation } from "@/app/lib/types";
 import { HumanMessage } from "./components/messages/humanmessage";
@@ -11,10 +10,17 @@ import axios from "axios";
 import { UserContext } from "./components/usercontext";
 import { useParams, usePathname } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
-import { getConversationById, saveConversation } from "@/backend/lib/db";
+import { getConversationById } from "@/app/actions";
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/novel/ui/button";
 import { Plus, ArrowUp, X, ChevronDown, Check } from "lucide-react";
+import { useAuth } from "@clerk/nextjs";
+import {
+  LuSignalHigh,
+  LuSignalLow,
+  LuSignalMedium,
+  LuSignalZero,
+} from "react-icons/lu";
 import { RotatingPhotos } from "@/app/components/rotating-photos";
 import { useTypewriter } from "@/app/hooks/useTypewriter";
 import { useProfile } from "@/app/hooks/useProfile";
@@ -39,6 +45,7 @@ export default function Home() {
 
   const [chatInput, setChatInput] = useState("");
 
+  const { getToken } = useAuth();
   const user = useContext(UserContext);
   const params = useParams();
   const conversationId = params?.id as string | undefined;
@@ -128,12 +135,18 @@ export default function Home() {
 
   useEffect(() => {
     if (conversationId && user) {
-      getConversationById(user.uid, conversationId).then((c) => {
-        if (c) {
-          SetConversation({ ...(c as Conversation) });
-          setConversationId(conversationId);
-        }
-      });
+      getConversationById(conversationId)
+        .then((res) => {
+          if (res.success && res.data) {
+            SetConversation(res.data as unknown as Conversation);
+            setConversationId(conversationId);
+          } else if (!res.success) {
+            console.error("Failed to load conversation:", res.error);
+          }
+        })
+        .catch((err) => {
+          console.error("Error loading conversation:", err);
+        });
     }
   }, [conversationId, user]);
 
@@ -156,35 +169,60 @@ export default function Home() {
     };
   }, [dropDown]);
 
+  // Automatically syncing to backend
   useEffect(() => {
-    if (ConversationId && user.uid && conversation) {
-      saveConversation(user.uid, { ...conversation }, ConversationId);
-    }
+    // Relying on server actions for discrete updates instead of continuous bulk saving
   }, [conversation, conversationId, user]);
 
-  function sendHumanMessage(msg: string) {
+  // Monitor socket connection status
+  useEffect(() => {
+    const checkSocket = setInterval(() => {
+      const socket = (window as any).chatSocket;
+      if (socket) {
+        console.log(
+          "[Socket] Current status - Connected:",
+          socket.connected,
+          "ID:",
+          socket.id,
+        );
+      }
+    }, 5000);
+    return () => clearInterval(checkSocket);
+  }, []);
+
+  async function sendHumanMessage(msg: string) {
     let newconversation = conversation;
-    if (newconversation == undefined) {
-      newconversation = {
-        name: "Unamed",
-        date: new Date(),
-        messages: [
-          {
-            sentByUser: true,
-            text: msg,
-          },
-        ],
-      };
-    } else {
+    let convoId = conversationId;
+
+    if (newconversation == undefined || !convoId) {
+      const { createConversation } = await import("@/app/actions");
+      const res = await createConversation("New Conversation");
+      if (res.success && res.data) {
+        convoId = res.data.id;
+        setConversationId(convoId);
+        newconversation = {
+          name: "New Conversation",
+          date: new Date(),
+          messages: [],
+        };
+      }
+    }
+
+    if (newconversation) {
       newconversation.messages = [
-        ...newconversation.messages,
+        ...(newconversation.messages || []),
         {
           sentByUser: true,
           text: msg,
         },
       ];
+      SetConversation({ ...newconversation });
+
+      if (convoId) {
+        const { saveMessage } = await import("@/app/actions");
+        await saveMessage(convoId, msg, true);
+      }
     }
-    SetConversation({ ...newconversation });
   }
 
   const uploadFile = async () => {
@@ -239,7 +277,7 @@ export default function Home() {
     }
 
     if (messageText) {
-      sendHumanMessage(messageText);
+      await sendHumanMessage(messageText);
       setChatInput("");
     }
   };
@@ -267,12 +305,69 @@ export default function Home() {
     try {
       const backendUrl =
         process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
-      if (!(window as any).chatSocket) {
-        (window as any).chatSocket = io(backendUrl, {
-          transports: ["websocket"],
-        });
+
+      let clerkToken: string | null = null;
+      try {
+        clerkToken = await getToken();
+      } catch (tokenErr) {
+        console.error("[Socket] Failed to get Clerk token:", tokenErr);
+        throw new Error("Failed to get authentication token");
       }
-      const socket = (window as any).chatSocket;
+
+      if (!clerkToken) {
+        throw new Error("Missing Clerk session token");
+      }
+
+      console.log("[Socket] Connecting to backend at:", backendUrl);
+
+      let socket = (window as any).chatSocket;
+
+      if (!socket) {
+        console.log("[Socket] Creating new socket connection with auth token");
+        socket = io(backendUrl, {
+          transports: ["websocket"],
+          auth: {
+            token: clerkToken,
+          },
+          reconnection: true,
+          reconnectionDelay: 1000,
+          reconnectionAttempts: 5,
+        });
+        (window as any).chatSocket = socket;
+      } else {
+        console.log("[Socket] Reusing existing socket connection");
+        socket.auth = {
+          token: clerkToken,
+        };
+        if (!socket.connected) {
+          console.log("[Socket] Reconnecting socket");
+          socket.connect();
+        }
+      }
+
+      // Wait for socket to be ready
+      if (!socket.connected) {
+        console.log("[Socket] Waiting for socket to connect...");
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("Socket connection timeout"));
+          }, 5000);
+
+          socket.once("connect", () => {
+            clearTimeout(timeout);
+            console.log("[Socket] Socket connected successfully");
+            resolve();
+          });
+
+          socket.once("connect_error", (err) => {
+            clearTimeout(timeout);
+            console.error("[Socket] Connection error:", err);
+            reject(err);
+          });
+        });
+      } else {
+        console.log("[Socket] Socket already connected");
+      }
 
       // Clean up previous listeners
       socket.off("connect");
@@ -300,6 +395,7 @@ export default function Home() {
         request_id: requestId,
       };
 
+      // Set up ALL listeners BEFORE emitting query
       socket.on("status", (payload: any) => {
         if (payload?.request_id && payload.request_id !== requestId) return;
         didReceiveResponse = true;
@@ -363,7 +459,7 @@ export default function Home() {
         });
       });
 
-      socket.on("done", (payload: any) => {
+      socket.on("done", async (payload: any) => {
         if (payload?.request_id && payload.request_id !== requestId) return;
         didReceiveResponse = true;
         finalMemories = payload.memories || [];
@@ -376,6 +472,9 @@ export default function Home() {
             memoryText: memory,
           };
         });
+
+        const finalText = accumulatedAnswer || "";
+
         SetConversation((prev) => {
           if (!prev) return prev;
           const msgs = [...prev.messages];
@@ -387,12 +486,17 @@ export default function Home() {
             request_id: requestId,
             streamState: "done",
             sentByUser: false,
-            text: accumulatedAnswer || current.text || "",
+            text: finalText || current.text || "",
             thinkingText: accumulatedThinking,
             status: "Done",
           };
           return { ...prev, latestMemories, messages: msgs };
         });
+
+        if (conversationId && finalText) {
+          const { saveMessage } = await import("@/app/actions");
+          await saveMessage(conversationId, finalText, false);
+        }
       });
 
       socket.on("error", (payload: any) => {
@@ -416,6 +520,19 @@ export default function Home() {
         });
       });
 
+      socket.on("connect_error", (error: any) => {
+        console.error("Socket error", error);
+        SetConversation((prev) => {
+          if (!prev) return prev;
+          const msgs = [...prev.messages];
+          msgs[msgs.length - 1] = {
+            sentByUser: false,
+            text: "Connection error occurred.",
+          };
+          return { ...prev, messages: msgs };
+        });
+      });
+
       const emitQuery = () => {
         socket.emit("query_ws", queryPayload);
       };
@@ -429,19 +546,6 @@ export default function Home() {
           emitQuery();
         }
       }, 1200);
-
-      socket.on("connect_error", (error: any) => {
-        console.error("Socket error", error);
-        SetConversation((prev) => {
-          if (!prev) return prev;
-          const msgs = [...prev.messages];
-          msgs[msgs.length - 1] = {
-            sentByUser: false,
-            text: "Connection error occurred.",
-          };
-          return { ...prev, messages: msgs };
-        });
-      });
     } catch (err) {
       console.error("Stream error:", err);
       SetConversation((prev) => {
@@ -481,7 +585,7 @@ export default function Home() {
   }, [filePreviews]);
 
   return (
-    <div className="w-screen flex flex-row bg-white relative">
+    <div className="w-screen h-[100dvh] flex flex-row bg-white relative overflow-hidden">
       <SideBar selected={0}></SideBar>
       <div
         className="absolute top-4 right-6 z-50 animate-fade-in"
@@ -489,27 +593,60 @@ export default function Home() {
       >
         <button
           onClick={() => setDropDown(!dropDown)}
-          className="bg-white/60 backdrop-blur-md border border-gray-200 text-gray-700 text-sm rounded-xl hover:bg-gray-50 flex items-center justify-between w-40 px-3 py-2 shadow-sm outline-none cursor-pointer transition-all hover:shadow-md font-medium"
+          className="bg-white/60 backdrop-blur-md border border-gray-200 text-gray-700 text-sm rounded-xl hover:bg-gray-50 flex items-center justify-between w-48 px-3 py-2 shadow-sm outline-none cursor-pointer transition-all hover:shadow-md font-medium"
         >
-          <span className="truncate">
-            Model:{" "}
-            {selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1)}
-          </span>
+          <div className="flex items-center gap-2 truncate">
+            {(() => {
+              const SelectedIcon =
+                [
+                  { id: "max", name: "Max", icon: LuSignalHigh },
+                  { id: "high", name: "High", icon: LuSignalMedium },
+                  { id: "medium", name: "Medium", icon: LuSignalLow },
+                  { id: "low", name: "Low", icon: LuSignalZero },
+                ].find((m) => m.id === selectedModel)?.icon || LuSignalZero;
+              return <SelectedIcon className="w-4 h-4 text-gray-500" />;
+            })()}
+            <span className="truncate">
+              Model:{" "}
+              {selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1)}
+            </span>
+          </div>
           <ChevronDown
             className={`w-4 h-4 text-gray-500 transition-transform ${dropDown ? "rotate-180" : ""}`}
           />
         </button>
 
         {dropDown && (
-          <div className="absolute top-full mt-2 right-0 w-40 bg-white border border-gray-200 rounded-xl shadow-lg py-1 overflow-hidden">
+          <div className="absolute top-full mt-2 right-0 w-64 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden flex flex-col">
             {[
-              { id: "max", name: "Max" },
-              { id: "high", name: "High" },
-              { id: "medium", name: "Medium" },
+              {
+                id: "max",
+                name: "Max",
+                icon: LuSignalHigh,
+                description: "Most capable model for complex tasks",
+              },
+              {
+                id: "high",
+                name: "High",
+                icon: LuSignalMedium,
+                description: "Balanced performance and speed",
+              },
+              {
+                id: "medium",
+                name: "Medium",
+                icon: LuSignalLow,
+                description: "Fast model for simple tasks",
+              },
+              {
+                id: "low",
+                name: "Low",
+                icon: LuSignalZero,
+                description: "Basic capabilities, highest speed",
+              },
             ].map((model) => (
               <button
                 key={model.id}
-                className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center justify-between transition-colors"
+                className="w-full text-left px-3 py-2.5 hover:bg-gray-100 flex items-center justify-between transition-colors"
                 onClick={() => {
                   setSelectedModel(model.id);
                   setDropDown(false);
@@ -518,9 +655,19 @@ export default function Home() {
                   } catch {}
                 }}
               >
-                <span>{model.name}</span>
+                <div className="flex items-center gap-3">
+                  <model.icon className="w-5 h-5 text-gray-500" />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-gray-900">
+                      {model.name}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {model.description}
+                    </span>
+                  </div>
+                </div>
                 {selectedModel === model.id && (
-                  <Check className="w-4 h-4 text-black" />
+                  <Check className="w-4 h-4 text-black flex-shrink-0 ml-2" />
                 )}
               </button>
             ))}
@@ -529,7 +676,7 @@ export default function Home() {
       </div>
       <div
         {...getRootProps({ className: "dropzone" })}
-        className="grow h-screen flex flex-col-reverse gap-5 relative"
+        className="grow h-[100dvh] flex flex-col-reverse gap-5 relative overflow-hidden max-w-full"
       >
         {!isDragAccept && conversation != undefined && (
           <div className="flex flex-col gap-3 mx-2 mb-16 items-center">
@@ -562,7 +709,7 @@ export default function Home() {
             )}
             <form
               key="chat-form"
-              className="flex w-fit flex-col gap-2 liquid-glass rounded-full p-1"
+              className="flex w-[90%] md:w-fit flex-col gap-2 liquid-glass rounded-full p-1"
               onSubmit={(e) => {
                 e.preventDefault();
                 handleSendMessage();
@@ -600,7 +747,7 @@ export default function Home() {
                     }
                   }}
                   placeholder={typewriterText}
-                  className="w-[40rem] max-w-[70vw] bg-transparent outline-none text-lg py-1 px-2 placeholder-gray-400"
+                  className="w-full md:w-[40rem] max-w-[85vw] md:max-w-[70vw] bg-transparent outline-none text-[16px] md:text-lg py-1 px-2 placeholder-gray-400"
                   aria-label="Message"
                   autoComplete="off"
                   maxLength={2000}
@@ -669,7 +816,7 @@ export default function Home() {
               )}
               <form
                 key="landing-form"
-                className="flex w-fit flex-col gap-2 liquid-glass rounded-full p-1"
+                className="flex w-[90%] md:w-fit flex-col gap-2 liquid-glass rounded-full p-1"
                 onSubmit={async (e) => {
                   e.preventDefault();
                   const trimmed = landingInput.trim();
@@ -677,35 +824,65 @@ export default function Home() {
                   if (!trimmed && !selectedFiles.length) return;
                   if (isUploading) return;
 
-                  if (selectedFiles.length) {
-                    await uploadFile();
-                  }
+                  try {
+                    if (selectedFiles.length) {
+                      await uploadFile();
+                    }
 
-                  if (trimmed) {
-                    const newconversation: Conversation = {
-                      name: "Untitled",
-                      date: new Date(),
-                      messages: [
-                        {
-                          sentByUser: true,
-                          text: trimmed,
-                        },
-                      ],
-                    };
-                    const newId: string = uuidv4();
-                    if (path == "/" && newId) router.prefetch("/chat/" + newId);
+                    if (trimmed) {
+                      setLandingTransitioning(true);
 
-                    // 1. trigger fade-out of landing UI
-                    setLandingTransitioning(true);
+                      const { createConversation, saveMessage } =
+                        await import("@/app/actions");
+                      const res = await createConversation("New Conversation");
 
-                    // 2. after the fade-out, swap to chat state and navigate
-                    setTimeout(() => {
-                      setConversationId(newId);
-                      SetConversation(newconversation);
-                      saveConversation(user.uid, newconversation, newId);
-                      setLandingInput("");
-                      if (path == "/" && newId) router.push("/chat/" + newId);
-                    }, 280);
+                      if (!res.success || !res.data) {
+                        console.error(
+                          "Failed to create conversation:",
+                          res.error,
+                        );
+                        setLandingTransitioning(false);
+                        alert(
+                          "Failed to create conversation. Please try again.",
+                        );
+                        return;
+                      }
+
+                      const newId = res.data.id;
+                      const saveRes = await saveMessage(newId, trimmed, true);
+
+                      if (!saveRes.success) {
+                        console.error("Failed to save message:", saveRes.error);
+                        setLandingTransitioning(false);
+                        alert("Failed to save message. Please try again.");
+                        return;
+                      }
+
+                      const newconversation: Conversation = {
+                        name: "New Conversation",
+                        date: new Date(),
+                        messages: [
+                          {
+                            sentByUser: true,
+                            text: trimmed,
+                          },
+                        ],
+                      };
+
+                      if (path == "/" && newId)
+                        router.prefetch("/chat/" + newId);
+
+                      setTimeout(() => {
+                        setConversationId(newId);
+                        SetConversation(newconversation);
+                        setLandingInput("");
+                        if (path == "/" && newId) router.push("/chat/" + newId);
+                      }, 280);
+                    }
+                  } catch (error) {
+                    console.error("Error in landing form submission:", error);
+                    setLandingTransitioning(false);
+                    alert("An error occurred. Please try again.");
                   }
                 }}
                 role="search"
@@ -736,7 +913,7 @@ export default function Home() {
                     value={landingInput}
                     onChange={(e) => setLandingInput(e.target.value)}
                     placeholder={typewriterText}
-                    className="w-[40rem] max-w-[70vw] bg-transparent outline-none text-lg py-1 px-2 placeholder-gray-400"
+                    className="w-full md:w-[40rem] max-w-[85vw] md:max-w-[70vw] bg-transparent outline-none text-[16px] md:text-lg py-1 px-2 placeholder-gray-400"
                     aria-label="Ask a question to start"
                     autoComplete="off"
                     autoFocus
@@ -765,20 +942,23 @@ export default function Home() {
             <div className="w-full h-full flex flex-col items-center overflow-y-scroll relative max-h-[80vh] mt-5 gap-9">
               <IdentityPanel profile={profile} />
               <div className="my-5"></div>
-              {conversation.messages
-                .filter((e) => !e.isMemorySnippet)
-                .map((e, i) => {
+              {conversation?.messages
+                ?.filter((e) => !e.isMemorySnippet)
+                ?.map((e, i) => {
+                  const stableKey = e.request_id || `msg-${i}`;
                   if (e.sentByUser) {
-                    return <HumanMessage message={e} key={i}></HumanMessage>;
+                    return (
+                      <HumanMessage message={e} key={stableKey}></HumanMessage>
+                    );
                   } else {
                     return (
                       <BotMessage
                         message={e}
                         time={40}
                         botName={"remembrance"}
-                        key={i}
+                        key={stableKey}
                         suggestions={
-                          conversation.latestMemories?.slice(0, 5) || []
+                          conversation?.latestMemories?.slice(0, 5) || []
                         }
                       ></BotMessage>
                     );

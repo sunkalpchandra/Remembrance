@@ -1,83 +1,49 @@
-function storageKey(userID: string, conversationId?: string) {
-  return conversationId
-    ? `conv:${userID}:${conversationId}`
-    : `conv-index:${userID}`;
-}
-
-function isLocalStorageAvailable(): boolean {
-  try {
-    return (
-      typeof window !== "undefined" &&
-      typeof window.localStorage !== "undefined" &&
-      typeof window.localStorage.getItem === "function"
-    );
-  } catch {
-    return false;
-  }
-}
-
-function readIndex(userID: string): string[] {
-  if (!isLocalStorageAvailable()) return [];
-  try {
-    const raw = window.localStorage.getItem(storageKey(userID));
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeIndex(userID: string, ids: string[]) {
-  if (!isLocalStorageAvailable()) return;
-  try {
-    window.localStorage.setItem(storageKey(userID), JSON.stringify(ids));
-  } catch {}
-}
+import {
+  getConversations,
+  getConversationById as getConvoAction,
+  renameConversation,
+  deleteConversationAction,
+  getMessages,
+} from "@/app/actions";
 
 export async function saveConversation(
   userID: string,
   conversation: any,
   conversationId: string,
 ) {
-  if (!isLocalStorageAvailable()) return;
-  try {
-    window.localStorage.setItem(
-      storageKey(userID, conversationId),
-      JSON.stringify(conversation),
-    );
-    const ids = readIndex(userID);
-    if (!ids.includes(conversationId)) {
-      ids.push(conversationId);
-      writeIndex(userID, ids);
-    }
-  } catch {}
+  if (!conversationId) return;
+  if (conversation?.name) {
+    await renameConversation(conversationId, conversation.name);
+  }
 }
 
 export async function getConversationsForUser(userId: string) {
-  if (!isLocalStorageAvailable()) return [];
   try {
-    const ids = readIndex(userId);
-    return ids
-      .map((id) => {
-        try {
-          const raw = window.localStorage.getItem(storageKey(userId, id));
-          if (!raw) return null;
-          return { id, ...JSON.parse(raw) };
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean) as any[];
-  } catch {
+    const res = await getConversations();
+    if (res.success && res.data) {
+      return res.data;
+    }
+    return [];
+  } catch (error) {
+    console.error("Failed to get conversations:", error);
     return [];
   }
 }
 
 export async function getConversationById(userId: string, id: string) {
-  if (!isLocalStorageAvailable()) return null;
   try {
-    const raw = window.localStorage.getItem(storageKey(userId, id));
-    return raw ? JSON.parse(raw) : null;
-  } catch {
+    const convoRes = await getConvoAction(id);
+    if (convoRes.success && convoRes.data) {
+      const messagesRes = await getMessages(id);
+      return {
+        ...convoRes.data,
+        messages:
+          messagesRes.success && messagesRes.data ? messagesRes.data : [],
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error("Failed to get conversation by id:", error);
     return null;
   }
 }
@@ -86,12 +52,9 @@ export async function deleteConversation(
   userID: string,
   conversationId: string,
 ) {
-  if (!isLocalStorageAvailable()) return;
   try {
-    window.localStorage.removeItem(storageKey(userID, conversationId));
-    writeIndex(
-      userID,
-      readIndex(userID).filter((id) => id !== conversationId),
-    );
-  } catch {}
+    await deleteConversationAction(conversationId);
+  } catch (error) {
+    console.error("Failed to delete conversation:", error);
+  }
 }

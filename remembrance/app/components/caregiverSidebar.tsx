@@ -4,7 +4,7 @@ import type React from "react";
 import { useContext, useState } from "react";
 import { UserContext } from "@/app/components/usercontext";
 import { useRouter } from "next/navigation";
-import { BiChevronRight, BiGridAlt, BiHistory } from "react-icons/bi";
+import { BiChevronRight, BiGridAlt, BiHistory, BiGroup } from "react-icons/bi";
 import { TfiLayersAlt } from "react-icons/tfi";
 import { UserProfile } from "./userprofile";
 import SettingsModal from "./SettingsModal";
@@ -141,6 +141,24 @@ export default function CaregiverSidebar(props: CaregiverSidebarProps) {
               <TfiLayersAlt className="w-4 h-4 flex-shrink-0" />
               {!collapsed && (
                 <span className="text-sm font-medium">Memory Graph</span>
+              )}
+            </button>
+
+            {/* Manage Patients */}
+            <button
+              onClick={() => router.push("/dashboard/patients")}
+              className={`flex items-center w-full rounded-md cursor-pointer transition-colors duration-75 ${
+                collapsed ? "justify-center p-2" : "gap-3 px-2 py-2"
+              } ${
+                props.selected === 3
+                  ? "bg-gray-200 text-gray-900"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+              title={collapsed ? "Manage Patients" : ""}
+            >
+              <BiGroup className="w-4 h-4 flex-shrink-0" />
+              {!collapsed && (
+                <span className="text-sm font-medium">Manage Patients</span>
               )}
             </button>
           </div>

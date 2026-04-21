@@ -31,6 +31,13 @@ import { IdentityPanel } from "@/app/components/identity-panel";
 import { useDropzone } from "react-dropzone";
 import { text } from "stream/consumers";
 
+interface FileData {
+  name: string,
+  type: string,
+  size: number,
+  data: string
+}
+
 const conversationCache: Record<string, Conversation> = {};
 
 export default function Home() {
@@ -221,7 +228,7 @@ export default function Home() {
         if (!clerkToken) return;
 
         const backendUrl =
-          process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
+          process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
         if (!(window as any).chatSocket) {
           console.log("[Socket] Initializing connection on mount");
@@ -298,47 +305,30 @@ export default function Home() {
     return convoId;
   }
 
-  const uploadFile = async () => {
-    if (!selectedFiles.length || !user) return conversationId;
-
-    let lastConvoId = conversationId;
-    setIsUploading(true);
-    try {
-      for (const file of selectedFiles) {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("user_id", user.uid);
-
-        const response = await axios.post(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/upload`,
-          formData,
-          {
-            headers: { "Content-Type": "multipart/form-data" },
-          },
-        );
-
-        const result = response.data?.message || "Uploaded Successfully";
-        lastConvoId = await sendHumanMessage(`Uploaded file: ${file.name}`);
-        SetConversation((prev) =>
-          prev
-            ? {
-                ...prev,
-                messages: [
-                  ...prev.messages,
-                  { sentByUser: false, text: result },
-                ],
-              }
-            : undefined,
-        );
-      }
-    } catch (err: any) {
-      console.error("Upload failed: ", err);
-      alert("Upload failed, please try again");
-    } finally {
-      setIsUploading(false);
-      clearSelectedFiles();
+  const convertFilesToBase64 = async (
+    files: File[],
+  ): Promise<Array<{ name: string; type: string; size: number; data: string }>> => {
+    const fileData = [];
+    for (const file of files) {
+      const data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          // Extract base64 data (remove the data:mime/type;base64, prefix)
+          const base64 = result.split(",")[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      fileData.push({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        data,
+      });
     }
-    return lastConvoId;
+    return fileData;
   };
 
   const handleSendMessage = async (customMessageText?: string) => {
@@ -349,20 +339,16 @@ export default function Home() {
     if (!messageText && !selectedFiles.length) return;
     if (isUploading) return;
 
-    let activeConvoId = conversationId;
-
-    if (selectedFiles.length) {
-      activeConvoId = (await uploadFile()) || activeConvoId;
-    }
-
-    if (messageText) {
+    setIsUploading(true);
+    try {
       const newConvoId = await sendHumanMessage(messageText);
       setChatInput("");
       if (path === "/" && newConvoId) {
         router.push("/chat/" + newConvoId);
       }
-    } else if (path === "/" && activeConvoId) {
-      router.push("/chat/" + activeConvoId);
+    } finally {
+      clearSelectedFiles();
+      setIsUploading(false);
     }
   };
 
@@ -396,7 +382,7 @@ export default function Home() {
 
     try {
       const backendUrl =
-        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
       let socket = (window as any).chatSocket;
 
@@ -477,6 +463,13 @@ export default function Home() {
       let finalMemories: string[] = [];
       let didReceiveResponse = false;
 
+      // Convert selected files to base64 for transmission
+      let filesData: FileData[] = [];
+      if (selectedFiles.length) {
+        filesData = await convertFilesToBase64(selectedFiles);
+        console.log(`[Socket] Prepared ${filesData.length} file(s) for transmission`);
+      }
+
       const queryPayload = {
         history: conversation.messages.slice(0, -1).map((m) => ({
           role: m.sentByUser ? "user" : "assistant",
@@ -487,6 +480,7 @@ export default function Home() {
         model_id: selectedModel,
         profile,
         request_id: requestId,
+        files: filesData,
       };
 
       // Set up ALL listeners BEFORE emitting query

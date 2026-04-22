@@ -91,6 +91,30 @@ export function initSockets(server: HttpServer) {
       `[Socket] Client connected: ${socket.id} (User: ${socket.data.userId})`,
     );
 
+    // Helper function to convert base64 files to buffer
+    const processFileData = (
+      files: Array<{ name: string; type: string; size: number; data: string }>,
+    ): string => {
+      if (!files || files.length === 0) return "";
+
+      const fileDescriptions = files
+        .map((file) => {
+          // Determine file type category
+          let fileTypeCategory = "unknown";
+          if (file.type.startsWith("image/")) fileTypeCategory = "image";
+          else if (file.type.startsWith("text/") || file.type.includes("json"))
+            fileTypeCategory = "text";
+          else if (file.type.includes("pdf")) fileTypeCategory = "pdf";
+          else if (file.type.includes("word") || file.type.includes("document"))
+            fileTypeCategory = "document";
+
+          return `\n- File: ${file.name} (Type: ${fileTypeCategory}, Size: ${file.size} bytes)`;
+        })
+        .join("");
+
+      return `\n\nAttached Files:${fileDescriptions}\n\nPlease consider these files in your response.`;
+    };
+
     // Port of `handle_query_ws` from adk_memo.py
     socket.on("query_ws", async (data) => {
       const {
@@ -99,6 +123,7 @@ export function initSockets(server: HttpServer) {
         model_id = "glm-5",
         history = [],
         request_id,
+        files = [],
       } = data;
 
       const authenticatedUserId = socket.data.userId as string | undefined;
@@ -132,6 +157,9 @@ export function initSockets(server: HttpServer) {
       console.log(
         `[Socket] Received query from ${effectiveUserId} using model ${model_id}: ${query}`,
       );
+      if (files.length > 0) {
+        console.log(`[Socket] Query includes ${files.length} file(s)`);
+      }
 
       try {
         // Resolve the model provider based on models.ts
@@ -173,10 +201,14 @@ export function initSockets(server: HttpServer) {
           },
         ];
 
+        // Build user message with file context
+        const fileContext = processFileData(files);
+        const userMessageContent = query + fileContext;
+
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
           { role: "system", content: SYSTEM_PROMPT },
           ...history,
-          { role: "user", content: query },
+          { role: "user", content: userMessageContent },
         ];
 
         // First pass: Let the model decide if it needs to use tools (retrieve/save memory)

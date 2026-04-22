@@ -1,0 +1,131 @@
+# Docker Compose to run Next.js frontend (web), backend, nginx reverse-proxy and certbot.
+# - Frontend (web) and backend services are built from Dockerfiles in repo root:
+#     - Dockerfile.web  (build & run Next production)
+#     - Dockerfile.backend (run your backend e.g. bun/node)
+#   Create those Dockerfiles to match your app needs.
+# - Nginx acts as reverse proxy and serves ACME challenge files from /var/www/certbot.
+# - certbot runs a renew loop and stores certificates under ./docker/nginx/ssl (host bind).
+#
+# Defaults:
+# - DOMAIN defaults to app.reteena.org
+# - EMAIL used for certbot registration; set via environment or .env
+#
+# Usage:
+# 1) Create Dockerfile.web and Dockerfile.backend appropriate for your project.
+# 2) Ensure ./docker/nginx/conf.d contains an nginx site config for the domain
+#    (e.g. conf file that handles /.well-known/acme-challenge/ and proxies to web/backend).
+#    Example path used in this repo: ./docker/nginx/conf.d/app.reteena.org.conf
+# 3) Option A: Obtain initial cert with the helper script (e.g. run certbot temporarily)
+#    or run the one-shot command described below to create initial certs.
+# 4) Start: docker compose up -d
+#
+# One-shot initial certificate example (outside compose):
+#   docker compose run --rm certbot certonly --webroot -w /var/www/certbot \
+#     --email you@example.com --agree-tos -d app.reteena.org
+#
+# NOTE: This compose file uses bind mounts under ./docker/nginx for:
+#   - ./docker/nginx/www      -> /var/www/certbot  (ACME challenge)
+#   - ./docker/nginx/ssl      -> /etc/letsencrypt  (cert storage)
+#   - ./docker/nginx/conf.d   -> /etc/nginx/conf.d (nginx site confs)
+#
+# Make sure the host folders exist and nginx config files are present before starting.
+
+version: "3.8"
+
+services:
+  nginx:
+    image: nginx:stable-alpine
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # nginx site configs (read-only)
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      # acme challenge webroot used by certbot
+      - ./docker/nginx/www:/var/www/certbot
+      # letsencrypt cert storage (will contain live/, archive/, renewal/)
+      - ./docker/nginx/ssl:/etc/letsencrypt
+      # optional: nginx logs
+      - ./docker/nginx/log:/var/log/nginx
+    depends_on:
+      - web
+      - backend
+    networks:
+      - webnet
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: remembrance_web:latest
+    container_name: remembrance_web
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # pass any other env vars here, e.g. DATABASE_URL, NEXT_PUBLIC_*
+    expose:
+      - "3000"
+    # simplified: no healthcheck configured for web
+    networks:
+      - webnet
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: remembrance_backend:latest
+    container_name: remembrance_backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      # add backend-specific env vars here
+    expose:
+      - "4000"
+    # simplified: no healthcheck configured for backend
+    networks:
+      - webnet
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: certbot
+    restart: unless-stopped
+    volumes:
+      - ./docker/nginx/www:/var/www/certbot
+      - ./docker/nginx/ssl:/etc/letsencrypt
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+    entrypoint: /bin/sh -c
+    # This runs a renewal loop; for the initial certificate you can run a one-shot certonly command
+    # as described in the file header. The command below attempts renewal periodically and reloads nginx.
+    command: >
+      "trap exit TERM;
+       while :; do
+         sleep 12h & wait $${!};
+         certbot renew --webroot -w /var/www/certbot --deploy-hook 'nginx -s reload' || true;
+       done"
+    depends_on:
+      - nginx
+    networks:
+      - webnet
+
+# Optional: an init service to create the initial certificate (run once), commented out for normal runs.
+# To use, run: docker compose run --rm certbot_init
+#
+# certbot_init:
+#   image: certbot/certbot:latest
+#   container_name: certbot_init
+#   volumes:
+#     - ./docker/nginx/www:/var/www/certbot
+#     - ./docker/nginx/ssl:/etc/letsencrypt
+#   entrypoint: /bin/sh -c
+#   command: >
+#     "certbot certonly --webroot -w /var/www/certbot --email ${EMAIL:-you@example.com} --agree-tos -d ${DOMAIN:-app.reteena.org}"
+#   networks:
+#     - webnet
+
+networks:
+  webnet:
+    driver: bridge

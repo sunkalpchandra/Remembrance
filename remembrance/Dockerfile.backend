@@ -1,0 +1,63 @@
+# Dockerfile for the backend using Bun
+# Multi-stage: install/build in builder, copy to a smaller runtime layer
+# Usage:
+#  docker build -f Dockerfile.backend -t remembrance-backend:latest .
+#  docker run -e PORT=4000 -p 4000:4000 remembrance-backend:latest
+#
+# Notes:
+# - This image assumes your backend entrypoint is `backend/index.ts` as defined
+#   in the repo package.json ("server": "bun backend/index.ts").
+# - Bun can run TypeScript directly at runtime; we still run an optional build
+#   step (if `bun run build` exists) and ignore failures (so Docker build won't
+#   break if there's no build script).
+# - Adjust `PORT` env var as needed. The container exposes 4000 by default.
+
+# Use official Bun image (contains bun runtime + node compatibility)
+FROM oven/bun:latest AS builder
+
+# Set working dir
+WORKDIR /usr/src/app
+
+# Copy dependency manifests first for better caching
+# Bun uses bun.lockb when present; include package.json and bun.lockb
+COPY package.json bun.lockb* ./
+
+# Install dependencies (dev deps included so build tools are available)
+# Using the default bun install; it will read bun.lockb or package.json
+RUN bun install --no-check
+
+# Copy the rest of the repository
+COPY . .
+
+# Try to run a build step if present (non-fatal)
+# This is useful if you have a backend compile step or a project-wide build script.
+RUN bun run build || true
+
+# Final runtime image
+FROM oven/bun:latest AS runtime
+
+LABEL org.opencontainers.image.source="https://github.com/your/repo"
+WORKDIR /usr/src/app
+
+# Copy app and installed deps from builder
+COPY --from=builder /usr/src/app /usr/src/app
+
+# Run as non-root user for better security
+# create a user with a fixed UID/GID (adjust if needed)
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser || true
+USER appuser
+
+# Expose default backend port; use PORT env var at runtime to override
+ENV NODE_ENV=production
+ENV PORT=4000
+EXPOSE 4000
+
+# Optional healthcheck; if your backend exposes /health or /ping adjust path.
+# Note: curl is available in the base Bun image; if not, remove this line.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD curl -fsS http://localhost:${PORT}/health || exit 1
+
+# Entrypoint: run the backend using Bun
+# If you have a package script `server`, you can replace the CMD with:
+#   ["bun", "run", "server"]
+CMD ["bun", "backend/index.ts"]

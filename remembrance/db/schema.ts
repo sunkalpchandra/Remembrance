@@ -130,3 +130,34 @@ export const memoryTopics = pgTable(
     pk: primaryKey({ columns: [t.memoryId, t.topicId] }),
   }),
 );
+
+// --- CAREGIVER NOTES ---
+// Notes that caregivers write about their patients, synced to patient's Mem0 memory
+export const caregiverNotes = pgTable("caregiver_notes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  caregiverId: varchar("caregiver_id", { length: 255 })
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  patientId: varchar("patient_id", { length: 255 })
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// --- NOTIFICATIONS ---
+// In-app notifications for memory saves and caregiver note events
+export const notifications = pgTable("notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id", { length: 255 })
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  type: varchar("type", { length: 50 }).notNull(), // 'memory_saved' | 'note_added'
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message"),
+  read: boolean("read").notNull().default(false),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

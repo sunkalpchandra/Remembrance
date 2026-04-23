@@ -4,21 +4,28 @@ import { models } from "./models";
 import { SYSTEM_PROMPT } from "./prompt";
 import OpenAI from "openai";
 import { verifyToken, createClerkClient } from "@clerk/backend";
+import MemoryClient from "mem0ai";
+import { drizzle } from "drizzle-orm/neon-serverless";
+import { Pool } from "@neondatabase/serverless";
+import { eq, desc } from "drizzle-orm";
+import { memories, notifications, users } from "../db/schema";
+import { upsertMemoryNode } from "./neo4j";
 
 if (!process.env.CLERK_SECRET_KEY) {
-  console.error(
-    "[Socket] ERROR: CLERK_SECRET_KEY environment variable is not set!",
-  );
-  console.error(
-    "[Socket] Socket.io authentication will fail without this key.",
-  );
+  console.error("[Socket] ERROR: CLERK_SECRET_KEY environment variable is not set!");
+}
+if (!process.env.MEM0_API_KEY) {
+  console.error("[Socket] ERROR: MEM0_API_KEY environment variable is not set!");
+}
+if (!process.env.DATABASE_URL) {
+  console.error("[Socket] ERROR: DATABASE_URL environment variable is not set!");
 }
 
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
+const mem0 = new MemoryClient({ apiKey: process.env.MEM0_API_KEY! });
 
-// In-memory store for the port, representing the Mem0 graph/vector memory
-// In a full production app, this would integrate with Neo4j or a Vector DB.
-const memoryStore = new Map<string, string[]>();
+const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
+const db = drizzle({ client: pool });
 
 export function initSockets(server: HttpServer) {
   const io = new SocketIOServer(server, {
@@ -37,61 +44,37 @@ export function initSockets(server: HttpServer) {
       return next(new Error("Authentication error: No token provided"));
     }
 
-    console.log(`[Socket] Token received for ${socket.id}, verifying...`);
-
     try {
       const verified = await verifyToken(token as string, {
         secretKey: process.env.CLERK_SECRET_KEY,
       });
 
-      console.log(`[Socket] Token verified for user: ${verified.sub}`);
-
       if (!verified.sub) {
-        console.error(`[Socket] Auth failed: No sub in verified token`);
         return next(new Error("Authentication error: Invalid token"));
       }
 
       const user = await clerk.users.getUser(verified.sub);
-      console.log(
-        `[Socket] User fetched: ${user.id}, role: ${user.publicMetadata?.role}`,
-      );
 
       if (
         user.publicMetadata?.role !== "patient" &&
         user.publicMetadata?.role !== "individual" &&
         user.publicMetadata?.role !== undefined
       ) {
-        console.error(
-          `[Socket] Auth failed for ${verified.sub}: User role is "${user.publicMetadata?.role}", expected "patient" or "individual"`,
-        );
-        return next(
-          new Error(
-            "Authentication error: User is not a patient or individual",
-          ),
-        );
+        return next(new Error("Authentication error: User is not a patient or individual"));
       }
 
       socket.data.userId = verified.sub;
-      console.log(
-        `[Socket] Auth successful for ${socket.id} (User: ${verified.sub})`,
-      );
+      console.log(`[Socket] Auth successful for ${socket.id} (User: ${verified.sub})`);
       next();
     } catch (err) {
       console.error(`[Socket] Auth error for ${socket.id}:`, err);
-      console.error(`[Socket] Error details:`, {
-        message: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-      });
       next(new Error("Authentication error"));
     }
   });
 
   io.on("connection", (socket) => {
-    console.log(
-      `[Socket] Client connected: ${socket.id} (User: ${socket.data.userId})`,
-    );
+    console.log(`[Socket] Client connected: ${socket.id} (User: ${socket.data.userId})`);
 
-    // Helper function to convert base64 files to buffer
     const processFileData = (
       files: Array<{ name: string; type: string; size: number; data: string }>,
     ): string => {
@@ -99,15 +82,11 @@ export function initSockets(server: HttpServer) {
 
       const fileDescriptions = files
         .map((file) => {
-          // Determine file type category
           let fileTypeCategory = "unknown";
           if (file.type.startsWith("image/")) fileTypeCategory = "image";
-          else if (file.type.startsWith("text/") || file.type.includes("json"))
-            fileTypeCategory = "text";
+          else if (file.type.startsWith("text/") || file.type.includes("json")) fileTypeCategory = "text";
           else if (file.type.includes("pdf")) fileTypeCategory = "pdf";
-          else if (file.type.includes("word") || file.type.includes("document"))
-            fileTypeCategory = "document";
-
+          else if (file.type.includes("word") || file.type.includes("document")) fileTypeCategory = "document";
           return `\n- File: ${file.name} (Type: ${fileTypeCategory}, Size: ${file.size} bytes)`;
         })
         .join("");
@@ -115,7 +94,6 @@ export function initSockets(server: HttpServer) {
       return `\n\nAttached Files:${fileDescriptions}\n\nPlease consider these files in your response.`;
     };
 
-    // Port of `handle_query_ws` from adk_memo.py
     socket.on("query_ws", async (data) => {
       const {
         user_id,
@@ -129,59 +107,38 @@ export function initSockets(server: HttpServer) {
       const authenticatedUserId = socket.data.userId as string | undefined;
 
       if (!authenticatedUserId) {
-        socket.emit("error", {
-          message: "Unauthorized: missing authenticated user.",
-          request_id,
-        });
+        socket.emit("error", { message: "Unauthorized: missing authenticated user.", request_id });
         return;
       }
 
       if (user_id && user_id !== authenticatedUserId) {
-        socket.emit("error", {
-          message: "Unauthorized: user_id does not match authenticated user.",
-          request_id,
-        });
+        socket.emit("error", { message: "Unauthorized: user_id does not match authenticated user.", request_id });
         return;
       }
 
       const effectiveUserId = authenticatedUserId;
 
       if (!query) {
-        socket.emit("error", {
-          message: "Query is required.",
-          request_id,
-        });
+        socket.emit("error", { message: "Query is required.", request_id });
         return;
       }
 
-      console.log(
-        `[Socket] Received query from ${effectiveUserId} using model ${model_id}: ${query}`,
-      );
-      if (files.length > 0) {
-        console.log(`[Socket] Query includes ${files.length} file(s)`);
-      }
+      console.log(`[Socket] Received query from ${effectiveUserId} using model ${model_id}: ${query}`);
 
       try {
-        // Resolve the model provider based on models.ts
-        const selectedModel =
-          models.find((m) => m.id === model_id) || models[0];
+        const selectedModel = models.find((m) => m.id === model_id) || models[0];
         const openai = selectedModel.provider as OpenAI;
 
-        // Tool definitions for Memory Management
         const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           {
             type: "function",
             function: {
               name: "save_user_info",
-              description:
-                "Save important user information, memories, or preferences to the memory store.",
+              description: "Save important user information, memories, or preferences to the memory store.",
               parameters: {
                 type: "object",
                 properties: {
-                  info: {
-                    type: "string",
-                    description: "The detailed information or memory to save.",
-                  },
+                  info: { type: "string", description: "The detailed information or memory to save." },
                 },
                 required: ["info"],
               },
@@ -191,17 +148,12 @@ export function initSockets(server: HttpServer) {
             type: "function",
             function: {
               name: "retrieve_user_info",
-              description:
-                "Retrieve stored information and memories about the user to provide context.",
-              parameters: {
-                type: "object",
-                properties: {}, // No parameters needed, it fetches for the current user
-              },
+              description: "Retrieve stored information and memories about the user to provide context.",
+              parameters: { type: "object", properties: {} },
             },
           },
         ];
 
-        // Build user message with file context
         const fileContext = processFileData(files);
         const userMessageContent = query + fileContext;
 
@@ -211,20 +163,12 @@ export function initSockets(server: HttpServer) {
           { role: "user", content: userMessageContent },
         ];
 
-        // First pass: Let the model decide if it needs to use tools (retrieve/save memory)
-        socket.emit("status", {
-          status: "Thinking...",
-          request_id,
-        });
-        console.log(
-          `[Socket] Sending initial request to model ${selectedModel.modelID}`,
-        );
+        socket.emit("status", { status: "Thinking...", request_id });
 
-        // Let's implement manual tool handling logic since the proxy/models might not perfectly support runTools
         const initialStream = await openai.chat.completions.create({
           model: selectedModel.modelID,
-          messages: messages,
-          tools: tools,
+          messages,
+          tools,
           tool_choice: "auto",
           stream: true,
         });
@@ -237,52 +181,55 @@ export function initSockets(server: HttpServer) {
           if (!delta) continue;
 
           if (delta.reasoning_content) {
-            socket.emit("thinking_chunk", {
-              text: delta.reasoning_content,
-              request_id,
-            });
+            socket.emit("thinking_chunk", { text: delta.reasoning_content, request_id });
           }
-
           if (delta.content) {
             accumulatedContent += delta.content;
-            socket.emit("answer_chunk", {
-              text: delta.content,
-              request_id,
-            });
+            socket.emit("answer_chunk", { text: delta.content, request_id });
           }
-
           if (delta.tool_calls) {
             for (const tc of delta.tool_calls) {
               const index = tc.index;
               if (!toolCalls[index]) {
-                toolCalls[index] = {
-                  id: tc.id || "",
-                  type: "function",
-                  function: { name: tc.function?.name || "", arguments: "" },
-                };
+                toolCalls[index] = { id: "", type: "function", function: { name: "", arguments: "" } };
               }
               if (tc.id) toolCalls[index].id = tc.id;
-              if (tc.function?.name)
-                toolCalls[index].function.name += tc.function.name;
-              if (tc.function?.arguments)
-                toolCalls[index].function.arguments += tc.function.arguments;
+              if (tc.function?.name) {
+                // Some proxies (HackClub/Gemini) re-send the full name in multiple deltas.
+                // Only append if it's not already a prefix of the current accumulator.
+                const existing: string = toolCalls[index].function.name;
+                const incoming: string = tc.function.name;
+                if (!existing) {
+                  toolCalls[index].function.name = incoming;
+                } else if (!existing.endsWith(incoming) && !incoming.startsWith(existing)) {
+                  toolCalls[index].function.name = existing + incoming;
+                } else if (incoming.length > existing.length) {
+                  toolCalls[index].function.name = incoming;
+                }
+                // else: duplicate — ignore
+              }
+              if (tc.function?.arguments) toolCalls[index].function.arguments += tc.function.arguments;
             }
           }
         }
 
         toolCalls = toolCalls.filter(Boolean);
 
-        console.log(
-          `[Socket] Received initial response stream. Tool calls present:`,
-          toolCalls.length > 0,
-        );
+        console.log(`[Socket] ====== TOOL CALL SUMMARY ======`);
+        console.log(`[Socket] Model: ${selectedModel.modelID}`);
+        console.log(`[Socket] User: ${effectiveUserId}`);
+        console.log(`[Socket] Tool calls made: ${toolCalls.length}`);
+        console.log(`[Socket] Accumulated content length (1st stream): ${accumulatedContent.length}`);
+        toolCalls.forEach((tc, i) => {
+          console.log(`[Socket]   [${i}] ${tc.function.name}(${tc.function.arguments})`);
+        });
+        console.log(`[Socket] ================================`);
 
-        // Check if model wants to call tools
+        if (toolCalls.length === 0) {
+          console.warn(`[Socket] WARNING: Model made NO tool calls. retrieve_user_info / save_user_info were not invoked.`);
+        }
+
         if (toolCalls.length > 0) {
-          console.log(
-            `[Socket] Model requested ${toolCalls.length} tool call(s)`,
-          );
-
           messages.push({
             role: "assistant",
             content: accumulatedContent || null,
@@ -294,29 +241,132 @@ export function initSockets(server: HttpServer) {
             let functionResponse = "";
 
             if (functionName === "save_user_info") {
-              socket.emit("status", {
-                status: "Saving memory...",
-                request_id,
-              });
+              socket.emit("status", { status: "Saving memory...", request_id });
+              let infoText = "";
               try {
                 const args = JSON.parse(toolCall.function.arguments);
-                if (!memoryStore.has(effectiveUserId))
-                  memoryStore.set(effectiveUserId, []);
-                memoryStore.get(effectiveUserId)!.push(args.info);
-                functionResponse = `Successfully saved memory: ${args.info}`;
+                infoText = args.info;
+                console.log(`[Save] Attempting save for user=${effectiveUserId} info="${infoText}"`);
               } catch (e) {
-                functionResponse = "Failed to parse tool arguments.";
+                console.error("[Save] Failed to parse tool arguments:", toolCall.function.arguments, e);
+                functionResponse = "Failed to parse arguments.";
+                messages.push({ role: "tool", tool_call_id: toolCall.id, content: functionResponse });
+                continue;
               }
-            } else if (functionName === "retrieve_user_info") {
-              socket.emit("status", {
-                status: "Searching memories...",
+
+              // 1. Ensure user exists in DB (avoid FK violation if Clerk webhook hasn't synced yet)
+              try {
+                const clerkUser = await clerk.users.getUser(effectiveUserId);
+                await db
+                  .insert(users)
+                  .values({
+                    id: effectiveUserId,
+                    email: clerkUser.emailAddresses[0]?.emailAddress || "unknown@unknown.com",
+                    name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null,
+                    role: (clerkUser.publicMetadata?.role as any) || "individual",
+                  })
+                  .onConflictDoNothing();
+                console.log(`[Save] User row ensured for ${effectiveUserId}`);
+              } catch (e) {
+                console.error("[Save] Failed to ensure user row:", e);
+              }
+
+              // 2. Save to Mem0 with infer:false so the raw memory is stored (no LLM extraction filter)
+              try {
+                const addResult = await mem0.add(
+                  [{ role: "user", content: infoText }],
+                  { userId: effectiveUserId, infer: false }
+                );
+                console.log(`[Mem0] add result:`, JSON.stringify(addResult, null, 2));
+              } catch (e: any) {
+                console.error("[Mem0] add FAILED:", e?.message || e, e?.stack);
+              }
+
+              // 3. Persist to DB memories table
+              let newMemoryId: string | null = null;
+              try {
+                const inserted = await db
+                  .insert(memories)
+                  .values({
+                    userId: effectiveUserId,
+                    name: infoText.substring(0, 80),
+                    summary: infoText,
+                    content: { text: infoText },
+                  })
+                  .returning({ id: memories.id });
+                console.log(`[DB] memories row inserted:`, inserted);
+                newMemoryId = inserted?.[0]?.id || null;
+              } catch (e: any) {
+                console.error("[DB] memories insert FAILED:", e?.message || e, e?.stack);
+              }
+
+              // 3b. Sync to Neo4j so the repository graph view updates live
+              if (newMemoryId) {
+                try {
+                  await upsertMemoryNode(
+                    effectiveUserId,
+                    newMemoryId,
+                    infoText,
+                    infoText.substring(0, 80),
+                  );
+                } catch (e: any) {
+                  console.error("[Neo4j] save failed:", e?.message || e);
+                }
+              }
+
+              // 4. Notification
+              try {
+                await db.insert(notifications).values({
+                  userId: effectiveUserId,
+                  type: "memory_saved",
+                  title: "Memory Saved",
+                  message: infoText.substring(0, 150),
+                });
+              } catch (e: any) {
+                console.error("[DB] notifications insert FAILED:", e?.message || e);
+              }
+
+              socket.emit("notification", {
+                type: "memory_saved",
+                title: "Memory Saved",
+                message: infoText.substring(0, 100),
                 request_id,
               });
-              const userMem = memoryStore.get(effectiveUserId) || [];
-              functionResponse =
-                userMem.length > 0
-                  ? `User Memories:\n${userMem.join("\n")}`
+
+              functionResponse = `Successfully saved memory: ${infoText}`;
+            } else if (functionName === "retrieve_user_info") {
+              socket.emit("status", { status: "Searching memories...", request_id });
+              try {
+                const searchResult = await mem0.search(
+                  "personal information, memories, preferences, family, places, identity",
+                  { filters: { user_id: effectiveUserId }, topK: 50 }
+                );
+                console.log(`[Mem0] search result for ${effectiveUserId}:`, JSON.stringify(searchResult, null, 2));
+                const userMems = searchResult?.results || [];
+
+                // Fallback: if search returns nothing, pull from DB memories table
+                let memLines = userMems.map((m: any) => m.memory || "").filter(Boolean);
+
+                if (memLines.length === 0) {
+                  console.log(`[Retrieve] Mem0 returned 0 — falling back to DB memories table`);
+                  const dbMems = await db
+                    .select()
+                    .from(memories)
+                    .where(eq(memories.userId, effectiveUserId))
+                    .orderBy(desc(memories.createdAt))
+                    .limit(50);
+                  console.log(`[Retrieve] DB memories for user: ${dbMems.length} rows`);
+                  memLines = dbMems.map((m: any) => m.summary || m.name || "").filter(Boolean);
+                }
+
+                functionResponse = memLines.length > 0
+                  ? `User Memories:\n${memLines.join("\n")}`
                   : "No previous memories found for this user.";
+                console.log(`[Retrieve] Final mem count returned to model: ${memLines.length}`);
+              } catch (e: any) {
+                console.error("[Retrieve] Failed:", e?.message || e, e?.stack);
+                functionResponse = "No previous memories found for this user.";
+              }
             }
 
             messages.push({
@@ -326,67 +376,53 @@ export function initSockets(server: HttpServer) {
             });
           }
 
-          // Second pass: Get actual response stream
-          console.log(
-            `[Socket] Sending second request for actual response stream`,
-          );
-          socket.emit("status", {
-            status: "Synthesizing response...",
-            request_id,
-          });
+          socket.emit("status", { status: "Synthesizing response...", request_id });
           const stream2 = await openai.chat.completions.create({
             model: selectedModel.modelID,
-            messages: messages,
+            messages,
             stream: true,
           });
 
-          console.log(`[Socket] Starting to receive stream...`);
           for await (const chunk of stream2) {
             const delta = chunk.choices[0]?.delta as any;
             if (!delta) continue;
-
             if (delta.reasoning_content) {
-              socket.emit("thinking_chunk", {
-                text: delta.reasoning_content,
-                request_id,
-              });
+              socket.emit("thinking_chunk", { text: delta.reasoning_content, request_id });
             }
-
             if (delta.content) {
-              socket.emit("answer_chunk", {
-                text: delta.content,
-                request_id,
-              });
+              socket.emit("answer_chunk", { text: delta.content, request_id });
             }
           }
         }
 
-        console.log(`[Socket] Stream finished. Emitting done event.`);
-
-        socket.emit("done", {
-          status: "completed",
-          request_id,
-        });
+        socket.emit("done", { status: "completed", request_id });
       } catch (error: any) {
         console.error("[Socket] Error processing query:", error);
-        socket.emit("error", {
-          message: error.message || "An error occurred during generation.",
-          request_id,
-        });
+        socket.emit("error", { message: error.message || "An error occurred during generation.", request_id });
       }
     });
 
-    // Handle Proactive Prompt Generation
     socket.on("proactive_prompt", async (data) => {
-      const { user_id = "default_user", model_id = "max" } = data;
+      const { user_id, model_id = "max" } = data;
+      const effectiveUserId = user_id || socket.data.userId;
       try {
-        const selectedModel =
-          models.find((m) => m.id === model_id) || models[0];
+        const selectedModel = models.find((m) => m.id === model_id) || models[0];
         const openai = selectedModel.provider as OpenAI;
 
-        const mems = memoryStore.get(user_id) || [];
-        const memoryContext =
-          mems.length > 0 ? mems.join("\n") : "No previous memories.";
+        let memoryContext = "No previous memories.";
+        try {
+          const searchResult = await mem0.search(
+            "personal information, memories, preferences, family, places",
+            { filters: { user_id: effectiveUserId }, topK: 50 }
+          );
+          const userMems = searchResult?.results || [];
+          if (userMems.length > 0) {
+            const memLines = userMems.map((m: any) => m.memory || "").filter(Boolean);
+            if (memLines.length > 0) memoryContext = memLines.join("\n");
+          }
+        } catch (e) {
+          console.error("[Socket] Failed to retrieve memories for proactive prompt:", e);
+        }
 
         const completion = await openai.chat.completions.create({
           model: selectedModel.modelID,
@@ -399,14 +435,10 @@ export function initSockets(server: HttpServer) {
           ],
         });
 
-        socket.emit("proactive_response", {
-          prompt: completion.choices[0].message.content,
-        });
+        socket.emit("proactive_response", { prompt: completion.choices[0].message.content });
       } catch (error: any) {
         console.error("[Socket] Error generating proactive prompt:", error);
-        socket.emit("error", {
-          message: "Failed to generate proactive prompt.",
-        });
+        socket.emit("error", { message: "Failed to generate proactive prompt." });
       }
     });
 

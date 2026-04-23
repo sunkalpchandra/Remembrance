@@ -12,13 +12,13 @@ import {
   BiAlarmExclamation,
   BiBookmarkPlus,
   BiMessageAdd,
+  BiBrain,
 } from "react-icons/bi";
 
 interface TreeSidebarProps {
   repo: MemoriesRepo;
   onNodeSelect: (node: Memory | Topic) => void;
   onAddMemory: () => void;
-  onAddCategorization: () => void;
   onUpdateRepo: (repo: MemoriesRepo) => void;
   selectedNode: Memory | Topic | null;
   user: AppUser | null;
@@ -84,7 +84,6 @@ export default function TreeSidebar({
   repo,
   onNodeSelect,
   onAddMemory,
-  onAddCategorization,
   onUpdateRepo,
   selectedNode,
   user,
@@ -421,6 +420,8 @@ export default function TreeSidebar({
       draggedNode?.name === node.name && draggedNode?.id === node.id;
     const isDropTarget =
       dropTarget.node?.name === node.name && dropTarget.node?.id === node.id;
+    const isAI = !isTopic && !!(node as Memory).aiGenerated;
+    const isAITopic = isTopic && node.id === "ai-memories";
 
     const dragHandlers = {
       draggable: true,
@@ -524,13 +525,25 @@ export default function TreeSidebar({
 
           {/* Icon */}
           {isTopic ? (
-            <BiFolder
-              className={`w-4 h-4 flex-shrink-0 transition-colors duration-150 ${
-                isDropTarget && dropTarget.action === "inside"
-                  ? "text-blue-600"
-                  : "text-gray-500"
-              }`}
-            />
+            isAITopic ? (
+              <BiBrain
+                className={`w-4 h-4 flex-shrink-0 transition-colors duration-150 ${
+                  isDropTarget && dropTarget.action === "inside"
+                    ? "text-violet-600"
+                    : "text-violet-400"
+                }`}
+              />
+            ) : (
+              <BiFolder
+                className={`w-4 h-4 flex-shrink-0 transition-colors duration-150 ${
+                  isDropTarget && dropTarget.action === "inside"
+                    ? "text-blue-600"
+                    : "text-gray-500"
+                }`}
+              />
+            )
+          ) : isAI ? (
+            <BiBrain className="w-4 h-4 text-violet-400 flex-shrink-0" />
           ) : (
             <BiFile className="w-4 h-4 text-gray-500 flex-shrink-0" />
           )}
@@ -566,24 +579,20 @@ export default function TreeSidebar({
                   ? "text-gray-900 font-semibold"
                   : isDropTarget && dropTarget.action === "inside" && isTopic
                     ? "text-blue-700"
-                    : "text-gray-700 hover:text-gray-900"
+                    : isAI || isAITopic
+                      ? "text-violet-700 hover:text-violet-900"
+                      : "text-gray-700 hover:text-gray-900"
               }`}
-              title={
-                node.name.length > 15
-                  ? `${node.name.slice(0, 15)}...`
-                  : node.name
-              }
+              title={node.name}
             >
-              {node.name.length > 15
-                ? `${node.name.slice(0, 15)}...`
-                : node.name}
+              {node.name}
               {isDropTarget && (
                 <span className="text-xs text-blue-600 ml-2">
                   {dropTarget.action === "inside"
-                    ? "↳ Drop inside"
+                    ? "↳"
                     : dropTarget.action === "before"
-                      ? "↑ Drop above"
-                      : "↓ Drop below"}
+                      ? "↑"
+                      : "↓"}
                 </span>
               )}
             </div>
@@ -712,12 +721,19 @@ export default function TreeSidebar({
         {/* Tree Content */}
         <div className="flex-1 overflow-y-auto px-2 py-1 w-full">
           {repo.memories.children.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 w-full">
-              <BiFolder className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No memories yet</p>
-              <p className="text-xs text-gray-400 mt-1 px-2">
-                Create your first memory or category
+            <div className="text-center py-10 text-gray-500 w-full px-4">
+              <BiBrain className="w-10 h-10 mx-auto mb-3 text-violet-300" />
+              <p className="text-sm font-medium text-gray-600">No memories yet</p>
+              <p className="text-xs text-gray-400 mt-1 mb-4">
+                Chat with Remembrance to save memories, or add one manually.
               </p>
+              <button
+                onClick={onAddMemory}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-md hover:bg-gray-700 transition-colors"
+              >
+                <BiMessageAdd className="w-3.5 h-3.5" />
+                Add Memory
+              </button>
             </div>
           ) : (
             <div className="w-full">

@@ -31,8 +31,8 @@ export default function Page() {
   const [repo, setRepo] = useState(initialRepo);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [current, setCurrent] = useState<Memory | Topic | null>(null);
-  const [treeSidebarWidth, setTreeSidebarWidth] = useState(12);
-  const [notionPageWidth, setNotionPageWidth] = useState(61.5);
+  const [treeSidebarWidth, setTreeSidebarWidth] = useState(20);
+  const [notionPageWidth, setNotionPageWidth] = useState(45);
   const user = useContext(UserContext);
 
   const [content, setContent] = useState(null);
@@ -177,6 +177,7 @@ export default function Page() {
   // Setup resize handlers
   useEffect(() => {
     const handleTreeResize = (e: MouseEvent) => {
+      e.preventDefault();
       const startX = e.clientX;
       const startWidth = treeSidebarWidth;
       const handleMouseMove = (e: MouseEvent) => {
@@ -184,7 +185,7 @@ export default function Page() {
         const containerWidth = mainContainerRef.current.clientWidth;
         const deltaX = e.clientX - startX;
         const deltaPercent = (deltaX / containerWidth) * 100;
-        const newWidth = Math.max(8, Math.min(20, startWidth + deltaPercent));
+        const newWidth = Math.max(12, Math.min(35, startWidth + deltaPercent));
         setTreeSidebarWidth(newWidth);
       };
 
@@ -198,6 +199,7 @@ export default function Page() {
     };
 
     const handleNotionResize = (e: MouseEvent) => {
+      e.preventDefault();
       const startX = e.clientX;
       const startWidth = notionPageWidth;
 
@@ -206,9 +208,9 @@ export default function Page() {
         const containerWidth = mainContainerRef.current.clientWidth;
         const deltaX = e.clientX - startX;
         const deltaPercent = (deltaX / containerWidth) * 100;
-        const maxWidth = 100 - treeSidebarWidth - 30;
+        const maxWidth = 100 - treeSidebarWidth - 20;
         const newWidth = Math.max(
-          30,
+          25,
           Math.min(maxWidth, startWidth + deltaPercent),
         );
         setNotionPageWidth(newWidth);
@@ -223,39 +225,73 @@ export default function Page() {
       document.addEventListener("mouseup", handleMouseUp);
     };
 
-    if (treeResizeRef.current) {
-      treeResizeRef.current.addEventListener("mousedown", handleTreeResize);
-    }
-    if (notionResizeRef.current) {
-      notionResizeRef.current.addEventListener("mousedown", handleNotionResize);
-    }
+    const treeEl = treeResizeRef.current;
+    const notionEl = notionResizeRef.current;
+    if (treeEl) treeEl.addEventListener("mousedown", handleTreeResize);
+    if (notionEl) notionEl.addEventListener("mousedown", handleNotionResize);
 
     return () => {
-      if (treeResizeRef.current) {
-        treeResizeRef.current.removeEventListener(
-          "mousedown",
-          handleTreeResize,
-        );
-      }
-      if (notionResizeRef.current) {
-        notionResizeRef.current.removeEventListener(
-          "mousedown",
-          handleNotionResize,
-        );
-      }
+      if (treeEl) treeEl.removeEventListener("mousedown", handleTreeResize);
+      if (notionEl) notionEl.removeEventListener("mousedown", handleNotionResize);
     };
   }, [treeSidebarWidth, notionPageWidth]);
 
   useEffect(() => {
     if (!user || typeof window === "undefined") return;
+
+    let localRepo: MemoriesRepo = initialRepo;
     const raw = window.localStorage.getItem(`memoryRepo:${user.uid}`);
     if (raw) {
       try {
-        setRepo(JSON.parse(raw) as MemoriesRepo);
+        localRepo = JSON.parse(raw) as MemoriesRepo;
       } catch (e) {
         console.error("Failed to load memory repo:", e);
       }
     }
+
+    // Fetch AI-saved memories from DB and merge as an "AI Memories" topic
+    (async () => {
+      try {
+        const res = await fetch("/api/memories");
+        if (!res.ok) {
+          setRepo(localRepo);
+          return;
+        }
+        const data = await res.json();
+        const aiMems: Memory[] = (data.memories || []).map((m: any) => ({
+          id: m.id,
+          ownerID: m.ownerID,
+          name: m.name,
+          summary: m.summary,
+          content: m.content && typeof m.content === "object" ? m.content : {},
+          topics: m.topics || [],
+          aiGenerated: true,
+        }));
+
+        // Merge: keep existing children except a prior "AI Memories" topic, then append fresh one
+        const preserved = (localRepo.memories.children || []).filter(
+          (c) => !("children" in c && (c as Topic).name === "AI Memories"),
+        );
+
+        const aiTopic: Topic = {
+          id: "ai-memories",
+          name: "AI Memories",
+          children: aiMems,
+        };
+
+        const merged: MemoriesRepo = {
+          memories: {
+            ...localRepo.memories,
+            children: aiMems.length > 0 ? [aiTopic, ...preserved] : preserved,
+          },
+        };
+
+        setRepo(merged);
+      } catch (e) {
+        console.error("Failed to fetch AI memories:", e);
+        setRepo(localRepo);
+      }
+    })();
   }, [user]);
 
   useEffect(() => {
@@ -294,24 +330,23 @@ export default function Page() {
     };
   };
 
-  const graphWidth = 100 - treeSidebarWidth - notionPageWidth;
+  const graphWidth = Math.max(20, 100 - treeSidebarWidth - notionPageWidth);
 
   return (
     <div className="flex w-screen h-screen flex-row items-stretch text-black bg-white overflow-hidden">
       {/* Main Sidebar */}
       <SideBar selected={1} />
       {/* Main Content Container */}
-      <div className="flex-1 flex flex-row h-full" ref={mainContainerRef}>
+      <div className="flex-1 flex flex-row h-full min-w-0" ref={mainContainerRef}>
         {/* Tree Sidebar */}
         <div
-          className="h-full bg-white overflow-y-auto mb-3"
-          style={{ width: `${25}%` }}
+          className="h-full bg-white overflow-y-auto border-r border-gray-200"
+          style={{ width: `${treeSidebarWidth}%` }}
         >
           <TreeSidebar
             repo={repo}
             onNodeSelect={handleNodeSelect}
             onAddMemory={handleAddMemory}
-            onAddCategorization={() => {}}
             onUpdateRepo={setRepo}
             selectedNode={current}
             user={user}
@@ -319,13 +354,16 @@ export default function Page() {
         </div>
 
         {/* Tree Sidebar Resize Handle */}
-        {/* <div
+        <div
           ref={treeResizeRef}
-          className="w-1 bg-gray-300 hover:bg-gray-400 cursor-col-resize"
-        /> */}
+          className="w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize transition-colors flex-shrink-0"
+        />
 
         {/* Notion-style Page */}
-        <div className="flex-1 overflow-y-auto">
+        <div
+          className="overflow-y-auto min-w-0"
+          style={{ width: `${notionPageWidth}%` }}
+        >
           {current && !("children" in current) && !shouldShowEmptyState() ? (
             <div className="px-6 py-8">
               {/* Title - Now editable in the editor */}
@@ -414,17 +452,16 @@ export default function Page() {
                     }
                   }}
                 >
-                  {/* Put Info, i.e. Folder > Name */}
-                  {/* Put Info, i.e. Folder > Category > Name */}
-                  <h1 className="text-gray-400 font-bold text-md">
-                    Repository &gt;{" "}
-                    {/*@ts-expect-error Expecting this madness to happen.*/}
-                    {current && GetPath(current) && GetPath(current).length > 1
-                      ? // @ts-expect-error Expecting this madness to happen.
-                        `${GetPath(current)[0].name.length <= 10 ? GetPath(current)[0].name : GetPath(current)[0].name.substring(0, 10)} > ${(current.name.length <= 10 ? current.name : current.name.substring(0, 10)) || "Untitled"}`
-                      : (current?.name.length <= 10
-                          ? current.name
-                          : current.name.substring(0, 10)) || "Untitled"}
+                  <h1 className="text-gray-400 font-bold text-sm truncate">
+                    {(() => {
+                      const path = current ? GetPath(current) : null;
+                      const segs = ["Repository"];
+                      if (path && path.length > 1) {
+                        segs.push(path[0].name || "Untitled");
+                      }
+                      segs.push(current?.name || "Untitled");
+                      return segs.join(" › ");
+                    })()}
                   </h1>
                   {/* Editor */}
                   <NovelEditor
@@ -506,40 +543,43 @@ export default function Page() {
 
       {/* Graph View */}
       <div
-        className="h-full overflow-hidden m-3 rounded-md"
+        className="h-full overflow-hidden flex-shrink-0 flex flex-col border-l border-gray-200"
         style={{ width: `${graphWidth}%` }}
       >
-        <Neo4jGraph
-          userId={user.uid}
-          onNodeClick={(node) => {
-            if (node?.properties?.content) {
-              setSelectedNode(node.properties.content);
-            } else if (node?.properties?.name) {
-              setSelectedNode(`User: ${node.properties.name}`);
-            } else {
-              setSelectedNode("No content found for this node.");
-            }
-          }}
-        />
-      </div>
-
-      {/* Selected Node Popup */}
-      {selectedNode && (
-        <div className="absolute bottom-10 right-10 max-w-md p-4 bg-white shadow-xl border border-gray-200 rounded-lg z-50">
-          <div className="flex justify-between items-start mb-2">
-            <h2 className="font-semibold text-lg">Selected Node</h2>
-            <button
-              onClick={() => setSelectedNode(null)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              ×
-            </button>
-          </div>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap">
-            {selectedNode}
-          </p>
+        <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Memory Graph</span>
         </div>
-      )}
+        <div className="flex-1 relative overflow-hidden">
+          <Neo4jGraph
+            userId={user.uid}
+            onNodeClick={(node) => {
+              const content =
+                node?.content ||
+                node?.properties?.content ||
+                (node?.label ? node.label : null);
+              setSelectedNode(content ?? "No content for this node.");
+            }}
+          />
+
+          {/* Selected Node Panel — inset inside graph column */}
+          {selectedNode && (
+            <div className="absolute bottom-4 left-4 right-4 max-h-40 overflow-y-auto bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200 rounded-xl p-3 z-50">
+              <div className="flex justify-between items-start gap-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Selected</p>
+                <button
+                  onClick={() => setSelectedNode(null)}
+                  className="text-gray-400 hover:text-gray-700 text-lg leading-none flex-shrink-0"
+                >
+                  ×
+                </button>
+              </div>
+              <p className="text-sm text-gray-800 mt-1 whitespace-pre-wrap break-words">
+                {selectedNode}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -64,24 +64,26 @@ export default function Neo4jGraph({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoverNode, setHoverNode] = useState<NodeT | null>(null);
-  // Use viewport (clientX/Y) coords so tooltip renders via position:fixed
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const [graphKey, setGraphKey] = useState(0);
   const fgRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState({ width: 0, height: 0 });
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Measure container
+  // ResizeObserver — debounce remount so canvas picks up new dimensions
   useEffect(() => {
-    const update = () => {
-      if (containerRef.current) {
-        const r = containerRef.current.getBoundingClientRect();
-        setDims({ width: r.width, height: r.height });
-      }
-    };
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setDims({ width, height });
+      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = setTimeout(() => {
+        setGraphKey(k => k + 1);
+      }, 150);
+    });
+    ro.observe(containerRef.current);
+    return () => { ro.disconnect(); if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current); };
   }, []);
 
   // Fetch graph
@@ -107,9 +109,7 @@ export default function Neo4jGraph({
   useEffect(() => {
     const ctrl = new AbortController();
     fetchGraph(ctrl.signal);
-    // Auto-refresh every 30s so newly saved memories appear automatically
-    const interval = setInterval(() => fetchGraph(), 30_000);
-    return () => { ctrl.abort(); clearInterval(interval); };
+    return () => ctrl.abort();
   }, [fetchGraph]);
 
   // Filter visible nodes by memoryId if provided
@@ -143,11 +143,6 @@ export default function Neo4jGraph({
       try { fgRef.current?.zoomToFit(400, 60); } catch {}
     }, 100);
   }, [dims]);
-
-  // Store viewport coords directly — tooltip uses position:fixed
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    setTooltipPos({ x: e.clientX, y: e.clientY });
-  }, []);
 
   // ── Node canvas rendering (Neo4j-style circle) ──────────────────────────────
   const nodeCanvasObject = useCallback(
@@ -212,7 +207,10 @@ export default function Neo4jGraph({
     try { fgRef.current?.centerAt(node.x, node.y, 400); } catch {}
   }, [onNodeClick]);
 
-  // ── Tooltip ───────────────────────────────────────────────────────────────
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    setTooltipPos({ x: e.clientX, y: e.clientY });
+  }, []);
+
   const tooltip = hoverNode && tooltipPos && hoverNode.content && hoverNode.type !== "user";
   const TOOLTIP_W = 240;
 
@@ -248,7 +246,7 @@ export default function Neo4jGraph({
           graphData={visibleGraph}
           width={dims.width}
           height={dims.height}
-          autoPauseRedraw={true}
+          autoPauseRedraw={false}
           warmupTicks={150}
           cooldownTicks={80}
           nodeRelSize={0}

@@ -212,7 +212,10 @@ export default function Page() {
       const startX = e.clientX;
       const startWidth = treeSidebarWidth;
       const onMove = (e: MouseEvent) => {
-        const next = Math.max(160, Math.min(400, startWidth + (e.clientX - startX)));
+        const next = Math.max(
+          160,
+          Math.min(400, startWidth + (e.clientX - startX)),
+        );
         setTreeSidebarWidth(next);
       };
       const onUp = () => {
@@ -229,7 +232,10 @@ export default function Page() {
       const startWidth = graphWidth;
       const onMove = (e: MouseEvent) => {
         // dragging the left edge of the graph — moving right shrinks graph
-        const next = Math.max(200, Math.min(600, startWidth - (e.clientX - startX)));
+        const next = Math.max(
+          200,
+          Math.min(600, startWidth - (e.clientX - startX)),
+        );
         setGraphWidth(next);
       };
       const onUp = () => {
@@ -247,7 +253,8 @@ export default function Page() {
 
     return () => {
       if (treeEl) treeEl.removeEventListener("mousedown", handleTreeResize);
-      if (notionEl) notionEl.removeEventListener("mousedown", handleGraphResize);
+      if (notionEl)
+        notionEl.removeEventListener("mousedown", handleGraphResize);
     };
   }, [treeSidebarWidth, graphWidth]);
 
@@ -348,7 +355,10 @@ export default function Page() {
   return (
     <div className="flex w-screen h-screen flex-row items-stretch text-black bg-white overflow-hidden">
       {/* Main Content Container — no global sidebar on this page */}
-      <div className="flex-1 flex flex-row h-full min-w-0" ref={mainContainerRef}>
+      <div
+        className="flex-1 flex flex-row h-full min-w-0"
+        ref={mainContainerRef}
+      >
         {/* Tree Sidebar — fixed pixel width */}
         <div
           className="h-full bg-gray-50 overflow-y-auto flex-shrink-0 border-r border-gray-200"
@@ -561,7 +571,7 @@ export default function Page() {
         className="h-full overflow-hidden flex-shrink-0 flex flex-col border-l border-gray-200"
         style={{ width: graphWidth }}
       >
-        <div className="px-3 py-2 border-b border-gray-200 flex items-center justify-between">
+        {/*<div className="px-3 py-2 border-b border-gray-200 flex items-center justify-between">
           <span className="text-sm font-medium text-gray-900">Graph</span>
           <button
             onClick={() => setGraphKey((k) => k + 1)}
@@ -570,12 +580,9 @@ export default function Page() {
           >
             Refresh
           </button>
-        </div>
+        </div>*/}
         <div className="flex-1 overflow-hidden">
-          <Neo4jGraph
-            key={graphKey}
-            userId={user.uid}
-          />
+          <Neo4jGraph key={graphKey} userId={user.uid} />
         </div>
       </div>
     </div>

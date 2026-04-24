@@ -1,8 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { conversations } from "@/db/schema";
+import { conversations, messages } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(id)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+
+  const [conv] = await db.select().from(conversations)
+    .where(and(eq(conversations.id, id), eq(conversations.userId, userId))).limit(1);
+  if (!conv) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const msgs = await db.select().from(messages)
+    .where(and(eq(messages.conversationId, id), eq(messages.userId, userId)))
+    .orderBy(messages.createdAt);
+
+  return NextResponse.json({
+    ...conv,
+    messages: msgs.map((m) => ({
+      sentByUser: m.sentByUser,
+      text: m.text || "",
+      status: m.status || "Done",
+      thinkingText: m.thinkingText || undefined,
+      request_id: m.requestId || undefined,
+      streamState: "done" as const,
+    })),
+  });
+}
 
 export async function PATCH(
   request: NextRequest,

@@ -60,8 +60,18 @@ export default function Neo4jGraph({
   memoryId?: string | null;
   onNodeClick?: (n: NodeT) => void;
 }) {
-  const [fullGraph, setFullGraph] = useState<{ nodes: NodeT[]; links: LinkT[] }>({ nodes: [], links: [] });
-  const [loading, setLoading] = useState(true);
+  const GRAPH_CACHE_KEY = "graph:v1";
+  const [fullGraph, setFullGraph] = useState<{ nodes: NodeT[]; links: LinkT[] }>(() => {
+    if (typeof window === "undefined") return { nodes: [], links: [] };
+    try {
+      const raw = localStorage.getItem(GRAPH_CACHE_KEY);
+      return raw ? JSON.parse(raw) : { nodes: [], links: [] };
+    } catch { return { nodes: [], links: [] }; }
+  });
+  const [loading, setLoading] = useState(() => {
+    if (typeof window === "undefined") return true;
+    try { return !localStorage.getItem(GRAPH_CACHE_KEY); } catch { return true; }
+  });
   const [error, setError] = useState<string | null>(null);
   const [hoverNode, setHoverNode] = useState<NodeT | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
@@ -99,6 +109,7 @@ export default function Neo4jGraph({
         color: TYPE_COLOR[n.type ?? "memory"] ?? TYPE_COLOR.memory,
       }));
       setFullGraph({ nodes, links: data.links ?? [] });
+      try { localStorage.setItem(GRAPH_CACHE_KEY, JSON.stringify({ nodes, links: data.links ?? [] })); } catch {}
     } catch (e: any) {
       if (e.name !== "AbortError") setError(e.message ?? "Error");
     } finally {

@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { MemoriesRepo, Memory, Topic } from "../lib/types";
 import type { AppUser } from "./usercontext";
 import {
@@ -12,6 +14,7 @@ import {
   BiAlarmExclamation,
   BiBookmarkPlus,
   BiMessageAdd,
+  BiArrowBack,
 } from "react-icons/bi";
 
 interface TreeSidebarProps {
@@ -21,6 +24,7 @@ interface TreeSidebarProps {
   onUpdateRepo: (repo: MemoriesRepo) => void;
   selectedNode: Memory | Topic | null;
   user: AppUser | null;
+  onMemoryDeleted?: () => void;
 }
 
 const DeleteModal = ({
@@ -38,36 +42,36 @@ const DeleteModal = ({
 }) => {
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-        <div className="flex items-center gap-3 mb-4">
-          <BiAlarmExclamation className="w-6 h-6 text-red-500" />
-          <h3 className="text-lg font-semibold text-gray-900">
-            Delete {itemType}
-          </h3>
-        </div>
-        <p className="text-gray-600 mb-6">
-          Are you sure you want to delete <strong>"{itemName}"</strong>? This
-          cannot be undone.
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-sm bg-white text-gray-900 rounded-xl shadow-2xl overflow-hidden border border-gray-200 p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-base font-semibold text-gray-900 mb-2">Delete {itemType}?</h3>
+        <p className="text-sm text-gray-600 mb-6">
+          <strong>"{itemName}"</strong> will be permanently deleted. This cannot be undone.
         </p>
         <div className="flex gap-3 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors duration-75"
+            className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors duration-75 flex items-center gap-2"
+            className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
           >
-            <BiTrash className="w-4 h-4" />
             Delete
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
@@ -78,7 +82,9 @@ export default function TreeSidebar({
   onUpdateRepo,
   selectedNode,
   user,
+  onMemoryDeleted,
 }: TreeSidebarProps) {
+  const router = useRouter();
   const [newCategoryName, setNewCategoryName] = useState("");
   const [showCategoryInput, setShowCategoryInput] = useState(false);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
@@ -154,6 +160,21 @@ export default function TreeSidebar({
   const confirmDelete = () => {
     const node = deleteModal.node;
     if (!node) return;
+
+    // Collect all memory IDs to delete from DB
+    const collectIds = (n: Memory | Topic): string[] => {
+      if ("children" in n) return (n as Topic).children.flatMap(collectIds);
+      const id = (n as Memory).id;
+      return id ? [id] : [];
+    };
+    const idsToDelete = collectIds(node);
+    idsToDelete.forEach((id) => {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(id)) {
+        fetch(`/api/memories/${id}`, { method: "DELETE" }).catch(() => {});
+      }
+    });
+
     const removeNode = (children: (Memory | Topic)[]): (Memory | Topic)[] =>
       children
         .filter((c) => c !== node)
@@ -166,6 +187,7 @@ export default function TreeSidebar({
     saveToStorage(newRepo);
     if (selectedNode === node) onNodeSelect(repo.memories);
     setDeleteModal({ isOpen: false, node: null });
+    onMemoryDeleted?.();
   };
 
   const deepClone = (obj: any) => JSON.parse(JSON.stringify(obj));
@@ -436,8 +458,15 @@ export default function TreeSidebar({
   return (
     <>
       <div className="h-full w-full flex flex-col bg-gray-50">
-        {/* Header — mirrors the main sidebar header style */}
-        <div className="border-b border-gray-200 px-3 py-2">
+        {/* Header */}
+        <div className="border-b border-gray-200 px-3 py-2 flex items-center gap-2">
+          <button
+            onClick={() => router.push("/")}
+            className="p-1 hover:bg-gray-200 rounded transition-colors duration-75 flex-shrink-0"
+            title="Back to chat"
+          >
+            <BiArrowBack className="w-4 h-4 text-gray-500" />
+          </button>
           <span className="text-sm font-medium text-gray-900">Memories</span>
         </div>
 

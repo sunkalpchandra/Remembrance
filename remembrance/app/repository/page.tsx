@@ -36,6 +36,23 @@ export default function Page() {
   const user = useContext(UserContext);
 
   const [command, setCommand] = useState("");
+
+  // When repo refreshes (e.g. background AI fetch), update current if a fresher
+  // version of the same memory is now available (matched by id)
+  useEffect(() => {
+    if (!current || "children" in current) return;
+    const id = (current as Memory).id;
+    if (!id) return;
+    const findById = (children: (Memory | Topic)[]): Memory | null => {
+      for (const c of children) {
+        if ("children" in c) { const found = findById((c as Topic).children); if (found) return found; }
+        else if ((c as Memory).id === id) return c as Memory;
+      }
+      return null;
+    };
+    const fresh = findById(repo.memories.children);
+    if (fresh && fresh !== current) setCurrent(fresh);
+  }, [repo]);
   const [commandIndex, setCommandIndex] = useState(0);
 
   const mainContainerRef = useRef<HTMLDivElement | null>(null);
@@ -261,6 +278,8 @@ export default function Page() {
   useEffect(() => {
     if (!user || typeof window === "undefined") return;
 
+    const AI_CACHE_KEY = `aiMemories:${user.uid}`;
+
     let localRepo: MemoriesRepo = initialRepo;
     const raw = window.localStorage.getItem(`memoryRepo:${user.uid}`);
     if (raw) {
@@ -271,14 +290,46 @@ export default function Page() {
       }
     }
 
+    const buildMerged = (aiMems: Memory[], base: MemoriesRepo): MemoriesRepo => {
+      const preserved = (base.memories.children || []).filter(
+        (c) => !("children" in c && (c as Topic).name === "AI Memories"),
+      );
+      // Collect all IDs already tracked locally so manually-created memories
+      // don't also appear under AI Memories
+      const localIds = new Set<string>();
+      const collectIds = (children: (Memory | Topic)[]) => {
+        for (const c of children) {
+          if ("children" in c) collectIds((c as Topic).children);
+          else if ((c as Memory).id) localIds.add((c as Memory).id!);
+        }
+      };
+      collectIds(preserved);
+      const onlyAI = aiMems.filter((m) => !localIds.has(m.id!));
+      const aiTopic: Topic = { id: "ai-memories", name: "AI Memories", children: onlyAI };
+      return {
+        memories: {
+          ...base.memories,
+          children: onlyAI.length > 0 ? [aiTopic, ...preserved] : preserved,
+        },
+      };
+    };
+
+    // Show cached AI memories instantly
+    const cachedAI = window.localStorage.getItem(AI_CACHE_KEY);
+    if (cachedAI) {
+      try {
+        const aiMems: Memory[] = JSON.parse(cachedAI);
+        setRepo(buildMerged(aiMems, localRepo));
+      } catch {}
+    } else {
+      setRepo(localRepo);
+    }
+
     // Fetch AI-saved memories from DB and merge as an "AI Memories" topic
     (async () => {
       try {
         const res = await fetch("/api/memories");
-        if (!res.ok) {
-          setRepo(localRepo);
-          return;
-        }
+        if (!res.ok) return;
         const data = await res.json();
         const aiMems: Memory[] = (data.memories || []).map((m: any) => ({
           id: m.id,
@@ -290,25 +341,8 @@ export default function Page() {
           aiGenerated: true,
         }));
 
-        // Merge: keep existing children except a prior "AI Memories" topic, then append fresh one
-        const preserved = (localRepo.memories.children || []).filter(
-          (c) => !("children" in c && (c as Topic).name === "AI Memories"),
-        );
-
-        const aiTopic: Topic = {
-          id: "ai-memories",
-          name: "AI Memories",
-          children: aiMems,
-        };
-
-        const merged: MemoriesRepo = {
-          memories: {
-            ...localRepo.memories,
-            children: aiMems.length > 0 ? [aiTopic, ...preserved] : preserved,
-          },
-        };
-
-        setRepo(merged);
+        try { window.localStorage.setItem(AI_CACHE_KEY, JSON.stringify(aiMems)); } catch {}
+        setRepo(buildMerged(aiMems, localRepo));
       } catch (e) {
         console.error("Failed to fetch AI memories:", e);
         setRepo(localRepo);
@@ -371,6 +405,7 @@ export default function Page() {
             onUpdateRepo={setRepo}
             selectedNode={current}
             user={user}
+            onMemoryDeleted={() => setGraphKey((k) => k + 1)}
           />
         </div>
 

@@ -1,6 +1,6 @@
 import { Server as SocketIOServer } from "socket.io";
 import { Server as HttpServer } from "http";
-import { models } from "./models";
+import { models, hackClubProvider } from "./models";
 import { SYSTEM_PROMPT } from "./prompt";
 import OpenAI from "openai";
 import { verifyToken, createClerkClient } from "@clerk/backend";
@@ -383,6 +383,7 @@ export function initSockets(server: HttpServer) {
             stream: true,
           });
 
+          let accumulatedContent2 = "";
           for await (const chunk of stream2) {
             const delta = chunk.choices[0]?.delta as any;
             if (!delta) continue;
@@ -390,12 +391,41 @@ export function initSockets(server: HttpServer) {
               socket.emit("thinking_chunk", { text: delta.reasoning_content, request_id });
             }
             if (delta.content) {
+              accumulatedContent2 += delta.content;
               socket.emit("answer_chunk", { text: delta.content, request_id });
             }
           }
+          if (accumulatedContent2) accumulatedContent = accumulatedContent2;
         }
 
+        // Accumulate full answer for title generation
+        const fullAnswer = accumulatedContent;
         socket.emit("done", { status: "completed", request_id });
+
+        // Generate a short title on the first message of a conversation
+        if (history.length === 0 && query) {
+          (async () => {
+            try {
+              const context = fullAnswer
+                ? `User: ${query.slice(0, 200)}\nAssistant: ${fullAnswer.slice(0, 200)}`
+                : `User: ${query.slice(0, 300)}`;
+              const titleRes = await hackClubProvider.chat.completions.create({
+                model: "google/gemini-3-flash-preview",
+                messages: [{
+                  role: "user",
+                  content: `Give this conversation a short title (3-5 words max, no quotes, no punctuation at end):\n${context}`,
+                }],
+                max_tokens: 20,
+                temperature: 0.3,
+              });
+              const title = titleRes.choices?.[0]?.message?.content?.trim();
+              console.log(`[Socket] Generated title: "${title}" for request ${request_id}`);
+              if (title) socket.emit("title", { title, request_id });
+            } catch (e) {
+              console.error("[Socket] Title generation failed:", e);
+            }
+          })();
+        }
       } catch (error: any) {
         console.error("[Socket] Error processing query:", error);
         socket.emit("error", { message: error.message || "An error occurred during generation.", request_id });

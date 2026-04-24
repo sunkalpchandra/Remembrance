@@ -12,8 +12,8 @@ import {
   User,
   ChevronRight,
 } from "lucide-react";
-import { deleteAccount } from "../settings/actions";
-import { useRouter } from "next/navigation";
+import { deleteAccount, deleteAllConversations, deleteAllMemories } from "../settings/actions";
+import { useRouter, usePathname } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
 
 interface SettingsModalProps {
@@ -23,16 +23,19 @@ interface SettingsModalProps {
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { signOut } = useClerk();
   const { user } = useUser();
   const [isDeleting, startTransition] = useTransition();
+  const [isDeletingConvos, startDeletingConvos] = useTransition();
+  const [isDeletingMemories, startDeletingMemories] = useTransition();
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteStatus, setInviteStatus] = useState<
-    "idle" | "loading" | "success" | "error"
-  >("idle");
+  const [inviteStatus, setInviteStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [activeTab, setActiveTab] = useState("general");
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [showDeleteArea, setShowDeleteArea] = useState(false);
+  const [showDeleteConvos, setShowDeleteConvos] = useState(false);
+  const [showDeleteMemories, setShowDeleteMemories] = useState(false);
 
   if (!isOpen) return null;
 
@@ -244,6 +247,79 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     >
                       Log Out
                     </button>
+                  </div>
+
+                  {/* Delete all conversations */}
+                  <div className="py-4 border-b border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <div className="text-sm font-medium text-red-600">Delete All Conversations</div>
+                        <div className="text-xs text-gray-500 mt-1">Permanently delete every thread and its messages.</div>
+                      </div>
+                      {!showDeleteConvos && (
+                        <button onClick={() => setShowDeleteConvos(true)} className="text-sm font-medium bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-4 py-1.5 rounded-lg transition-colors">
+                          Delete...
+                        </button>
+                      )}
+                    </div>
+                    {showDeleteConvos && (
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-4 mt-4 space-y-3">
+                        <p className="text-sm text-red-600">This will permanently delete all your conversation threads. This cannot be undone.</p>
+                        <div className="flex justify-end gap-3">
+                          <button onClick={() => setShowDeleteConvos(false)} className="text-sm font-medium bg-white border border-gray-200 hover:bg-gray-50 text-gray-900 px-4 py-1.5 rounded-lg transition-colors">Cancel</button>
+                          <button
+                            disabled={isDeletingConvos}
+                            onClick={() => startDeletingConvos(async () => {
+                              const r = await deleteAllConversations();
+                              if (r.success) {
+                                setShowDeleteConvos(false);
+                                try { Object.keys(localStorage).filter(k => k.startsWith("conv:") || k.startsWith("chats:")).forEach(k => localStorage.removeItem(k)); } catch {}
+                                if (pathname.startsWith("/chat/")) { onClose(); router.push("/"); }
+                              } else alert(r.error);
+                            })}
+                            className="text-sm font-medium bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {isDeletingConvos ? "Deleting..." : "Confirm Delete"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Delete all memories */}
+                  <div className="py-4 border-b border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <div className="text-sm font-medium text-red-600">Delete All Memories</div>
+                        <div className="text-xs text-gray-500 mt-1">Permanently delete every saved memory and graph node.</div>
+                      </div>
+                      {!showDeleteMemories && (
+                        <button onClick={() => setShowDeleteMemories(true)} className="text-sm font-medium bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-4 py-1.5 rounded-lg transition-colors">
+                          Delete...
+                        </button>
+                      )}
+                    </div>
+                    {showDeleteMemories && (
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-4 mt-4 space-y-3">
+                        <p className="text-sm text-red-600">This will permanently delete all your memories from Remembrance and the AI memory store. This cannot be undone.</p>
+                        <div className="flex justify-end gap-3">
+                          <button onClick={() => setShowDeleteMemories(false)} className="text-sm font-medium bg-white border border-gray-200 hover:bg-gray-50 text-gray-900 px-4 py-1.5 rounded-lg transition-colors">Cancel</button>
+                          <button
+                            disabled={isDeletingMemories}
+                            onClick={() => startDeletingMemories(async () => {
+                              const r = await deleteAllMemories();
+                              if (r.success) {
+                                setShowDeleteMemories(false);
+                                try { Object.keys(localStorage).filter(k => k.startsWith("graph:") || k.startsWith("aiMemories:") || k.startsWith("memoryRepo:")).forEach(k => localStorage.removeItem(k)); } catch {}
+                              } else alert(r.error);
+                            })}
+                            className="text-sm font-medium bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {isDeletingMemories ? "Deleting..." : "Confirm Delete"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="py-4 border-b border-gray-200">

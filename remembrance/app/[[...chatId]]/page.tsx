@@ -14,6 +14,7 @@ import {
   getConversationById,
   createConversation,
   saveMessage,
+  renameConversation,
 } from "@/app/actions";
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/novel/ui/button";
@@ -40,6 +41,20 @@ interface FileData {
 
 const conversationCache: Record<string, Conversation> = {};
 
+function readConvCache(id: string): Conversation | undefined {
+  if (conversationCache[id]) return conversationCache[id];
+  try {
+    const raw = localStorage.getItem(`conv:${id}`);
+    if (raw) { const c = JSON.parse(raw); conversationCache[id] = c; return c; }
+  } catch {}
+  return undefined;
+}
+
+function writeConvCache(id: string, conv: Conversation) {
+  conversationCache[id] = conv;
+  try { localStorage.setItem(`conv:${id}`, JSON.stringify(conv)); } catch {}
+}
+
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
@@ -62,7 +77,7 @@ export default function Home() {
   const params = useParams();
   const initialId = (params?.chatId as string[])?.at(-1) || undefined;
   const [conversation, SetConversation] = useState<Conversation | undefined>(
-    initialId ? conversationCache[initialId] : undefined,
+    initialId ? readConvCache(initialId) : undefined,
   );
   const [ConversationId, setConversationId] = useState<string | undefined>(
     initialId,
@@ -154,7 +169,7 @@ export default function Home() {
     if (!newId && path === "/") {
       SetConversation(undefined);
     } else if (newId !== ConversationId) {
-      SetConversation(newId ? conversationCache[newId] : undefined);
+      SetConversation(newId ? readConvCache(newId) : undefined);
     }
   }, [params?.chatId, path, ConversationId]);
 
@@ -175,7 +190,7 @@ export default function Home() {
               ) {
                 return prev;
               }
-              conversationCache[ConversationId] = fetched;
+              writeConvCache(ConversationId, fetched);
               return fetched;
             });
           } else if (!res.success) {
@@ -282,7 +297,9 @@ export default function Home() {
       };
 
       // Fire-and-forget background creation
-      createConversation("New Conversation", convoId).catch(console.error);
+      createConversation("New Conversation", convoId).then(() => {
+        window.dispatchEvent(new CustomEvent("conversation-created", { detail: { id: convoId, name: "New Conversation" } }));
+      }).catch(console.error);
     }
 
     if (newconversation) {
@@ -455,6 +472,7 @@ export default function Home() {
       socket.off("thinking_chunk");
       socket.off("answer_chunk");
       socket.off("done");
+      socket.off("title");
       socket.off("error");
       socket.off("connect_error");
 
@@ -573,6 +591,20 @@ export default function Home() {
         if (conversationId && finalText) {
           await saveMessage(conversationId, finalText, false);
         }
+      });
+
+      socket.on("title", (payload: any) => {
+        if (payload?.request_id && payload.request_id !== requestId) return;
+        const newTitle: string = payload?.title;
+        if (!newTitle || !conversationId) return;
+        renameConversation(conversationId, newTitle).catch(() => {});
+        SetConversation((prev) => {
+          if (!prev) return prev;
+          const updated = { ...prev, name: newTitle };
+          writeConvCache(conversationId, updated);
+          return updated;
+        });
+        window.dispatchEvent(new CustomEvent("conversation-renamed", { detail: { id: conversationId, name: newTitle } }));
       });
 
       socket.on("error", (payload: any) => {

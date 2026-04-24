@@ -3,6 +3,7 @@
 import type React from "react";
 
 import { useContext, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { SideBarChoiceProps } from "./sidebarchoice";
 import type { SideBarBaseProps } from "./sidebarchoicebase";
 import { UserContext } from "@/app/components/usercontext";
@@ -47,10 +48,43 @@ const SideBarOptions = [
   },
 ] as SideBarChoiceProps[];
 
+const CHATS_CACHE_KEY = (uid: string) => `chats:${uid}`;
+
+function DeleteChatModal({ name, onConfirm, onClose }: { name: string; onConfirm: () => void; onClose: () => void }) {
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-sm bg-white text-gray-900 rounded-xl shadow-2xl overflow-hidden border border-gray-200 p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-base font-semibold text-gray-900 mb-2">Delete thread?</h3>
+        <p className="text-sm text-gray-600 mb-6">
+          <strong>"{name}"</strong> will be permanently deleted. This cannot be undone.
+        </p>
+        <div className="flex gap-3 justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200">Cancel</button>
+          <button onClick={onConfirm} className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">Delete</button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function SideBarChatList({ userId }: { userId: string | any }) {
   const router = useRouter();
   const { getToken } = useAuth();
-  const [chats, setChats] = useState<{ id: string; name: string }[]>([]);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [chats, setChats] = useState<{ id: string; name: string }[]>(() => {
+    if (typeof window === "undefined" || !userId) return [];
+    try {
+      const raw = localStorage.getItem(CHATS_CACHE_KEY(userId));
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>("");
   const params = useParams();
@@ -58,16 +92,15 @@ function SideBarChatList({ userId }: { userId: string | any }) {
 
   const loadChats = async () => {
     if (!userId) return;
-
     try {
       const token = await getToken();
       const response = await fetch("/api/conversations", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await response.json();
-
       if (response.ok && Array.isArray(data.data)) {
         setChats(data.data);
+        try { localStorage.setItem(CHATS_CACHE_KEY(userId), JSON.stringify(data.data)); } catch {}
       }
     } catch (error) {
       console.error("Failed to load chats:", error);
@@ -78,6 +111,33 @@ function SideBarChatList({ userId }: { userId: string | any }) {
     loadChats();
   }, [userId]);
 
+  // Keep sidebar in sync with title changes and new conversations
+  useEffect(() => {
+    const onRenamed = (e: Event) => {
+      const { id, name } = (e as CustomEvent).detail;
+      setChats((prev) => {
+        const updated = prev.map((c) => c.id === id ? { ...c, name } : c);
+        try { localStorage.setItem(CHATS_CACHE_KEY(userId), JSON.stringify(updated)); } catch {}
+        return updated;
+      });
+    };
+    const onCreated = (e: Event) => {
+      const { id, name } = (e as CustomEvent).detail;
+      setChats((prev) => {
+        if (prev.find((c) => c.id === id)) return prev;
+        const updated = [{ id, name }, ...prev];
+        try { localStorage.setItem(CHATS_CACHE_KEY(userId), JSON.stringify(updated)); } catch {}
+        return updated;
+      });
+    };
+    window.addEventListener("conversation-renamed", onRenamed);
+    window.addEventListener("conversation-created", onCreated);
+    return () => {
+      window.removeEventListener("conversation-renamed", onRenamed);
+      window.removeEventListener("conversation-created", onCreated);
+    };
+  }, [userId]);
+
   const handleRename = async (id: string, newName: string) => {
     if (!newName.trim()) return;
 
@@ -85,6 +145,7 @@ function SideBarChatList({ userId }: { userId: string | any }) {
       chat.id === id ? { ...chat, name: newName.trim() } : chat,
     );
     setChats(updatedChats);
+    try { localStorage.setItem(CHATS_CACHE_KEY(userId), JSON.stringify(updatedChats)); } catch {}
     setEditingId(null);
 
     try {
@@ -108,8 +169,18 @@ function SideBarChatList({ userId }: { userId: string | any }) {
   };
 
   const handleChatClick = (chatId: string) => {
-    if (editingId) return; // Don't navigate if we're editing
+    if (editingId) return;
     router.push(`/chat/${chatId}`);
+  };
+
+  const handleChatHover = (chatId: string) => {
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem(`conv:${chatId}`)) return; // already cached
+    fetch(`/api/conversations/${chatId}`).then(async (r) => {
+      if (!r.ok) return;
+      const data = await r.json();
+      try { localStorage.setItem(`conv:${chatId}`, JSON.stringify(data)); } catch {}
+    }).catch(() => {});
   };
 
   const startEditing = (
@@ -127,22 +198,18 @@ function SideBarChatList({ userId }: { userId: string | any }) {
       const token = await getToken();
       const response = await fetch(`/api/conversations/${chatId}`, {
         method: "DELETE",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete conversation");
-      }
-
-      setChats((prev) => prev.filter((chat) => chat.id !== chatId));
-      if (currentId === chatId) {
-        router.push("/");
-      }
+      if (!response.ok) throw new Error("Failed to delete conversation");
+      setChats((prev) => {
+        const next = prev.filter((chat) => chat.id !== chatId);
+        try { localStorage.setItem(CHATS_CACHE_KEY(userId), JSON.stringify(next)); } catch {}
+        return next;
+      });
+      try { localStorage.removeItem(`conv:${chatId}`); } catch {}
+      if (currentId === chatId) router.push("/");
     } catch (error: any) {
       console.error("Failed to delete chat: ", error);
-      alert(error.message);
     }
   };
 
@@ -186,6 +253,7 @@ function SideBarChatList({ userId }: { userId: string | any }) {
                   : "text-gray-700 hover:text-gray-900"
               }`}
               onClick={() => handleChatClick(chat.id)}
+              onMouseEnter={() => handleChatHover(chat.id)}
               title={chat.name}
             >
               {chat.name || "Untitled"}
@@ -195,7 +263,7 @@ function SideBarChatList({ userId }: { userId: string | any }) {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                handleDelete(chat.id);
+                setDeleteConfirm({ id: chat.id, name: chat.name || "Untitled" });
               }}
               className={`p-1 rounded hover:bg-red-100 transition-colors ${
                 editingId === chat.id
@@ -237,6 +305,13 @@ function SideBarChatList({ userId }: { userId: string | any }) {
           </div>
         </div>
       ))}
+      {deleteConfirm && (
+        <DeleteChatModal
+          name={deleteConfirm.name}
+          onClose={() => setDeleteConfirm(null)}
+          onConfirm={() => { handleDelete(deleteConfirm.id); setDeleteConfirm(null); }}
+        />
+      )}
     </div>
   );
 }

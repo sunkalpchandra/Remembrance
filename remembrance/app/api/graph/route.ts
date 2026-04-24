@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { memories } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { labelCache } from "@/app/lib/label-cache";
 
 // ── Classification ────────────────────────────────────────────────────────────
 type MemoryType = "family" | "event" | "health" | "place" | "work" | "emotion" | "social" | "memory";
@@ -28,9 +29,6 @@ function extractEntities(name: string, summary: string): string[] {
   const words = (name + " " + summary).match(/\b[A-Z][a-z]{2,}\b/g) ?? [];
   return [...new Set(words.filter(w => !STOP.has(w)).map(w => w.toLowerCase()))];
 }
-
-// ── Label cache (module-level, survives between requests in the same process) ──
-const labelCache = new Map<string, string>(); // memId → short label
 
 async function batchSummarize(items: { id: string; text: string }[]): Promise<void> {
   const uncached = items.filter(i => !labelCache.has(i.id));
@@ -86,8 +84,11 @@ export async function GET() {
     .where(eq(memories.userId, userId))
     .orderBy(desc(memories.createdAt));
 
-  // Batch-summarize labels (uses cache after first load)
-  await batchSummarize(rows.map(m => ({ id: m.id, text: m.name ?? m.summary ?? "" })));
+  // Fire LLM labelling in background — don't block the response
+  const uncached = rows.filter(m => !labelCache.has(m.id));
+  if (uncached.length > 0) {
+    batchSummarize(uncached.map(m => ({ id: m.id, text: m.name ?? m.summary ?? "" }))).catch(() => {});
+  }
 
   const nodes: any[] = [];
   const links: any[] = [];

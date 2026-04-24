@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { memories, topics, memoryTopics } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { invalidateLabel } from "@/app/lib/label-cache";
 
 // Upsert a repo-created or repo-edited memory into the DB so the graph stays in sync.
 export async function POST(req: Request) {
@@ -24,6 +25,7 @@ export async function POST(req: Request) {
       .update(memories)
       .set({ name, summary: summary ?? null, content: content ?? {} })
       .where(eq(memories.id, id));
+    invalidateLabel(id);
     return Response.json({ id });
   }
 

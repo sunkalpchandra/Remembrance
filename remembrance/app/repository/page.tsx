@@ -3,7 +3,6 @@
 export const dynamic = "force-dynamic";
 
 import { useContext, useEffect, useRef, useState } from "react";
-import SideBar from "../components/sidebar";
 import TreeSidebar from "../components/treeSidebar";
 import { Command, MemoriesRepo, Memory, Topic } from "../lib/types";
 import { poppins } from "../lib/fonts";
@@ -29,17 +28,15 @@ const commands: Command[] = All_Commands.map((v) => new v());
 
 export default function Page() {
   const [repo, setRepo] = useState(initialRepo);
-  const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [current, setCurrent] = useState<Memory | Topic | null>(null);
-  const [treeSidebarWidth, setTreeSidebarWidth] = useState(20);
-  const [notionPageWidth, setNotionPageWidth] = useState(45);
+  // Pixel widths so the resize math is exact (no percentage overflow)
+  const [treeSidebarWidth, setTreeSidebarWidth] = useState(220);
+  const [graphWidth, setGraphWidth] = useState(340);
+  const [graphKey, setGraphKey] = useState(0);
   const user = useContext(UserContext);
 
-  const [content, setContent] = useState(null);
-  const [editingSummary, setEditingSummary] = useState(false);
   const [command, setCommand] = useState("");
   const [commandIndex, setCommandIndex] = useState(0);
-  const old = useRef("");
 
   const mainContainerRef = useRef<HTMLDivElement | null>(null);
   const treeResizeRef = useRef<HTMLDivElement | null>(null);
@@ -91,6 +88,29 @@ export default function Page() {
     return null;
   }
 
+  const syncMemoryToDB = async (mem: Memory): Promise<string | null> => {
+    if (mem.aiGenerated) return null;
+    try {
+      const isUUID = /^[0-9a-f-]{36}$/.test(mem.id ?? "");
+      const res = await fetch("/api/memories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: isUUID ? mem.id : undefined,
+          name: mem.name,
+          summary: mem.summary ?? "",
+          content: mem.content ?? {},
+        }),
+      });
+      const data = await res.json();
+      setGraphKey((k) => k + 1);
+      return data.id ?? null;
+    } catch (e) {
+      console.error("Failed to sync memory to DB:", e);
+      return null;
+    }
+  };
+
   const updateRepo = (current: Memory | Topic, newValue: Memory | Topic) => {
     const updateInChildren = (children: (Memory | Topic)[]): boolean => {
       for (let i = 0; i < children.length; i++) {
@@ -111,6 +131,11 @@ export default function Page() {
     updateInChildren(newRepo.memories.children);
     setRepo(newRepo);
     saveToFirestore(newRepo);
+
+    // Sync to DB so the graph includes repo-created memories
+    if (!("children" in newValue)) {
+      syncMemoryToDB(newValue as Memory);
+    }
   };
 
   const handleAddMemory = () => {
@@ -149,6 +174,12 @@ export default function Page() {
     setRepo(newRepo);
     setCurrent(newMemory);
     saveToFirestore(newRepo);
+    syncMemoryToDB(newMemory).then((dbId) => {
+      if (!dbId) return;
+      // Store the real DB UUID so future edits update rather than re-insert
+      newMemory.id = dbId;
+      saveToFirestore({ ...newRepo });
+    });
   };
 
   const handleNodeSelect = (node: Memory | Topic) => {
@@ -174,67 +205,51 @@ export default function Page() {
     );
   };
 
-  // Setup resize handlers
+  // Setup resize handlers (pixel-based)
   useEffect(() => {
     const handleTreeResize = (e: MouseEvent) => {
       e.preventDefault();
       const startX = e.clientX;
       const startWidth = treeSidebarWidth;
-      const handleMouseMove = (e: MouseEvent) => {
-        if (!mainContainerRef.current) return;
-        const containerWidth = mainContainerRef.current.clientWidth;
-        const deltaX = e.clientX - startX;
-        const deltaPercent = (deltaX / containerWidth) * 100;
-        const newWidth = Math.max(12, Math.min(35, startWidth + deltaPercent));
-        setTreeSidebarWidth(newWidth);
+      const onMove = (e: MouseEvent) => {
+        const next = Math.max(160, Math.min(400, startWidth + (e.clientX - startX)));
+        setTreeSidebarWidth(next);
       };
-
-      const handleMouseUp = () => {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
       };
-
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
     };
 
-    const handleNotionResize = (e: MouseEvent) => {
+    const handleGraphResize = (e: MouseEvent) => {
       e.preventDefault();
       const startX = e.clientX;
-      const startWidth = notionPageWidth;
-
-      const handleMouseMove = (e: MouseEvent) => {
-        if (!mainContainerRef.current) return;
-        const containerWidth = mainContainerRef.current.clientWidth;
-        const deltaX = e.clientX - startX;
-        const deltaPercent = (deltaX / containerWidth) * 100;
-        const maxWidth = 100 - treeSidebarWidth - 20;
-        const newWidth = Math.max(
-          25,
-          Math.min(maxWidth, startWidth + deltaPercent),
-        );
-        setNotionPageWidth(newWidth);
+      const startWidth = graphWidth;
+      const onMove = (e: MouseEvent) => {
+        // dragging the left edge of the graph — moving right shrinks graph
+        const next = Math.max(200, Math.min(600, startWidth - (e.clientX - startX)));
+        setGraphWidth(next);
       };
-
-      const handleMouseUp = () => {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
       };
-
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
     };
 
     const treeEl = treeResizeRef.current;
     const notionEl = notionResizeRef.current;
     if (treeEl) treeEl.addEventListener("mousedown", handleTreeResize);
-    if (notionEl) notionEl.addEventListener("mousedown", handleNotionResize);
+    if (notionEl) notionEl.addEventListener("mousedown", handleGraphResize);
 
     return () => {
       if (treeEl) treeEl.removeEventListener("mousedown", handleTreeResize);
-      if (notionEl) notionEl.removeEventListener("mousedown", handleNotionResize);
+      if (notionEl) notionEl.removeEventListener("mousedown", handleGraphResize);
     };
-  }, [treeSidebarWidth, notionPageWidth]);
+  }, [treeSidebarWidth, graphWidth]);
 
   useEffect(() => {
     if (!user || typeof window === "undefined") return;
@@ -330,18 +345,14 @@ export default function Page() {
     };
   };
 
-  const graphWidth = Math.max(20, 100 - treeSidebarWidth - notionPageWidth);
-
   return (
     <div className="flex w-screen h-screen flex-row items-stretch text-black bg-white overflow-hidden">
-      {/* Main Sidebar */}
-      <SideBar selected={1} />
-      {/* Main Content Container */}
+      {/* Main Content Container — no global sidebar on this page */}
       <div className="flex-1 flex flex-row h-full min-w-0" ref={mainContainerRef}>
-        {/* Tree Sidebar */}
+        {/* Tree Sidebar — fixed pixel width */}
         <div
-          className="h-full bg-white overflow-y-auto border-r border-gray-200"
-          style={{ width: `${treeSidebarWidth}%` }}
+          className="h-full bg-gray-50 overflow-y-auto flex-shrink-0 border-r border-gray-200"
+          style={{ width: treeSidebarWidth }}
         >
           <TreeSidebar
             repo={repo}
@@ -353,17 +364,14 @@ export default function Page() {
           />
         </div>
 
-        {/* Tree Sidebar Resize Handle */}
+        {/* Tree resize handle */}
         <div
           ref={treeResizeRef}
-          className="w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize transition-colors flex-shrink-0"
+          className="w-1 bg-gray-200 hover:bg-gray-400 cursor-col-resize transition-colors flex-shrink-0"
         />
 
-        {/* Notion-style Page */}
-        <div
-          className="overflow-y-auto min-w-0"
-          style={{ width: `${notionPageWidth}%` }}
-        >
+        {/* Editor — takes all remaining space */}
+        <div className="flex-1 overflow-y-auto min-w-0">
           {current && !("children" in current) && !shouldShowEmptyState() ? (
             <div className="px-6 py-8">
               {/* Title - Now editable in the editor */}
@@ -529,55 +537,45 @@ export default function Page() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full p-4">
-              <div className="text-center text-gray-500">
-                <p className="text-xs mb-1">Select a memory or topic to view</p>
-                <p className="text-2xs">
-                  Or create a new memory to get started
-                </p>
-              </div>
+            <div className="flex flex-col items-center justify-center h-full gap-3 p-8">
+              <p className="text-sm text-gray-500">Select a memory to view</p>
+              <button
+                onClick={handleAddMemory}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-md transition-colors duration-75"
+              >
+                Add Memory
+              </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Graph View */}
+      {/* Graph resize handle (sits between editor and graph) */}
+      <div
+        ref={notionResizeRef}
+        className="w-1 bg-gray-200 hover:bg-gray-400 cursor-col-resize transition-colors flex-shrink-0"
+      />
+
+      {/* Graph View — fixed pixel width */}
       <div
         className="h-full overflow-hidden flex-shrink-0 flex flex-col border-l border-gray-200"
-        style={{ width: `${graphWidth}%` }}
+        style={{ width: graphWidth }}
       >
-        <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Memory Graph</span>
+        <div className="px-3 py-2 border-b border-gray-200 flex items-center justify-between">
+          <span className="text-sm font-medium text-gray-900">Graph</span>
+          <button
+            onClick={() => setGraphKey((k) => k + 1)}
+            className="text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-100 px-2 py-0.5 rounded transition-colors"
+            title="Refresh graph"
+          >
+            Refresh
+          </button>
         </div>
-        <div className="flex-1 relative overflow-hidden">
+        <div className="flex-1 overflow-hidden">
           <Neo4jGraph
+            key={graphKey}
             userId={user.uid}
-            onNodeClick={(node) => {
-              const content =
-                node?.content ||
-                node?.properties?.content ||
-                (node?.label ? node.label : null);
-              setSelectedNode(content ?? "No content for this node.");
-            }}
           />
-
-          {/* Selected Node Panel — inset inside graph column */}
-          {selectedNode && (
-            <div className="absolute bottom-4 left-4 right-4 max-h-40 overflow-y-auto bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200 rounded-xl p-3 z-50">
-              <div className="flex justify-between items-start gap-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Selected</p>
-                <button
-                  onClick={() => setSelectedNode(null)}
-                  className="text-gray-400 hover:text-gray-700 text-lg leading-none flex-shrink-0"
-                >
-                  ×
-                </button>
-              </div>
-              <p className="text-sm text-gray-800 mt-1 whitespace-pre-wrap break-words">
-                {selectedNode}
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>

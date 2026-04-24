@@ -1,496 +1,302 @@
 "use client";
 import dynamic from "next/dynamic";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const ForceGraph2D = dynamic(
   () => import("react-force-graph-2d").then((mod) => mod.default),
   { ssr: false },
 );
 
-// ---------- Helpers ----------
-const colorForId = (id: string) => {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) {
-    h = id.charCodeAt(i) + ((h << 5) - h);
-    h |= 0;
-  }
-  return `hsl(${Math.abs(h) % 360}, 68%, 58%)`;
-};
-
-// Wait until a single node has x,y (or timeout)
-const waitForNodePosition = async (node: any, maxTries = 30, delay = 40) => {
-  let tries = 0;
-  while ((node.x === undefined || node.y === undefined) && tries < maxTries) {
-    // eslint-disable-next-line no-await-in-loop
-    await new Promise((r) => setTimeout(r, delay));
-    tries++;
-  }
-  return node.x !== undefined && node.y !== undefined;
-};
-
-// Wait until *all* nodes in array have positions (or timeout)
-const waitForAllNodePositions = async (
-  nodes: any[],
-  maxTries = 60,
-  delay = 40,
-) => {
-  let tries = 0;
-  while (tries < maxTries) {
-    const allReady =
-      nodes.length === 0 ||
-      nodes.every((n) => n.x !== undefined && n.y !== undefined);
-    if (allReady) return true;
-    // eslint-disable-next-line no-await-in-loop
-    await new Promise((r) => setTimeout(r, delay));
-    tries++;
-  }
-  return nodes.length === 0
-    ? true
-    : nodes.every((n) => n.x !== undefined && n.y !== undefined);
-};
-
-// compute bounding box + center
-const bboxAndCenter = (nodes: any[]) => {
-  if (!nodes || !nodes.length) return null;
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity;
-  nodes.forEach((n) => {
-    if (n.x === undefined || n.y === undefined) return;
-    minX = Math.min(minX, n.x);
-    minY = Math.min(minY, n.y);
-    maxX = Math.max(maxX, n.x);
-    maxY = Math.max(maxY, n.y);
-  });
-  if (minX === Infinity) return null;
-  return {
-    minX,
-    minY,
-    maxX,
-    maxY,
-    width: maxX - minX,
-    height: maxY - minY,
-    centerX: (minX + maxX) / 2,
-    centerY: (minY + maxY) / 2,
-  };
-};
-
-// ---------- Emojis default ----------
-const DEFAULT_EMOJI_MAP: Record<string, string> = {
-  user: "👤",
-  memory: "🧠",
-  idea: "💡",
-  event: "📅",
-  location: "📍",
-  default: "🔹",
-};
-
-// ---------- Types ----------
+// ── Types ─────────────────────────────────────────────────────────────────────
 type NodeT = {
   id: string;
   label?: string;
-  memoryId?: string;
   type?: string;
+  emoji?: string;
+  content?: string;
+  memoryId?: string;
   color?: string;
   x?: number;
   y?: number;
   [k: string]: any;
 };
+type LinkT = { source: string | any; target: string | any; chain?: boolean; [k: string]: any };
 
-type LinkT = {
-  source: string | number;
-  target: string | number;
-  [k: string]: any;
+// ── Palette ───────────────────────────────────────────────────────────────────
+const TYPE_COLOR: Record<string, string> = {
+  user:    "#374151",
+  memory:  "#6366f1",
+  family:  "#ec4899",
+  event:   "#f59e0b",
+  health:  "#10b981",
+  place:   "#3b82f6",
+  work:    "#8b5cf6",
+  emotion: "#ef4444",
+  social:  "#14b8a6",
 };
 
-// ---------- Component ----------
+const TYPE_EMOJI: Record<string, string> = {
+  user:    "👤",
+  memory:  "🧠",
+  family:  "👨‍👩‍👧",
+  event:   "🎉",
+  health:  "💊",
+  place:   "📍",
+  work:    "💼",
+  emotion: "❤️",
+  social:  "🤝",
+};
+
+const nodeColor = (n: NodeT) =>
+  n.color ?? TYPE_COLOR[n.type ?? "memory"] ?? TYPE_COLOR.memory;
+
+// ── Component ─────────────────────────────────────────────────────────────────
 export default function Neo4jGraph({
   userId,
   memoryId,
   onNodeClick,
-  emojiMap = DEFAULT_EMOJI_MAP,
 }: {
   userId: string;
   memoryId?: string | null;
   onNodeClick?: (n: NodeT) => void;
-  emojiMap?: Record<string, string>;
 }) {
-  const [fullGraph, setFullGraph] = useState<{
-    nodes: NodeT[];
-    links: LinkT[];
-  }>({ nodes: [], links: [] });
-  const [loading, setLoading] = useState<boolean>(true);
+  const [fullGraph, setFullGraph] = useState<{ nodes: NodeT[]; links: LinkT[] }>({ nodes: [], links: [] });
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoverNode, setHoverNode] = useState<NodeT | null>(null);
-  const [selectedNode, setSelectedNode] = useState<NodeT | null>(null);
-  // force remount for clean layout when switching memory
-  const [graphKey, setGraphKey] = useState<number>(0);
+  // Use viewport (clientX/Y) coords so tooltip renders via position:fixed
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const [graphKey, setGraphKey] = useState(0);
   const fgRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [containerDimensions, setContainerDimensions] = useState({
-    width: 0,
-    height: 0,
-  });
+  const [dims, setDims] = useState({ width: 0, height: 0 });
 
-  // Measure container dimensions on mount and resize
+  // Measure container
   useEffect(() => {
-    const updateDimensions = () => {
+    const update = () => {
       if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        // Subtract header height from total height if it's part of the container's 560px
-        // If the 560px is the total height including header, then the graph area is 560 - 60 = 500px
-        setContainerDimensions({ width: rect.width, height: rect.height - 60 });
+        const r = containerRef.current.getBoundingClientRect();
+        setDims({ width: r.width, height: r.height });
       }
     };
-    updateDimensions(); // Initial measurement
-    window.addEventListener("resize", updateDimensions);
-    return () => window.removeEventListener("resize", updateDimensions);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
   }, []);
 
-  // ---------- initial fetch once ----------
+  // Fetch graph
+  const fetchGraph = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/graph", { signal });
+      if (!res.ok) throw new Error("Failed to load graph");
+      const data = await res.json();
+      const nodes: NodeT[] = (data.nodes ?? []).map((n: NodeT) => ({
+        ...n,
+        color: TYPE_COLOR[n.type ?? "memory"] ?? TYPE_COLOR.memory,
+      }));
+      setFullGraph({ nodes, links: data.links ?? [] });
+    } catch (e: any) {
+      if (e.name !== "AbortError") setError(e.message ?? "Error");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const ctrl = new AbortController();
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/user/${userId}/graph`, {
-          signal: ctrl.signal,
-        });
-        if (!res.ok) throw new Error("Failed to load graph");
-        const data = await res.json();
-        const nodes: NodeT[] = (data.nodes || []).map((n: NodeT) => ({
-          ...n,
-          color: n.color ?? colorForId(String(n.id ?? Math.random())),
-        }));
-        const links: LinkT[] = data.links || [];
-        setFullGraph({ nodes, links });
-      } catch (err: any) {
-        if (err.name !== "AbortError")
-          setError(err.message ?? "Error loading graph");
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-    return () => ctrl.abort();
-  }, [userId]);
+    fetchGraph(ctrl.signal);
+    // Auto-refresh every 30s so newly saved memories appear automatically
+    const interval = setInterval(() => fetchGraph(), 30_000);
+    return () => { ctrl.abort(); clearInterval(interval); };
+  }, [fetchGraph]);
 
-  // ---------- Visible graph: nodes in memoryId + 1-hop neighbors ----------
+  // Filter visible nodes by memoryId if provided
   const visibleGraph = useMemo(() => {
-    const allNodes = fullGraph.nodes;
-    const allLinks = fullGraph.links;
-    if (!memoryId) return { nodes: allNodes, links: allLinks };
-
-    // nodes in the memory
-    const inMem = new Set(
-      allNodes.filter((n) => n.memoryId === memoryId).map((n) => n.id),
-    );
-    // add 1-hop neighbors
-    const neighborIds = new Set<string>([...inMem]);
-    allLinks.forEach((l) => {
-      const s = String(l.source),
-        t = String(l.target);
-      if (inMem.has(s)) neighborIds.add(t);
-      if (inMem.has(t)) neighborIds.add(s);
+    const { nodes, links } = fullGraph;
+    if (!memoryId) return { nodes, links };
+    const inMem = new Set(nodes.filter(n => n.memoryId === memoryId).map(n => n.id));
+    const neighbors = new Set([...inMem]);
+    links.forEach(l => {
+      const s = String(typeof l.source === "object" ? l.source.id : l.source);
+      const t = String(typeof l.target === "object" ? l.target.id : l.target);
+      if (inMem.has(s)) neighbors.add(t);
+      if (inMem.has(t)) neighbors.add(s);
     });
-
-    const nodes = allNodes.filter((n) => neighborIds.has(String(n.id)));
-    const nodeIdSet = new Set(nodes.map((n) => String(n.id)));
-    const links = allLinks.filter(
-      (l) => nodeIdSet.has(String(l.source)) && nodeIdSet.has(String(l.target)),
-    );
-
-    return { nodes, links };
+    const filteredNodes = nodes.filter(n => neighbors.has(n.id));
+    const ids = new Set(filteredNodes.map(n => n.id));
+    return {
+      nodes: filteredNodes,
+      links: links.filter(l => {
+        const s = String(typeof l.source === "object" ? l.source.id : l.source);
+        const t = String(typeof l.target === "object" ? l.target.id : l.target);
+        return ids.has(s) && ids.has(t);
+      }),
+    };
   }, [fullGraph, memoryId]);
 
-  // ---------- Ensure memory cluster exists; sync if not ----------
-  const ensureMemoryLoaded = useCallback(
-    async (memId?: string | null) => {
-      if (!memId) return;
-      const exists = fullGraph.nodes.some((n) => n.memoryId === memId);
-      if (exists) return;
-      // else ask server to populate, then re-fetch
-      try {
-        await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/user/${userId}/populate_graph`, {
-          method: "POST",
-        });
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/user/${userId}/graph`);
-        if (!res.ok) throw new Error("Failed to fetch after populate");
-        const data = await res.json();
-        const nodes: NodeT[] = (data.nodes || []).map((n: NodeT) => ({
-          ...n,
-          color: n.color ?? colorForId(String(n.id ?? Math.random())),
-        }));
-        setFullGraph({ nodes, links: data.links || [] });
-      } catch (err) {
-        console.error("ensureMemoryLoaded error:", err);
-      }
-    },
-    [fullGraph.nodes, userId],
-  );
+  // Auto-center when engine stops
+  const centerGraph = useCallback(() => {
+    if (!fgRef.current || dims.width === 0) return;
+    setTimeout(() => {
+      try { fgRef.current?.zoomToFit(400, 60); } catch {}
+    }, 100);
+  }, [dims]);
 
-  // ---------- Enhanced centering logic that accounts for container dimensions ----------
-  const centerGraphInContainer = useCallback(async () => {
-    if (
-      !fgRef.current ||
-      containerDimensions.width === 0 ||
-      containerDimensions.height === 0
-    )
-      return;
+  // Store viewport coords directly — tooltip uses position:fixed
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    setTooltipPos({ x: e.clientX, y: e.clientY });
+  }, []);
 
-    const nodesToWait = visibleGraph.nodes;
-    // Wait for positions to be available
-    const readyAll = await waitForAllNodePositions(nodesToWait, 80, 35);
-
-    if (nodesToWait.length === 0) {
-      // No nodes, center at origin
-      try {
-        fgRef.current.centerAt(0, 0, 300);
-      } catch (e) {
-        /* ignore */
-      }
-      return;
-    }
-
-    // Compute bounding box of nodes
-    const box = bboxAndCenter(nodesToWait);
-    if (!box) {
-      try {
-        fgRef.current.centerAt(0, 0, 300);
-      } catch (e) {
-        /* ignore */
-      }
-      return;
-    }
-
-    // Calculate the scale needed to fit the graph in the container with some padding
-    const padding = 80; // Increased padding for better distributed layout
-    const availableWidth = containerDimensions.width - padding * 2;
-    const availableHeight = containerDimensions.height - padding * 2;
-
-    // Calculate scale to fit the content
-    const scaleX = box.width > 0 ? availableWidth / box.width : 1;
-    const scaleY = box.height > 0 ? availableHeight / box.height : 1;
-    const optimalScale = Math.min(scaleX, scaleY, 3); // Reduced max zoom for better distributed view
-
-    // Center the graph
-    try {
-      // First center at the computed center of the nodes
-      fgRef.current.centerAt(box.centerX, box.centerY, 400);
-      // Then adjust zoom to fit nicely in container
-      if (
-        optimalScale < 1 ||
-        box.width > availableWidth ||
-        box.height > availableHeight
-      ) {
-        setTimeout(() => {
-          try {
-            fgRef.current.zoom(Math.max(0.4, optimalScale), 300);
-          } catch (e) {
-            /* ignore */
-          }
-        }, 450);
-      }
-    } catch (e) {
-      // Fallback to simple center
-      try {
-        fgRef.current.centerAt(0, 0, 200);
-      } catch (err) {
-        /* ignore */
-      }
-    }
-  }, [visibleGraph.nodes, containerDimensions]);
-
-  // ---------- On memory change: ensure loaded then remount & center ----------
-  useEffect(() => {
-    let mounted = true;
-    const handleMemoryChange = async () => {
-      await ensureMemoryLoaded(memoryId);
-      if (!mounted) return;
-      // bump key to force remount (clean layout)
-      setGraphKey((k) => k + 1);
-      // After remount, wait a bit then center properly
-      setTimeout(async () => {
-        if (!mounted) return;
-        await centerGraphInContainer();
-      }, 100);
-    };
-    void handleMemoryChange();
-    return () => {
-      mounted = false;
-    };
-  }, [memoryId, ensureMemoryLoaded, fullGraph, centerGraphInContainer]);
-
-  // ---------- node click -> smooth zoom + center ----------
-  const focusNode = useCallback(
-    async (node: NodeT, zoomLevel = 3.8, duration = 700) => {
-      if (!fgRef.current || !node) return;
-      // ensure node has pos
-      const ready = await waitForNodePosition(node, 40, 30);
-      const x = node.x ?? 0,
-        y = node.y ?? 0;
-      if (!ready) {
-        fgRef.current.centerAt(x, y, 200);
-        fgRef.current.zoom(zoomLevel, duration);
-        return;
-      }
-      // center then zoom for nicer feel
-      fgRef.current.centerAt(x, y, Math.floor(duration * 0.8));
-      fgRef.current.zoom(zoomLevel, duration);
-    },
-    [],
-  );
-
-  const handleNodeClick = useCallback(
-    (node: NodeT) => {
-      setSelectedNode(node);
-      void focusNode(node, 3.6, 720);
-      onNodeClick?.(node);
-    },
-    [focusNode, onNodeClick],
-  );
-
-  // ---------- emoji & rendering ----------
-  const emojiForNode = useCallback(
-    (node: NodeT) => {
-      if (node.type && emojiMap[node.type]) return emojiMap[node.type];
-      if (node.label && /user/i.test(String(node.label)))
-        return emojiMap.user ?? "👤";
-      if (node.memoryId) return emojiMap.memory ?? "🧠";
-      return emojiMap.default ?? "🔹";
-    },
-    [emojiMap],
-  );
-
+  // ── Node canvas rendering (Neo4j-style circle) ──────────────────────────────
   const nodeCanvasObject = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-      const isHovered = Boolean(hoverNode && hoverNode.id === node.id);
-      // emoji size scales w/ globalScale but clamped
-      const baseEmojiPx = Math.max(
-        10,
-        Math.min(36, 16 * Math.sqrt(globalScale)),
-      );
+      const isHovered = hoverNode?.id === node.id;
+      const isUser = node.type === "user";
+      const x = node.x ?? 0, y = node.y ?? 0;
 
       ctx.save();
-      const emoji = emojiForNode(node);
-      ctx.font = `${baseEmojiPx}px system-ui, -apple-system, "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", sans-serif`;
+
+      // Emoji — no circle background
+      const emojiSize = Math.max(10, Math.min(isUser ? 22 : 18, 20)) / globalScale;
+      ctx.font = `${emojiSize}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
+      ctx.fillText(node.emoji ?? TYPE_EMOJI[node.type ?? "memory"] ?? "🧠", x, y);
 
-      // subtle stroke for hovered when zoomed
-      if (globalScale > 2.2 && isHovered) {
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = "rgba(0,0,0,0.14)";
-        ctx.strokeText(emoji, node.x, node.y);
-      }
+      // Label below node — always visible, short
+      const raw: string = node.label ?? "";
+      const LABEL_CHARS = 16;
+      const short = raw.length > LABEL_CHARS ? raw.substring(0, LABEL_CHARS - 1) + "…" : raw;
 
-      ctx.fillText(emoji, node.x, node.y);
-
-      // SHOW LABEL ONLY when hovered or selected (no globalScale threshold)
-      const isSelected = Boolean(selectedNode && selectedNode.id === node.id);
-      if (node.label && (isHovered || isSelected)) {
-        // pick a readable font size scaled with zoom
-        const labelFont = Math.max(10, Math.min(14, (14 / globalScale) * 2));
-        ctx.font = `${labelFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial`;
-        ctx.fillStyle = "rgba(0,0,0,0.85)";
+      // Fixed screen-space font: ~11px on screen
+      const labelPx = 11 / globalScale;
+      if (labelPx < 60) {
+        ctx.font = `500 ${labelPx}px -apple-system, "Segoe UI", sans-serif`;
         ctx.textBaseline = "top";
-        ctx.fillText(String(node.label), node.x, node.y + baseEmojiPx / 1.6);
+
+        const labelY = y + emojiSize * 0.6 + 3 / globalScale;
+        const tw = ctx.measureText(short).width;
+        const padH = 3 / globalScale, padV = 2 / globalScale;
+
+        // Pill background
+        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.beginPath();
+        ctx.roundRect(x - tw / 2 - padH, labelY - padV, tw + padH * 2, labelPx + padV * 2, 4 / globalScale);
+        ctx.fill();
+
+        ctx.fillStyle = isHovered ? "#111" : "#444";
+        ctx.textAlign = "center";
+        ctx.fillText(short, x, labelY);
       }
 
       ctx.restore();
     },
-    [hoverNode, selectedNode, emojiForNode],
+    [hoverNode],
   );
 
   const nodePointerAreaPaint = useCallback(
     (node: any, color: string, ctx: CanvasRenderingContext2D) => {
+      const hw = node.type === "user" ? 20 : 16;
       ctx.fillStyle = color;
-      const w = 36,
-        h = 36;
       ctx.beginPath();
-      ctx.rect((node.x ?? 0) - w / 2, (node.y ?? 0) - h / 2, w, h);
+      ctx.rect((node.x ?? 0) - hw, (node.y ?? 0) - hw, hw * 2, hw * 2);
       ctx.fill();
     },
     [],
   );
 
-  const linkWidth = useCallback(
-    (link: any) => {
-      if (!hoverNode && !selectedNode) return 0.8;
-      if (hoverNode && (link.source === hoverNode || link.target === hoverNode))
-        return 1.6;
-      if (
-        selectedNode &&
-        (link.source === selectedNode || link.target === selectedNode)
-      )
-        return 1.6;
-      return 0.8;
-    },
-    [hoverNode, selectedNode],
-  );
+  const handleNodeClick = useCallback((node: NodeT) => {
+    onNodeClick?.(node);
+    try { fgRef.current?.centerAt(node.x, node.y, 400); } catch {}
+  }, [onNodeClick]);
 
-  // ---------- UI ----------
+  // ── Tooltip ───────────────────────────────────────────────────────────────
+  const tooltip = hoverNode && tooltipPos && hoverNode.content && hoverNode.type !== "user";
+  const TOOLTIP_W = 240;
+
   return (
     <div
       ref={containerRef}
-      className="w-full h-[97%] border rounded-md border-gray-300  bg-white overflow-hidden relative"
+      className="w-full h-full bg-white overflow-hidden relative"
+      onMouseMove={handleMouseMove}
     >
-      {error && <div className="p-2 text-red-500">Error: {error}</div>}
+      {/* States */}
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
+          Loading…
+        </div>
+      )}
+      {!loading && error && (
+        <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
+          No graph data available
+        </div>
+      )}
+      {!loading && !error && fullGraph.nodes.length <= 1 && (
+        <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
+          No memories yet — chat to save some
+        </div>
+      )}
 
-      <div
-        style={{ width: "100%", height: "100%" }}
-        className="mt-5 rounded-lg"
-      >
-        {!loading && (
-          // @ts-expect-error Expecting this error
-          <ForceGraph2D
-            key={graphKey}
-            ref={fgRef}
-            graphData={visibleGraph}
-            width={containerDimensions.width}
-            height={containerDimensions.height}
-            autoPauseRedraw={true}
-            warmupTicks={60} // Increased for better distributed layout
-            cooldownTicks={80} // Increased for better settling
-            nodeRelSize={8} // Slightly larger nodes for better spacing
-            linkDirectionalParticles={0}
-            linkDirectionalArrowLength={4}
-            linkDirectionalArrowRelPos={0.9}
-            linkColor={() => "rgba(140,140,140,0.28)"}
-            linkWidth={linkWidth}
-            nodeCanvasObject={nodeCanvasObject}
-            nodePointerAreaPaint={nodePointerAreaPaint}
-            onNodeClick={handleNodeClick}
-            onNodeHover={(n: NodeT | null) => setHoverNode(n)}
-            // Enhanced force configuration for distributed network layout
-            d3AlphaDecay={0.0228} // Slower decay for better settling
-            d3VelocityDecay={0.4} // More damping for stability
-            linkDistance={120} // Increased link distance for more spacing
-            chargeStrength={-400} // Stronger repulsion between nodes
-            centerStrength={0.1} // Weaker centering force to allow distribution
-            onEngineStop={() => {
-              // Auto-center when engine stops
-              setTimeout(() => {
-                centerGraphInContainer();
-              }, 100);
-              try {
-                fgRef.current?.pauseAnimation();
-              } catch (e) {
-                /* ignore */
-              }
-            }}
-          />
-        )}
-      </div>
-      {/* selected node panel */}
+      {/* Graph */}
+      {!loading && fullGraph.nodes.length > 1 && (
+        // @ts-expect-error react-force-graph-2d types
+        <ForceGraph2D
+          key={graphKey}
+          ref={fgRef}
+          graphData={visibleGraph}
+          width={dims.width}
+          height={dims.height}
+          autoPauseRedraw={true}
+          warmupTicks={150}
+          cooldownTicks={80}
+          nodeRelSize={0}
+          nodeCanvasObject={nodeCanvasObject}
+          nodePointerAreaPaint={nodePointerAreaPaint}
+          onNodeClick={handleNodeClick}
+          onNodeHover={(n: NodeT | null) => {
+            setHoverNode(n);
+            if (!n) setTooltipPos(null);
+          }}
+          linkColor={(l: any) => l.chain ? "rgba(99,102,241,0.5)" : "rgba(180,180,180,0.3)"}
+          linkWidth={(l: any) => l.chain ? 1.5 : 1}
+          linkDirectionalArrowLength={0}
+          d3AlphaDecay={0.012}
+          d3VelocityDecay={0.3}
+          linkDistance={200}
+          chargeStrength={-1200}
+          centerStrength={0.03}
+          onEngineStop={centerGraph}
+        />
+      )}
+
+      {/* Tooltip — fixed to viewport so it's never clipped by siblings */}
+      {tooltip && tooltipPos && (
+        <div
+          className="pointer-events-none fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl p-3.5 text-xs"
+          style={{
+            width: TOOLTIP_W,
+            top: tooltipPos.y + 16,
+            ...(tooltipPos.x + TOOLTIP_W + 20 > (typeof window !== "undefined" ? window.innerWidth : 9999)
+              ? { right: (typeof window !== "undefined" ? window.innerWidth - tooltipPos.x + 12 : 20), left: "auto" }
+              : { left: tooltipPos.x + 14 }),
+          }}
+        >
+          <div className="flex items-center gap-1.5 mb-2.5">
+            <span className="text-base leading-none">{hoverNode!.emoji ?? "🧠"}</span>
+            <span className="font-semibold text-gray-900 leading-tight">{hoverNode!.label}</span>
+          </div>
+          {hoverNode!.content && (
+            <>
+              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">Memory</p>
+              <p className="text-gray-600 leading-relaxed line-clamp-6 whitespace-pre-wrap">
+                {hoverNode!.content}
+              </p>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

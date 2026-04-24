@@ -77,7 +77,19 @@ router.get("/file/:filename", async (ctx) => {
 // Returns the memory knowledge graph for a user as {nodes, links}
 router.get("/user/:userId/graph", async (ctx) => {
   const { userId } = ctx.params;
+
+  // Fall back to DB-only graph if Neo4j is unavailable
+  let neo4jAvailable = true;
   const session = neo4jDriver.session({ database: NEO4J_DB });
+
+  const nodes: any[] = [];
+  const links: any[] = [];
+  const nodeIds = new Set<string>();
+
+  const userNodeId = `user_${userId}`;
+  nodes.push({ id: userNodeId, label: "You", type: "user" });
+  nodeIds.add(userNodeId);
+
   try {
     const result = await session.run(
       `MATCH (u:User {userId: $userId})
@@ -86,14 +98,6 @@ router.get("/user/:userId/graph", async (ctx) => {
        RETURN m, collect(DISTINCT t) AS topics`,
       { userId }
     );
-
-    const nodes: any[] = [];
-    const links: any[] = [];
-    const nodeIds = new Set<string>();
-
-    const userNodeId = `user_${userId}`;
-    nodes.push({ id: userNodeId, label: "You", type: "user" });
-    nodeIds.add(userNodeId);
 
     for (const record of result.records) {
       const m = record.get("m");
@@ -123,52 +127,67 @@ router.get("/user/:userId/graph", async (ctx) => {
         if (!topicName) continue;
         const topicNodeId = `topic_${userId}_${topicName}`;
         if (!nodeIds.has(topicNodeId)) {
-          nodes.push({
-            id: topicNodeId,
-            label: topicName,
-            type: "topic",
-          });
+          nodes.push({ id: topicNodeId, label: topicName, type: "topic" });
           nodeIds.add(topicNodeId);
           links.push({ source: userNodeId, target: topicNodeId });
         }
         links.push({ source: topicNodeId, target: nodeId });
       }
     }
-
-    ctx.body = { nodes, links };
-  } catch (error) {
-    console.error("[Neo4j] Error fetching graph:", error);
-    ctx.status = 500;
-    ctx.body = { error: "Failed to fetch graph data" };
+  } catch (error: any) {
+    console.warn("[Neo4j] Unavailable, falling back to DB:", error?.code || error?.message);
+    neo4jAvailable = false;
   } finally {
     await session.close();
   }
+
+  // If Neo4j failed, build the graph from DB memories so the page still works
+  if (!neo4jAvailable) {
+    try {
+      const dbMems = await db.select().from(memories).where(eq(memories.userId, userId));
+      for (const m of dbMems) {
+        const nodeId = `mem_${m.id}`;
+        if (!nodeIds.has(nodeId)) {
+          nodes.push({
+            id: nodeId,
+            label: m.name || (m.summary || "").substring(0, 50),
+            type: "memory",
+            memoryId: m.id,
+            content: m.summary || m.name || "",
+          });
+          nodeIds.add(nodeId);
+          links.push({ source: userNodeId, target: nodeId });
+        }
+      }
+    } catch (dbErr: any) {
+      console.error("[DB] Fallback graph query failed:", dbErr?.message);
+    }
+  }
+
+  ctx.body = { nodes, links };
 });
 
-// Rebuilds the Neo4j graph from the DB memories table. Used for backfilling
-// existing rows that were saved before the live Neo4j sync was in place.
+// Rebuilds the Neo4j graph from the DB memories table. Used for backfilling.
 router.post("/user/:userId/populate_graph", async (ctx) => {
   const { userId } = ctx.params;
   try {
-    const dbMems = await db
-      .select()
-      .from(memories)
-      .where(eq(memories.userId, userId));
-
+    const dbMems = await db.select().from(memories).where(eq(memories.userId, userId));
     let count = 0;
     for (const m of dbMems) {
       const content = m.summary || m.name || "";
       if (!content) continue;
-      await upsertMemoryNode(userId, m.id, content, m.name || "");
-      count++;
+      try {
+        await upsertMemoryNode(userId, m.id, content, m.name || "");
+        count++;
+      } catch {
+        // Neo4j unavailable — skip silently
+      }
     }
-
     console.log(`[Neo4j] Backfilled ${count} memory nodes for user ${userId}`);
     ctx.body = { success: true, count };
-  } catch (error) {
-    console.error("[Neo4j] Error populating graph:", error);
-    ctx.status = 500;
-    ctx.body = { error: "Failed to populate graph" };
+  } catch (error: any) {
+    console.error("[Neo4j] populate_graph failed:", error?.message);
+    ctx.body = { success: false, count: 0, error: error?.message };
   }
 });
 

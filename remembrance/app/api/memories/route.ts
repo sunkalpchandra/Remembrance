@@ -3,6 +3,38 @@ import { db } from "@/db";
 import { memories, topics, memoryTopics } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
+// Upsert a repo-created or repo-edited memory into the DB so the graph stays in sync.
+export async function POST(req: Request) {
+  const { userId } = await auth();
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await req.json();
+  const { id, name, summary, content } = body as {
+    id?: string;
+    name: string;
+    summary?: string;
+    content?: any;
+  };
+
+  if (!name) return Response.json({ error: "name required" }, { status: 400 });
+
+  if (id) {
+    // Update existing row if it belongs to this user
+    await db
+      .update(memories)
+      .set({ name, summary: summary ?? null, content: content ?? {} })
+      .where(eq(memories.id, id));
+    return Response.json({ id });
+  }
+
+  const [row] = await db
+    .insert(memories)
+    .values({ userId, name, summary: summary ?? null, content: content ?? {} })
+    .returning({ id: memories.id });
+
+  return Response.json({ id: row.id });
+}
+
 export async function GET() {
   const { userId } = await auth();
   if (!userId) {

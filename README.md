@@ -1,6 +1,6 @@
 # Remembrance
 
-A memory assistant for people with Alzheimer's and their families. Conversations, photos, and life details are stored as long-term memory and a knowledge graph, so the assistant can answer questions like "who is this person?" and surface proactive reminders.
+A longitudinal cognitive care platform for Alzheimer’s that transforms everyday conversations into a continuously evolving personal memory system. The product uses natural, therapeutic dialogue to help patients recall and express memories, while an underlying AI extracts and organizes people, places, events, relationships, and emotional context into a persistent knowledge graph that models human associative memory. On top of this memory infrastructure, the system delivers personalized reminiscence therapy at scale, which proactively initiates context-aware conversations, reinforces identity anchors and stabilizes emotional state.
 
 Built with Next.js 15 (App Router) + Clerk on the frontend, and a Flask + Google ADK + Mem0 + Neo4j backend.
 

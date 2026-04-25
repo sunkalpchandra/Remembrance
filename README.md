@@ -90,25 +90,6 @@ bun install               # or npm install
 bun run dev               # next dev --turbopack on :3000
 ```
 
-## Environment variables
-
-Backend (`remembrance/backend/mem0/.env`):
-```
-GOOGLE_API_KEY=          # Gemini
-MEM0_API_KEY=            # mem0ai cloud
-NEO4J_URL=               # optional — graph store
-NEO4J_USERNAME=
-NEO4J_PASSWORD=
-NEO4J_DATABASE=neo4j
-```
-
-Frontend (`remembrance/.env.local`):
-```
-NEXT_PUBLIC_BACKEND_URL=http://localhost:5000
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
-CLERK_SECRET_KEY=
-```
-
 ## Deployment
 
 [render.yaml](render.yaml) defines two Render services:

@@ -1,5 +1,13 @@
 # Remembrance
 
+![Next.js](https://img.shields.io/badge/Next.js-15-black)
+![React](https://img.shields.io/badge/React-19-61DAFB)
+![Backend](https://img.shields.io/badge/Backend-Flask-000000)
+![Agent](https://img.shields.io/badge/Agent-Google%20ADK-4285F4)
+![Memory](https://img.shields.io/badge/Memory-mem0-6E56CF)
+![Graph](https://img.shields.io/badge/Graph-Neo4j-008CC1)
+![Auth](https://img.shields.io/badge/Auth-Clerk-6C47FF)
+
 A longitudinal cognitive care platform for Alzheimer’s that transforms everyday conversations into a continuously evolving personal memory system. The product uses natural, therapeutic dialogue to help patients recall and express memories, while an underlying AI extracts and organizes people, places, events, relationships, and emotional context into a persistent knowledge graph that models human associative memory. On top of this memory infrastructure, the system delivers personalized reminiscence therapy at scale, which proactively initiates context-aware conversations, reinforces identity anchors and stabilizes emotional state.
 
 Built with Next.js 15 (App Router) + Clerk on the frontend, and a Flask + Google ADK + Mem0 + Neo4j backend.

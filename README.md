@@ -10,6 +10,9 @@
 
 A longitudinal cognitive care platform for Alzheimer’s that transforms everyday conversations into a continuously evolving personal memory system. The product uses natural, therapeutic dialogue to help patients recall and express memories, while an underlying AI extracts and organizes people, places, events, relationships, and emotional context into a persistent knowledge graph that models human associative memory. On top of this memory infrastructure, the system delivers personalized reminiscence therapy at scale, which proactively initiates context-aware conversations, reinforces identity anchors and stabilizes emotional state.
 
+<img width="10972" height="3604" alt="Group 69" src="https://github.com/user-attachments/assets/74d167ff-61ef-4cb0-b2c4-4743bceb377a" />
+
+
 Built with Next.js 15 (App Router) + Clerk on the frontend, and a Flask + Google ADK + Mem0 + Neo4j backend.
 
 ## Stack

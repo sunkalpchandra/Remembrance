@@ -12,9 +12,6 @@ A longitudinal cognitive care platform for Alzheimer’s that transforms everyda
 
 <img width="10972" height="3604" alt="Group 69" src="https://github.com/user-attachments/assets/74d167ff-61ef-4cb0-b2c4-4743bceb377a" />
 
-
-Built with Next.js 15 (App Router) + Clerk on the frontend, and a Flask + Google ADK + Mem0 + Neo4j backend.
-
 ## Stack
 
 **Frontend** (`remembrance/`)

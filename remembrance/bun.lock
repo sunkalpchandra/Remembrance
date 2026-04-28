@@ -10,6 +10,7 @@
         "@koa/router": "^15.4.0",
         "@mdxeditor/editor": "^3.39.1",
         "@neondatabase/serverless": "^1.1.0",
+        "@picovoice/leopard-node": "^3.0.1",
         "@picovoice/leopard-react": "^2.0.3",
         "@picovoice/pvrecorder-node": "^1.2.8",
         "@picovoice/web-voice-processor": "^4.0.9",
@@ -450,6 +451,8 @@
     "@open-draft/deferred-promise": ["@open-draft/deferred-promise@2.2.0", "", {}, "sha512-CecwLWx3rhxVQF6V4bAgPS5t+So2sTbPgAzafKkVizyi7tlwpcFpdFqq+wqF2OwNBmqFuu6tOyouTuxgpMfzmA=="],
 
     "@orama/orama": ["@orama/orama@3.1.18", "", {}, "sha512-a61ljmRVVyG5MC/698C8/FfFDw5a8LOIvyOLW5fztgUXqUpc1jOfQzOitSCbge657OgXXThmY3Tk8fpiDb4UcA=="],
+
+    "@picovoice/leopard-node": ["@picovoice/leopard-node@3.0.1", "", { "cpu": [ "!ppc", "!ia32", "!mips", "!ppc64", ] }, "sha512-pYxus4KC7Q8Gr8VYcRz3YV+x4hz15/QSyYmNCWrzIaX95JZnYnMFAmkS1+ZfQuViLdHo87l+B85iaR7XlkNGZA=="],
 
     "@picovoice/leopard-react": ["@picovoice/leopard-react@2.0.3", "", { "dependencies": { "@picovoice/leopard-web": "=2.0.1" }, "peerDependencies": { "@picovoice/web-voice-processor": "~4.0.8", "react": ">=17", "react-dom": ">=17" } }, "sha512-iPjSq0R1Crx9iT+ykb/Uk/rPc5o/F3MAplOQPOlQ6BC/PaJI2QA688i9x8LgQuvgxDIWnfh0+WCnByI4nXkl6A=="],
 

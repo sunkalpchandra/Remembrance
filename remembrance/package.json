@@ -16,6 +16,7 @@
     "@koa/router": "^15.4.0",
     "@mdxeditor/editor": "^3.39.1",
     "@neondatabase/serverless": "^1.1.0",
+    "@picovoice/leopard-node": "^3.0.1",
     "@picovoice/leopard-react": "^2.0.3",
     "@picovoice/pvrecorder-node": "^1.2.8",
     "@picovoice/web-voice-processor": "^4.0.9",

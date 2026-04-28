@@ -19,6 +19,7 @@ import {
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/novel/ui/button";
 import { Plus, ArrowUp, X, ChevronDown, Check } from "lucide-react";
+import { LeopardMicButton } from "@/app/components/LeopardMicButton";
 import { useAuth } from "@clerk/nextjs";
 import {
   LuSignalHigh,
@@ -863,6 +864,10 @@ export default function Home() {
                   autoComplete="off"
                   maxLength={2000}
                 />
+                <LeopardMicButton
+                  onTranscript={(t) => setChatInput((prev) => prev ? prev + " " + t : t)}
+                  size="sm"
+                />
                 <Button
                   type="submit"
                   size="icon"
@@ -973,6 +978,10 @@ export default function Home() {
                     autoComplete="off"
                     autoFocus
                     maxLength={2000}
+                  />
+                  <LeopardMicButton
+                    onTranscript={(t) => setLandingInput((prev) => prev ? prev + " " + t : t)}
+                    size="md"
                   />
                   <Button
                     type="submit"

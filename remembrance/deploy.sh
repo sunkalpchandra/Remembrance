@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy.sh — deploy Remembrance to app.reteena.org
+# deploy.sh — deploy Remembrance to rememb.org
 #
 # Run on the server:   bash deploy.sh
 #
@@ -7,13 +7,13 @@
 #   1. Install bun:    curl -fsSL https://bun.sh/install | bash
 #   2. Install PM2:    bun add -g pm2
 #   3. Install nginx:  sudo apt install -y nginx certbot python3-certbot-nginx
-#   4. Point DNS:      app.reteena.org → your server IP
+#   4. Point DNS:      rememb.org → your server IP
 #   5. Copy .env:      fill in .env with all required keys
 #   6. Download model: bash deploy.sh --setup-model  (one-time Leopard model fetch)
 
 set -euo pipefail
 
-DOMAIN="app.reteena.org"
+DOMAIN="rememb.org"
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 NEXT_PORT=3000
 BACKEND_PORT=5001

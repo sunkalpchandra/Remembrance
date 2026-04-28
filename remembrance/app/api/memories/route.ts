@@ -1,7 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { memories, topics, memoryTopics } from "@/db/schema";
+import { memories, topics, memoryTopics, patients, caregiverEvents } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+
 import { invalidateLabel } from "@/app/lib/label-cache";
 
 // Upsert a repo-created or repo-edited memory into the DB so the graph stays in sync.
@@ -33,6 +34,22 @@ export async function POST(req: Request) {
     .insert(memories)
     .values({ userId, name, summary: summary ?? null, content: content ?? {} })
     .returning({ id: memories.id });
+
+  // Fire-and-forget analytics
+  const patientRow = await db
+    .select({ caregiverId: patients.caregiverId })
+    .from(patients)
+    .where(eq(patients.userId, userId))
+    .limit(1);
+  if (patientRow[0]?.caregiverId) {
+    db.insert(caregiverEvents).values({
+      caregiverId: patientRow[0].caregiverId,
+      actorId: userId,
+      event: "memory_created",
+      patientId: userId,
+      metadata: { name },
+    }).catch(() => {});
+  }
 
   return Response.json({ id: row.id });
 }

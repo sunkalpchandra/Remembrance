@@ -27,6 +27,7 @@ export const users = pgTable("users", {
   role: userRoleEnum("role").notNull().default("individual"),
   email: varchar("email", { length: 255 }).notNull(),
   name: varchar("name", { length: 255 }),
+  hipaaSignedAt: timestamp("hipaa_signed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -145,6 +146,21 @@ export const caregiverNotes = pgTable("caregiver_notes", {
   content: text("content").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// --- CAREGIVER ANALYTICS EVENTS ---
+// Append-only event log for caregiver actions
+export const caregiverEvents = pgTable("caregiver_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  caregiverId: varchar("caregiver_id", { length: 255 })
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  // The patient who triggered the event (null when the caregiver acted directly)
+  actorId: varchar("actor_id", { length: 255 }),
+  event: varchar("event", { length: 100 }).notNull(),
+  patientId: varchar("patient_id", { length: 255 }),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // --- NOTIFICATIONS ---

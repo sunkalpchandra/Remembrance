@@ -12,6 +12,7 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 const isOnboardingRoute = createRouteMatcher(["/onboarding(.*)"]);
+const isHipaaRoute = createRouteMatcher(["/hipaa(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
   const { userId, sessionClaims } = await auth();
@@ -33,6 +34,7 @@ export default clerkMiddleware(async (auth, req) => {
     claims?.publicMetadata?.onboardingComplete === true ||
     claims?.onboardingComplete === true;
   let userRole = claims?.publicMetadata?.role;
+  let hipaaAccepted = claims?.publicMetadata?.hipaaAccepted === true;
 
   if (!hasCompletedOnboarding || !userRole) {
     try {
@@ -44,12 +46,16 @@ export default clerkMiddleware(async (auth, req) => {
       if (fullUser?.publicMetadata?.role) {
         userRole = fullUser.publicMetadata.role as string;
       }
+      if (fullUser?.publicMetadata?.hipaaAccepted === true) {
+        hipaaAccepted = true;
+      }
     } catch (e) {
       console.error(e);
     }
   }
 
   const isAccessingOnboarding = isOnboardingRoute(req);
+  const isAccessingHipaa = isHipaaRoute(req);
 
   // Redirect to onboarding if they haven't completed it yet
   if (!hasCompletedOnboarding && !isAccessingOnboarding) {
@@ -64,12 +70,29 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
+  // Caregivers must accept HIPAA before accessing the dashboard
+  if (
+    hasCompletedOnboarding &&
+    userRole === "caregiver" &&
+    !hipaaAccepted &&
+    !isAccessingHipaa &&
+    !req.nextUrl.pathname.startsWith("/api")
+  ) {
+    return NextResponse.redirect(new URL("/hipaa", req.url));
+  }
+
+  // Don't let caregivers re-read the HIPAA page after accepting
+  if (hasCompletedOnboarding && userRole === "caregiver" && hipaaAccepted && isAccessingHipaa) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
   // Redirect caregivers to dashboard if they access non-dashboard routes
   if (
     hasCompletedOnboarding &&
     userRole === "caregiver" &&
     !req.nextUrl.pathname.startsWith("/dashboard") &&
-    !req.nextUrl.pathname.startsWith("/api")
+    !req.nextUrl.pathname.startsWith("/api") &&
+    !isAccessingHipaa
   ) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }

@@ -11,11 +11,13 @@ import {
 } from "lucide-react";
 import { deleteAccount } from "./actions";
 import { useRouter } from "next/navigation";
-import { useClerk } from "@clerk/nextjs";
+import { useClerk, useUser } from "@clerk/nextjs";
 
 export default function SettingsPage() {
   const router = useRouter();
   const { signOut } = useClerk();
+  const { user } = useUser();
+  const isPatient = user?.publicMetadata?.role === "patient";
   const [isDeleting, startTransition] = useTransition();
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteStatus, setInviteStatus] = useState<
@@ -162,8 +164,8 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Danger Zone */}
-        <section className="bg-red-950/20 border border-red-900/50 rounded-2xl p-6 mt-8">
+        {/* Danger Zone — hidden for patients */}
+        {!isPatient && <section className="bg-red-950/20 border border-red-900/50 rounded-2xl p-6 mt-8">
           <h2 className="text-xl font-semibold text-red-500 mb-4 flex items-center gap-2">
             <AlertTriangle className="w-5 h-5" />
             Danger Zone
@@ -183,7 +185,7 @@ export default function SettingsPage() {
               {isDeleting ? "Deleting..." : "Delete Account"}
             </button>
           </div>
-        </section>
+        </section>}
       </div>
     </div>
   );

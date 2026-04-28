@@ -2,12 +2,20 @@
 
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { patients, users, caregiverNotes, notifications } from "@/db/schema";
+import { patients, users, caregiverNotes, notifications, caregiverEvents, memories } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import MemoryClient from "mem0ai";
 
 const mem0 = new MemoryClient({ apiKey: process.env.MEM0_API_KEY! });
+
+async function deleteMem0ForUser(userId: string) {
+  try {
+    await mem0.deleteAll({ userId });
+  } catch (e) {
+    console.error("[Mem0] deleteAll failed:", e);
+  }
+}
 
 export async function getPatients() {
   const { userId } = await auth();
@@ -73,6 +81,13 @@ export async function createPatientAccount(formData: FormData) {
       patientName: name,
     });
 
+    await db.insert(caregiverEvents).values({
+      caregiverId: userId,
+      event: "patient_created",
+      patientId: newClerkUser.id,
+      metadata: { patientName: name, email },
+    });
+
     revalidatePath("/dashboard/patients");
     return { success: true };
   } catch (error: any) {
@@ -124,6 +139,13 @@ export async function createNote(patientId: string, title: string, content: stri
       metadata: { caregiverId: userId },
     });
 
+    await db.insert(caregiverEvents).values({
+      caregiverId: userId,
+      event: "note_added",
+      patientId,
+      metadata: { hasTitle: !!title.trim() },
+    });
+
     revalidatePath("/dashboard/patients");
     return { success: true };
   } catch (error: any) {
@@ -149,4 +171,161 @@ export async function getNotes(patientId: string) {
       )
     )
     .orderBy(desc(caregiverNotes.createdAt));
+}
+
+async function assertOwnsPatient(caregiverId: string, patientId: string) {
+  const row = await db
+    .select({ id: patients.id })
+    .from(patients)
+    .where(and(eq(patients.id, patientId), eq(patients.caregiverId, caregiverId)))
+    .limit(1);
+  if (!row[0]) throw new Error("Patient not found or not under your care");
+}
+
+export async function deletePatientAccount(patientId: string) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  await assertOwnsPatient(userId, patientId);
+
+  try {
+    await deleteMem0ForUser(patientId);
+    await db.delete(users).where(eq(users.id, patientId));
+
+    const client = await clerkClient();
+    await client.users.deleteUser(patientId);
+
+    await db.insert(caregiverEvents).values({
+      caregiverId: userId,
+      event: "patient_deleted",
+      patientId,
+    });
+
+    revalidatePath("/dashboard/patients");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to delete patient:", error);
+    return { error: error.message || "Failed to delete patient account" };
+  }
+}
+
+export async function updatePatient(patientId: string, data: { name?: string; email?: string }) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  await assertOwnsPatient(userId, patientId);
+
+  try {
+    const client = await clerkClient();
+
+    if (data.name) {
+      const parts = data.name.trim().split(" ");
+      await client.users.updateUser(patientId, {
+        firstName: parts[0],
+        lastName: parts.slice(1).join(" ") || undefined,
+      });
+      await db
+        .update(patients)
+        .set({ patientName: data.name.trim() })
+        .where(eq(patients.id, patientId));
+      await db
+        .update(users)
+        .set({ name: data.name.trim() })
+        .where(eq(users.id, patientId));
+    }
+
+    if (data.email) {
+      // Add the new email address via Clerk then make it primary
+      const clerkUser = await client.users.getUser(patientId);
+      const existing = clerkUser.emailAddresses.find(
+        (e) => e.emailAddress === data.email
+      );
+      let emailId = existing?.id;
+      if (!emailId) {
+        const added = await client.emailAddresses.createEmailAddress({
+          userId: patientId,
+          emailAddress: data.email,
+          verified: true,
+          primary: true,
+        });
+        emailId = added.id;
+      }
+      await client.users.updateUser(patientId, { primaryEmailAddressID: emailId });
+      await db
+        .update(users)
+        .set({ email: data.email })
+        .where(eq(users.id, patientId));
+    }
+
+    await db.insert(caregiverEvents).values({
+      caregiverId: userId,
+      event: "patient_updated",
+      patientId,
+      metadata: { fields: Object.keys(data) },
+    });
+
+    revalidatePath("/dashboard/patients");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to update patient:", error);
+    return { error: error.errors?.[0]?.message || error.message || "Failed to update patient" };
+  }
+}
+
+export async function getPatientMemories(patientId: string) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  await assertOwnsPatient(userId, patientId);
+
+  return await db
+    .select()
+    .from(memories)
+    .where(eq(memories.userId, patientId))
+    .orderBy(desc(memories.createdAt));
+}
+
+export async function updatePatientMemory(
+  memoryId: string,
+  patientId: string,
+  data: { name: string; summary?: string }
+) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  await assertOwnsPatient(userId, patientId);
+
+  await db
+    .update(memories)
+    .set({ name: data.name, summary: data.summary ?? null })
+    .where(and(eq(memories.id, memoryId), eq(memories.userId, patientId)));
+
+  await db.insert(caregiverEvents).values({
+    caregiverId: userId,
+    event: "memory_updated",
+    patientId,
+    metadata: { memoryId },
+  });
+
+  return { success: true };
+}
+
+export async function deletePatientMemory(memoryId: string, patientId: string) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  await assertOwnsPatient(userId, patientId);
+
+  await db
+    .delete(memories)
+    .where(and(eq(memories.id, memoryId), eq(memories.userId, patientId)));
+
+  await db.insert(caregiverEvents).values({
+    caregiverId: userId,
+    event: "memory_deleted",
+    patientId,
+    metadata: { memoryId },
+  });
+
+  return { success: true };
 }

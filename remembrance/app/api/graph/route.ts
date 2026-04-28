@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { memories } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { memories, patients } from "@/db/schema";
+import { eq, desc, and } from "drizzle-orm";
 import { labelCache } from "@/app/lib/label-cache";
 
 // ── Classification ────────────────────────────────────────────────────────────
@@ -74,14 +74,29 @@ async function batchSummarize(items: { id: string; text: string }[]): Promise<vo
 }
 
 // ── Route ─────────────────────────────────────────────────────────────────────
-export async function GET() {
+export async function GET(req: Request) {
   const { userId } = await auth();
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Allow caregivers to view a patient's graph via ?patientId=xxx
+  const { searchParams } = new URL(req.url);
+  const patientId = searchParams.get("patientId");
+
+  let targetUserId = userId;
+  if (patientId) {
+    const owned = await db
+      .select({ id: patients.id })
+      .from(patients)
+      .where(and(eq(patients.id, patientId), eq(patients.caregiverId, userId)))
+      .limit(1);
+    if (!owned[0]) return Response.json({ error: "Forbidden" }, { status: 403 });
+    targetUserId = patientId;
+  }
 
   const rows = await db
     .select()
     .from(memories)
-    .where(eq(memories.userId, userId))
+    .where(eq(memories.userId, targetUserId))
     .orderBy(desc(memories.createdAt));
 
   // Fire LLM labelling in background — don't block the response
@@ -94,8 +109,8 @@ export async function GET() {
   const links: any[] = [];
   const nodeIds = new Set<string>();
 
-  const userNodeId = `user_${userId}`;
-  nodes.push({ id: userNodeId, label: "You", type: "user", emoji: "👤" });
+  const userNodeId = `user_${targetUserId}`;
+  nodes.push({ id: userNodeId, label: patientId ? "Patient" : "You", type: "user", emoji: "👤" });
   nodeIds.add(userNodeId);
 
   const entityIndex = new Map<string, string[]>();

@@ -55,12 +55,14 @@ export default function Neo4jGraph({
   userId,
   memoryId,
   onNodeClick,
+  graphUrl = "/api/graph",
 }: {
   userId: string;
   memoryId?: string | null;
   onNodeClick?: (n: NodeT) => void;
+  graphUrl?: string;
 }) {
-  const GRAPH_CACHE_KEY = "graph:v1";
+  const GRAPH_CACHE_KEY = `graph:v1:${graphUrl}`;
   const [fullGraph, setFullGraph] = useState<{ nodes: NodeT[]; links: LinkT[] }>(() => {
     if (typeof window === "undefined") return { nodes: [], links: [] };
     try {
@@ -99,9 +101,10 @@ export default function Neo4jGraph({
   // Fetch graph
   const fetchGraph = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
+    setFullGraph({ nodes: [], links: [] });
     setError(null);
     try {
-      const res = await fetch("/api/graph", { signal });
+      const res = await fetch(graphUrl, { signal });
       if (!res.ok) throw new Error("Failed to load graph");
       const data = await res.json();
       const nodes: NodeT[] = (data.nodes ?? []).map((n: NodeT) => ({
@@ -121,7 +124,7 @@ export default function Neo4jGraph({
     const ctrl = new AbortController();
     fetchGraph(ctrl.signal);
     return () => ctrl.abort();
-  }, [fetchGraph]);
+  }, [fetchGraph, graphUrl]);
 
   // Filter visible nodes by memoryId if provided
   const visibleGraph = useMemo(() => {

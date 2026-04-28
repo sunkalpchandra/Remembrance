@@ -2,7 +2,7 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { db } from "../db";
-import { messages, conversations, patients, users } from "../db/schema";
+import { messages, conversations, patients, users, caregiverEvents } from "../db/schema";
 import { eq, desc, and } from "drizzle-orm";
 
 /**
@@ -33,6 +33,22 @@ export async function createConversation(name: string, id?: string) {
         name,
       })
       .returning();
+
+    // Fire-and-forget analytics: log under the patient's caregiver if one exists
+    const patientRow = await db
+      .select({ caregiverId: patients.caregiverId })
+      .from(patients)
+      .where(eq(patients.userId, userId))
+      .limit(1);
+    if (patientRow[0]?.caregiverId) {
+      db.insert(caregiverEvents).values({
+        caregiverId: patientRow[0].caregiverId,
+        actorId: userId,
+        event: "conversation_created",
+        patientId: userId,
+        metadata: { name },
+      }).catch(() => {});
+    }
 
     return { success: true, data: insertedConversation[0] };
   } catch (error) {

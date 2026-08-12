@@ -1,8 +1,7 @@
 "use client";
 
-import { useContext, useEffect } from "react";
+import { useContext } from "react";
 import { UserContext } from "./usercontext";
-import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 
 interface UserProfileProps {
@@ -30,13 +29,6 @@ function getInitals(name: string): string {
 export function UserProfile({ onClick, className = "" }: UserProfileProps) {
   const contextUser = useContext(UserContext);
   const { user } = useUser();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!contextUser) {
-      router.push("/login");
-    }
-  }, [contextUser, router]);
 
   if (!contextUser) {
     return null;

@@ -1,30 +1,23 @@
 import { Server as SocketIOServer } from "socket.io";
 import { Server as HttpServer } from "http";
-import { models, hackClubProvider } from "./models";
-import { SYSTEM_PROMPT } from "./prompt";
-import OpenAI from "openai";
+import { resolveModel, resolveUtilityModel } from "../lib/ai/models";
+import { SYSTEM_PROMPT } from "../lib/ai/prompt";
+import {
+  MEMORY_TOOLS,
+  saveUserInfo,
+  retrieveUserInfo,
+} from "../lib/ai/memory-tools";
 import { verifyToken, createClerkClient } from "@clerk/backend";
-import { getMem0 } from "../lib/mem0";
-import { drizzle } from "drizzle-orm/neon-serverless";
-import { Pool } from "@neondatabase/serverless";
-import { eq, desc } from "drizzle-orm";
-import { memories, notifications, users } from "../db/schema";
 import { upsertMemoryNode } from "./neo4j";
 
 if (!process.env.CLERK_SECRET_KEY) {
   console.error("[Socket] ERROR: CLERK_SECRET_KEY environment variable is not set!");
-}
-if (!process.env.MEM0_API_KEY) {
-  console.error("[Socket] ERROR: MEM0_API_KEY environment variable is not set!");
 }
 if (!process.env.DATABASE_URL) {
   console.error("[Socket] ERROR: DATABASE_URL environment variable is not set!");
 }
 
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
-const db = drizzle({ client: pool });
 
 export function initSockets(server: HttpServer) {
   const io = new SocketIOServer(server, {
@@ -35,8 +28,6 @@ export function initSockets(server: HttpServer) {
   });
 
   io.use(async (socket, next) => {
-    console.log(`[Socket] Auth middleware - Socket ID: ${socket.id}`);
-
     const token = socket.handshake.auth?.token || socket.handshake.query?.token;
     if (!token) {
       console.error(`[Socket] Auth failed for ${socket.id}: No token provided`);
@@ -63,7 +54,6 @@ export function initSockets(server: HttpServer) {
       }
 
       socket.data.userId = verified.sub;
-      console.log(`[Socket] Auth successful for ${socket.id} (User: ${verified.sub})`);
       next();
     } catch (err) {
       console.error(`[Socket] Auth error for ${socket.id}:`, err);
@@ -97,7 +87,7 @@ export function initSockets(server: HttpServer) {
       const {
         user_id,
         query,
-        model_id = "glm-5",
+        model_id = "max",
         history = [],
         request_id,
         files = [],
@@ -122,41 +112,23 @@ export function initSockets(server: HttpServer) {
         return;
       }
 
-      console.log(`[Socket] Received query from ${effectiveUserId} using model ${model_id}: ${query}`);
+      console.log(`[Socket] Query from ${effectiveUserId} using model ${model_id}`);
 
       try {
-        const selectedModel = models.find((m) => m.id === model_id) || models[0];
-        const openai = selectedModel.provider as OpenAI;
-
-        const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
-          {
-            type: "function",
-            function: {
-              name: "save_user_info",
-              description: "Save important user information, memories, or preferences to the memory store.",
-              parameters: {
-                type: "object",
-                properties: {
-                  info: { type: "string", description: "The detailed information or memory to save." },
-                },
-                required: ["info"],
-              },
-            },
-          },
-          {
-            type: "function",
-            function: {
-              name: "retrieve_user_info",
-              description: "Retrieve stored information and memories about the user to provide context.",
-              parameters: { type: "object", properties: {} },
-            },
-          },
-        ];
+        const resolved = resolveModel(model_id);
+        if (!resolved) {
+          socket.emit("error", {
+            message:
+              "No inference provider configured. Set DIGITALOCEAN_KEY, HACKCLUB_KEY, or OPENAI_API_KEY.",
+            request_id,
+          });
+          return;
+        }
 
         const fileContext = processFileData(files);
         const userMessageContent = query + fileContext;
 
-        const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+        const messages: any[] = [
           { role: "system", content: SYSTEM_PROMPT },
           ...history,
           { role: "user", content: userMessageContent },
@@ -164,10 +136,10 @@ export function initSockets(server: HttpServer) {
 
         socket.emit("status", { status: "Thinking...", request_id });
 
-        const initialStream = await openai.chat.completions.create({
-          model: selectedModel.modelID,
+        const initialStream = await resolved.provider.chat.completions.create({
+          model: resolved.modelID,
           messages,
-          tools,
+          tools: MEMORY_TOOLS,
           tool_choice: "auto",
           stream: true,
         });
@@ -213,20 +185,7 @@ export function initSockets(server: HttpServer) {
         }
 
         toolCalls = toolCalls.filter(Boolean);
-
-        console.log(`[Socket] ====== TOOL CALL SUMMARY ======`);
-        console.log(`[Socket] Model: ${selectedModel.modelID}`);
-        console.log(`[Socket] User: ${effectiveUserId}`);
-        console.log(`[Socket] Tool calls made: ${toolCalls.length}`);
-        console.log(`[Socket] Accumulated content length (1st stream): ${accumulatedContent.length}`);
-        toolCalls.forEach((tc, i) => {
-          console.log(`[Socket]   [${i}] ${tc.function.name}(${tc.function.arguments})`);
-        });
-        console.log(`[Socket] ================================`);
-
-        if (toolCalls.length === 0) {
-          console.warn(`[Socket] WARNING: Model made NO tool calls. retrieve_user_info / save_user_info were not invoked.`);
-        }
+        console.log(`[Socket] ${toolCalls.length} tool call(s) from ${resolved.modelID}`);
 
         if (toolCalls.length > 0) {
           messages.push({
@@ -245,87 +204,40 @@ export function initSockets(server: HttpServer) {
               try {
                 const args = JSON.parse(toolCall.function.arguments);
                 infoText = args.info;
-                console.log(`[Save] Attempting save for user=${effectiveUserId} info="${infoText}"`);
               } catch (e) {
                 console.error("[Save] Failed to parse tool arguments:", toolCall.function.arguments, e);
-                functionResponse = "Failed to parse arguments.";
-                messages.push({ role: "tool", tool_call_id: toolCall.id, content: functionResponse });
+                messages.push({ role: "tool", tool_call_id: toolCall.id, content: "Failed to parse arguments." });
                 continue;
               }
 
-              // 1. Ensure user exists in DB (avoid FK violation if Clerk webhook hasn't synced yet)
+              // Fetch profile data so the shared helper can create the user
+              // row if the Clerk webhook hasn't synced yet.
+              let ensureUser;
               try {
                 const clerkUser = await clerk.users.getUser(effectiveUserId);
-                await db
-                  .insert(users)
-                  .values({
-                    id: effectiveUserId,
-                    email: clerkUser.emailAddresses[0]?.emailAddress || "unknown@unknown.com",
-                    name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null,
-                    role: (clerkUser.publicMetadata?.role as any) || "individual",
-                  })
-                  .onConflictDoNothing();
-                console.log(`[Save] User row ensured for ${effectiveUserId}`);
+                ensureUser = {
+                  email: clerkUser.emailAddresses[0]?.emailAddress || "unknown@unknown.com",
+                  name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null,
+                  role: (clerkUser.publicMetadata?.role as string) || "individual",
+                };
               } catch (e) {
-                console.error("[Save] Failed to ensure user row:", e);
+                console.error("[Save] Failed to fetch Clerk user:", e);
               }
 
-              // 2. Save to Mem0 with infer:false so the raw memory is stored (no LLM extraction filter)
-              const mem0 = getMem0();
-              if (mem0) {
-                try {
-                  const addResult = await mem0.add(
-                    [{ role: "user", content: infoText }],
-                    { userId: effectiveUserId, infer: false }
-                  );
-                  console.log(`[Mem0] add result:`, JSON.stringify(addResult, null, 2));
-                } catch (e: any) {
-                  console.error("[Mem0] add FAILED:", e?.message || e, e?.stack);
-                }
-              }
+              const result = await saveUserInfo(effectiveUserId, infoText, ensureUser);
 
-              // 3. Persist to DB memories table
-              let newMemoryId: string | null = null;
-              try {
-                const inserted = await db
-                  .insert(memories)
-                  .values({
-                    userId: effectiveUserId,
-                    name: infoText.substring(0, 80),
-                    summary: infoText,
-                    content: { text: infoText },
-                  })
-                  .returning({ id: memories.id });
-                console.log(`[DB] memories row inserted:`, inserted);
-                newMemoryId = inserted?.[0]?.id || null;
-              } catch (e: any) {
-                console.error("[DB] memories insert FAILED:", e?.message || e, e?.stack);
-              }
-
-              // 3b. Sync to Neo4j so the repository graph view updates live
-              if (newMemoryId) {
+              // Sync to Neo4j so the repository graph view updates live
+              if (result.memoryId) {
                 try {
                   await upsertMemoryNode(
                     effectiveUserId,
-                    newMemoryId,
+                    result.memoryId,
                     infoText,
                     infoText.substring(0, 80),
                   );
                 } catch (e: any) {
                   console.error("[Neo4j] save failed:", e?.message || e);
                 }
-              }
-
-              // 4. Notification
-              try {
-                await db.insert(notifications).values({
-                  userId: effectiveUserId,
-                  type: "memory_saved",
-                  title: "Memory Saved",
-                  message: infoText.substring(0, 150),
-                });
-              } catch (e: any) {
-                console.error("[DB] notifications insert FAILED:", e?.message || e);
               }
 
               socket.emit("notification", {
@@ -335,42 +247,10 @@ export function initSockets(server: HttpServer) {
                 request_id,
               });
 
-              functionResponse = `Successfully saved memory: ${infoText}`;
+              functionResponse = result.toolResponse;
             } else if (functionName === "retrieve_user_info") {
               socket.emit("status", { status: "Searching memories...", request_id });
-              try {
-                const mem0 = getMem0();
-                const searchResult = mem0
-                  ? await mem0.search(
-                      "personal information, memories, preferences, family, places, identity",
-                      { filters: { user_id: effectiveUserId }, topK: 50 }
-                    )
-                  : null;
-                const userMems = searchResult?.results || [];
-
-                // Fallback: if search returns nothing, pull from DB memories table
-                let memLines = userMems.map((m: any) => m.memory || "").filter(Boolean);
-
-                if (memLines.length === 0) {
-                  console.log(`[Retrieve] Mem0 returned 0 — falling back to DB memories table`);
-                  const dbMems = await db
-                    .select()
-                    .from(memories)
-                    .where(eq(memories.userId, effectiveUserId))
-                    .orderBy(desc(memories.createdAt))
-                    .limit(50);
-                  console.log(`[Retrieve] DB memories for user: ${dbMems.length} rows`);
-                  memLines = dbMems.map((m: any) => m.summary || m.name || "").filter(Boolean);
-                }
-
-                functionResponse = memLines.length > 0
-                  ? `User Memories:\n${memLines.join("\n")}`
-                  : "No previous memories found for this user.";
-                console.log(`[Retrieve] Final mem count returned to model: ${memLines.length}`);
-              } catch (e: any) {
-                console.error("[Retrieve] Failed:", e?.message || e, e?.stack);
-                functionResponse = "No previous memories found for this user.";
-              }
+              functionResponse = await retrieveUserInfo(effectiveUserId);
             }
 
             messages.push({
@@ -381,8 +261,8 @@ export function initSockets(server: HttpServer) {
           }
 
           socket.emit("status", { status: "Synthesizing response...", request_id });
-          const stream2 = await openai.chat.completions.create({
-            model: selectedModel.modelID,
+          const stream2 = await resolved.provider.chat.completions.create({
+            model: resolved.modelID,
             messages,
             stream: true,
           });
@@ -409,12 +289,14 @@ export function initSockets(server: HttpServer) {
         // Generate a short title on the first message of a conversation
         if (history.length === 0 && query) {
           (async () => {
+            const utility = resolveUtilityModel();
+            if (!utility) return;
             try {
               const context = fullAnswer
                 ? `User: ${query.slice(0, 200)}\nAssistant: ${fullAnswer.slice(0, 200)}`
                 : `User: ${query.slice(0, 300)}`;
-              const titleRes = await hackClubProvider.chat.completions.create({
-                model: "google/gemini-3-flash-preview",
+              const titleRes = await utility.provider.chat.completions.create({
+                model: utility.modelID,
                 messages: [{
                   role: "user",
                   content: `Give this conversation a short title (3-5 words max, no quotes, no punctuation at end):\n${context}`,
@@ -423,7 +305,6 @@ export function initSockets(server: HttpServer) {
                 temperature: 0.3,
               });
               const title = titleRes.choices?.[0]?.message?.content?.trim();
-              console.log(`[Socket] Generated title: "${title}" for request ${request_id}`);
               if (title) socket.emit("title", { title, request_id });
             } catch (e) {
               console.error("[Socket] Title generation failed:", e);
@@ -440,29 +321,16 @@ export function initSockets(server: HttpServer) {
       const { user_id, model_id = "max" } = data;
       const effectiveUserId = user_id || socket.data.userId;
       try {
-        const selectedModel = models.find((m) => m.id === model_id) || models[0];
-        const openai = selectedModel.provider as OpenAI;
-
-        let memoryContext = "No previous memories.";
-        try {
-          const mem0 = getMem0();
-          const searchResult = mem0
-            ? await mem0.search(
-                "personal information, memories, preferences, family, places",
-                { filters: { user_id: effectiveUserId }, topK: 50 }
-              )
-            : null;
-          const userMems = searchResult?.results || [];
-          if (userMems.length > 0) {
-            const memLines = userMems.map((m: any) => m.memory || "").filter(Boolean);
-            if (memLines.length > 0) memoryContext = memLines.join("\n");
-          }
-        } catch (e) {
-          console.error("[Socket] Failed to retrieve memories for proactive prompt:", e);
+        const resolved = resolveModel(model_id);
+        if (!resolved) {
+          socket.emit("error", { message: "No inference provider configured." });
+          return;
         }
 
-        const completion = await openai.chat.completions.create({
-          model: selectedModel.modelID,
+        const memoryContext = await retrieveUserInfo(effectiveUserId);
+
+        const completion = await resolved.provider.chat.completions.create({
+          model: resolved.modelID,
           messages: [
             { role: "system", content: SYSTEM_PROMPT },
             {

@@ -51,7 +51,7 @@ require bun
 require pm2
 require nginx
 
-[[ -f "${APP_DIR}/.env" ]] || die ".env file not found at ${APP_DIR}/.env — copy and fill in .env.production"
+[[ -f "${APP_DIR}/.env" ]] || die ".env file not found at ${APP_DIR}/.env — copy .env.example and fill in the keys"
 
 [[ -f "${APP_DIR}/public/leopard_params.pv" ]] \
   || warn "public/leopard_params.pv not found — run 'bash deploy.sh --setup-model' before this step for speech-to-text to work"

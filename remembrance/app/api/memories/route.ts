@@ -76,9 +76,13 @@ export async function GET() {
     .from(topics)
     .where(eq(topics.userId, userId));
 
-  const links = await db
-    .select()
-    .from(memoryTopics);
+  const memoryIds = rows.map((m) => m.id);
+  const links = memoryIds.length
+    ? await db
+        .select()
+        .from(memoryTopics)
+        .where(inArray(memoryTopics.memoryId, memoryIds))
+    : [];
 
   const topicById = new Map(userTopics.map((t) => [t.id, t]));
   const topicsForMem = new Map<string, { id: string; name: string }[]>();

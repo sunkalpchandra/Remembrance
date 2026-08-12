@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useUser } from "@clerk/nextjs";
 import { getPatientProfile } from "@/app/actions";
 
 export type FamilyMember = { name: string; relation: string };
@@ -12,14 +13,17 @@ export type Profile = {
   notes?: string;
 };
 
-const KEY = "remembrance:profile";
+// Scoped per Clerk user so profiles never leak between accounts sharing
+// a browser (common on family devices).
+const keyFor = (uid: string | null | undefined) =>
+  uid ? `remembrance:profile:${uid}` : null;
 
 const DEFAULT_PROFILE: Profile = {};
 
-function read(): Profile {
-  if (typeof window === "undefined") return DEFAULT_PROFILE;
+function read(key: string | null): Profile {
+  if (typeof window === "undefined" || !key) return DEFAULT_PROFILE;
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(key);
     return raw ? (JSON.parse(raw) as Profile) : DEFAULT_PROFILE;
   } catch {
     return DEFAULT_PROFILE;
@@ -27,10 +31,13 @@ function read(): Profile {
 }
 
 export function useProfile() {
-  const [profile, setProfile] = useState<Profile>(() => read());
+  const { user, isLoaded } = useUser();
+  const key = keyFor(user?.id);
+  const [profile, setProfile] = useState<Profile>(DEFAULT_PROFILE);
 
   useEffect(() => {
-    setProfile(read());
+    if (!isLoaded || !key) return;
+    setProfile(read(key));
 
     // Merge in the server-side profile (patients table) — this is where
     // caregiver-entered name/family/places live, and without it the chat
@@ -52,25 +59,26 @@ export function useProfile() {
         setProfile((prev) => {
           const next = { ...prev, ...defined };
           try {
-            localStorage.setItem(KEY, JSON.stringify(next));
+            localStorage.setItem(key, JSON.stringify(next));
           } catch {}
           return next;
         });
       })
       .catch(() => {});
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, key]);
 
   const update = (patch: Partial<Profile>) => {
     setProfile((prev) => {
       const next = { ...prev, ...patch };
-      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
+      if (key) {
+        try {
+          localStorage.setItem(key, JSON.stringify(next));
+        } catch {}
+      }
       return next;
     });
   };
 
   return { profile, update };
-}
-
-export function getProfileSync(): Profile {
-  return read();
 }

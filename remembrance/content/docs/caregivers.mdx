@@ -1,0 +1,38 @@
+---
+title: Caregivers
+description: Managing patients, notes, and the dashboard
+---
+
+## Becoming a caregiver
+
+Pick **Caregiver** during onboarding. Before the dashboard unlocks you
+review and accept a HIPAA acknowledgment — the acceptance timestamp is
+recorded on your account.
+
+## Managing patients
+
+From **Dashboard → Patients** you can:
+
+- **Create patient accounts.** The account is created in Clerk with the
+  patient role and linked to you. Patients sign in with the credentials
+  you hand them and go straight to chat — onboarding is pre-completed.
+- **Edit profiles** — name, age, family members, familiar places, and
+  notes that shape how the companion talks with them.
+- **Write notes.** Notes are stored for you and also pushed into the
+  patient's memory store, so the companion can gently reference them in
+  conversation. The patient gets an in-app notification.
+- **View memory graphs** per patient under **Dashboard → Memories**.
+
+## Activity feed
+
+The dashboard home shows week-over-week engagement: conversations
+started, memories created, notes added — each event attributed to the
+patient who triggered it. The full filterable log lives under
+**Dashboard → Activity**.
+
+## Data access
+
+Caregiver access is scoped: every query checks that the patient row is
+linked to your caregiver id before returning anything. Deleting a
+patient account removes their Clerk user, database rows, and Mem0
+memories.

@@ -1,40 +1,57 @@
 ---
-title: Quick Start
+title: Overview
+description: What Remembrance is and how the pieces fit together
 ---
 
 ## Introduction
 
-Hey there! We're Reteena, an R&D Research Lab dedicated to solving progressive issues around Alzheimer's disease. This is documentation regarding our product
-Remembrance, a tool meant to act as a personal companion and saves memories of patients with Alzeimer's, making sure that no matter how old they get their 
-memories will never get lost through time. We have embedded continous contextual prompting and run off Mem0, a memory inferencing layer on top of a base 
-agentic model for easier semantic search across all memories stored.
+We're Reteena, an R&D lab focused on progressive challenges around
+Alzheimer's disease. **Remembrance** is our cognitive care companion: it
+holds natural, therapeutic conversations with patients and quietly turns
+what they share into a persistent personal memory system — so no matter
+how much time passes, their memories are never lost.
 
-## Project Setup
+Every conversation flows through a memory pipeline: the model decides
+what's worth keeping, saves it through a tool call, and later retrieves
+it to ground new conversations. Memories live in Postgres (always) and
+in [Mem0](https://mem0.ai) for semantic search (when configured), and
+they surface across the product — the memory graph, the repository
+editor, the printable Memory Book, and personalized conversation
+starters.
 
-Retrieve your environment variable keys for the following:
+## The pieces
 
-    Gemini: https://aistudio.google.com/app/apikey
+**Chat** — the heart of the app. The model streams its replies and calls
+two tools as it goes: `save_user_info` to store something the user
+shared, and `retrieve_user_info` to pull relevant context before
+answering. Chat works over two interchangeable transports:
 
-    Mem0: https://app.mem0.ai/dashboard/api-keys
-    
-    For Neo4j, create a database instance and retrieve the credentials from there directly.
+- **Serverless** (default): the built-in `/api/chat` route streams over
+  SSE. No extra processes — this is how the Vercel deployment works.
+- **Realtime backend**: a Koa + Socket.IO process (`npm run server`)
+  with the same event contract, used when `NEXT_PUBLIC_BACKEND_URL` is
+  set. It additionally syncs memories into Neo4j.
 
-    For Firebase, simply retrieve your credentials from the initialization of a project.
+**Memory graph** — a force-directed view of everything remembered.
+Nodes are classified (family, places, events, health, …) and labeled by
+a fast model; related memories are chained by shared people and places.
 
-Once these are retrieved, you can create a .env file in your root directory and input them in directly from our example and it should work seamlessly!
+**Repository** — a Notion-style editor (Novel/tiptap) over your
+memories, organized in a folder tree, synced to the database so the
+graph stays current.
 
-## Explanation
+**Caregiver dashboard** — caregivers manage patient accounts, write
+notes that flow into the patient's memory store, and see an activity
+feed of patient engagement. Caregivers accept a HIPAA agreement before
+any of this unlocks.
 
-Here's a complete breakdown of the functionality of each integrated component and how it all works together!
+**Memory Book** — a print-ready book of every saved memory, grouped by
+month. Printing to PDF is the export path.
 
-Login: This is simply a basic Firebase authentication route to confirm whether the user is a recurrent one or not, and if they are not we create an account them with Firebase directly, where everything is stored in that database.
+## Accounts and roles
 
-Chat: This is the bulk of our application, where we integrate multiple components. First, we create an agentic setup using Google's Agentic Development Kit and we setup 3 main helper tools integrated with Mem0: one to save memories 
-directly to application layer, one to delete those layers, and another one to search through it via the provided methods from Mem0. We also include a suggested memories feature dependent on what the user is currently prompting to our 
-agent so that it can create more continous prompting and questioning from both user and agent respectively.
-
-Editor: Here we simply use a Novel Editor wrapper for the textual features, and save the notes through our custom folder structure component that we developed to store the saved notes from the user. We also include calls to the Gemini API 
-for specific AI integration to help with spell-checking, writing, and overall linguistic help for the experience we are generating at Reteena.
-
-Graph Editor: Integrated with Neo4j, it displays all of the user's memories directly with a seamless graph interface, using a basic node structure which represents each memory, and through a query sent to AuraDB instead of a local 
-instance, it displays all the memories directly. Currently, we are working on integrating a connection from the editor to the graph editor so users can automatically adjust what they see there and what saves in the editor as well.
+Authentication is [Clerk](https://clerk.com). At onboarding every user
+picks a role — **individual**, **patient**, or **caregiver** — which the
+middleware uses to route them: caregivers land on the dashboard,
+patients and individuals in chat. A Clerk webhook keeps the local
+`users` table in sync.

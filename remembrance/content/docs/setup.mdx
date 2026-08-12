@@ -1,0 +1,63 @@
+---
+title: Setup
+description: Run Remembrance locally in a few minutes
+---
+
+## Requirements
+
+- Node 20+ (or [Bun](https://bun.sh) if you want to run the realtime
+  backend with it)
+- A [Clerk](https://dashboard.clerk.com) application (free tier is fine)
+- A [Neon](https://neon.tech) Postgres database (free tier is fine)
+- At least one inference key — DigitalOcean Gradient, Hack Club proxy,
+  or any OpenAI-compatible endpoint
+
+## Steps
+
+```bash
+cd remembrance
+cp .env.example .env   # fill in the keys below
+npm install
+```
+
+Push the schema to your database once:
+
+```bash
+npx drizzle-kit push
+```
+
+Then start the app:
+
+```bash
+npm run dev            # http://localhost:3000
+```
+
+That's everything for the serverless setup — chat streams through
+`/api/chat`.
+
+## Environment variables
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | ✅ | Clerk → API Keys |
+| `CLERK_SECRET_KEY` | ✅ | Clerk → API Keys |
+| `DATABASE_URL` | ✅ | Neon connection string |
+| `DIGITALOCEAN_KEY` / `HACKCLUB_KEY` / `OPENAI_API_KEY` | one of | chat inference |
+| `CLERK_WEBHOOK_SECRET` | recommended | user sync webhook |
+| `MEM0_API_KEY` | optional | semantic memory; Postgres fallback |
+| `NEXT_PUBLIC_PICOVOICE_ACCESS_KEY` | optional | voice input |
+| `NEXT_PUBLIC_BACKEND_URL` | optional | switches chat to the socket backend |
+| `NEO4J_URL` + credentials | optional | graph store (socket backend only) |
+
+When using a generic OpenAI-compatible provider, `OPENAI_BASE_URL` and
+`OPENAI_MODEL` select the endpoint and model.
+
+## Optional: realtime backend
+
+```bash
+npm run server        # bun, port 5001
+npm run server:node   # tsx, no bun required
+```
+
+Set `NEXT_PUBLIC_BACKEND_URL=http://localhost:5001` in `.env` and the
+frontend switches to websocket streaming automatically.

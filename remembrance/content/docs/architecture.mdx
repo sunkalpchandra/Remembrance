@@ -1,0 +1,53 @@
+---
+title: Architecture
+description: How data moves through Remembrance
+---
+
+## The memory pipeline
+
+1. The user sends a message from the chat page.
+2. The model receives the reminiscence-therapy system prompt, the
+   conversation history, and two tools.
+3. When the user shares something meaningful, the model calls
+   `save_user_info`. The shared handler in `lib/ai/memory-tools.ts`
+   writes it to Mem0 (if configured), inserts a row in the Postgres
+   `memories` table, and creates an in-app notification.
+4. Before answering, the model calls `retrieve_user_info`, which
+   searches Mem0 and falls back to the newest 50 Postgres rows.
+5. The reply streams back token by token, with reasoning traces shown
+   as a collapsible "thought process".
+
+## Transports
+
+Both chat transports speak the same event protocol —
+`status`, `thinking_chunk`, `answer_chunk`, `done`, `title`, `error` —
+tagged with a `request_id` so late events from an abandoned request
+can't corrupt a newer one.
+
+| | Serverless (`/api/chat`) | Socket backend (`backend/`) |
+| --- | --- | --- |
+| Process | Next.js route handler | Koa + Socket.IO |
+| Streaming | SSE over fetch | websocket events |
+| Auth | Clerk session | Clerk JWT verified on connect |
+| Neo4j sync | — | ✅ |
+| Where it runs | Vercel/anywhere | Render, VPS |
+
+## Data model
+
+Drizzle ORM over Neon Postgres (`db/schema.ts`):
+
+- `users` — synced from Clerk by webhook; role enum drives routing
+- `conversations` / `messages` — chat history
+- `memories` + `topics` + `memory_topics` — the memory store
+- `caregiver_notes` — notes that also flow into patient memory
+- `caregiver_events` — append-only analytics feed for the dashboard
+- `notifications` — in-app notification feed
+
+## The graph view
+
+`/api/graph` builds the force-graph payload from the `memories` table:
+a regex classifier assigns each memory a type (family, event, health,
+place, work, emotion, social), entity extraction chains memories that
+mention the same people or places, and a fast model generates short
+evocative labels for nodes (cached in-process). With the socket backend
+and Neo4j configured, the graph is additionally mirrored into Neo4j.

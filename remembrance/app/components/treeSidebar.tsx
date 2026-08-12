@@ -8,6 +8,7 @@ import { isUuid } from "../lib/validate";
 import {
   BiChevronRight,
   BiFolder,
+  BiSearch,
   BiFile,
   BiPencil,
   BiTrash,
@@ -87,6 +88,7 @@ export default function TreeSidebar({
 }: TreeSidebarProps) {
   const router = useRouter();
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [showCategoryInput, setShowCategoryInput] = useState(false);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [editingNode, setEditingNode] = useState<Memory | Topic | null>(null);
@@ -305,7 +307,7 @@ export default function TreeSidebar({
   const renderNode = (node: Memory | Topic, depth = 0) => {
     const isTopic = "children" in node;
     const isSelected = selectedNode === node;
-    const isExpanded = expandedNodes.has(node.name);
+    const isExpanded = searchQuery ? true : expandedNodes.has(node.name);
     const isEditing = editingNode === node;
     const isBeingDragged = draggedNode?.name === node.name && draggedNode?.id === node.id;
     const isDropTarget = dropTarget.node?.name === node.name && dropTarget.node?.id === node.id;
@@ -452,6 +454,35 @@ export default function TreeSidebar({
     );
   };
 
+  // Prune the tree to nodes matching the query (topics stay when any
+  // descendant matches).
+  const filterNodes = (
+    children: (Memory | Topic)[],
+    q: string,
+  ): (Memory | Topic)[] => {
+    const needle = q.toLowerCase();
+    const out: (Memory | Topic)[] = [];
+    for (const c of children) {
+      const selfMatch =
+        c.name.toLowerCase().includes(needle) ||
+        (!("children" in c) &&
+          ((c as Memory).summary || "").toLowerCase().includes(needle));
+      if ("children" in c) {
+        const kids = filterNodes((c as Topic).children, q);
+        if (selfMatch || kids.length > 0) {
+          out.push({ ...(c as Topic), children: kids.length > 0 ? kids : (c as Topic).children });
+        }
+      } else if (selfMatch) {
+        out.push(c);
+      }
+    }
+    return out;
+  };
+
+  const visibleChildren = searchQuery.trim()
+    ? filterNodes(repo.memories.children, searchQuery.trim())
+    : repo.memories.children;
+
   return (
     <>
       <div className="h-full w-full flex flex-col bg-gray-50">
@@ -516,20 +547,35 @@ export default function TreeSidebar({
             <BiBook className="w-4 h-4 flex-shrink-0" />
             <span className="text-sm font-medium">Memory Book</span>
           </button>
+
+          <div className="relative pt-1">
+            <BiSearch className="absolute left-2 top-1/2 mt-0.5 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search memories…"
+              className="w-full bg-white border border-gray-200 rounded-lg py-1.5 pl-7 pr-2 text-sm focus:outline-none focus:border-gray-400 placeholder:text-gray-400"
+            />
+          </div>
         </div>
 
         {/* Tree */}
         <div className="flex-1 overflow-y-auto px-2 py-2 w-full">
-          {repo.memories.children.length === 0 ? (
+          {visibleChildren.length === 0 ? (
             <div className="text-center py-8 px-3">
-              <p className="text-sm text-gray-500">No memories yet</p>
+              <p className="text-sm text-gray-500">
+                {searchQuery.trim() ? "No matches" : "No memories yet"}
+              </p>
               <p className="text-xs text-gray-400 mt-1">
-                Chat with Remembrance to save memories, or add one manually.
+                {searchQuery.trim()
+                  ? "Try a different search."
+                  : "Chat with Remembrance to save memories, or add one manually."}
               </p>
             </div>
           ) : (
             <div className="space-y-0.5 w-full">
-              {repo.memories.children.map((node) => renderNode(node, 0))}
+              {visibleChildren.map((node) => renderNode(node, 0))}
             </div>
           )}
         </div>

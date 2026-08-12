@@ -79,7 +79,6 @@ export default function CaregiverMemoriesPage() {
             // Key on patient ID so the graph fully remounts when switching patients
             <Neo4jGraph
               key={selected.id}
-              userId={selected.id}
               graphUrl={`/api/graph?patientId=${selected.id}`}
             />
           ) : null}

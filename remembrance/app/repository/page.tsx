@@ -617,7 +617,7 @@ export default function Page() {
           </button>
         </div>*/}
         <div className="flex-1 overflow-hidden">
-          <Neo4jGraph key={graphKey} userId={user.uid} />
+          <Neo4jGraph key={graphKey} />
         </div>
       </div>
     </div>

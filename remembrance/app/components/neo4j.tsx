@@ -52,12 +52,10 @@ const nodeColor = (n: NodeT) =>
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function Neo4jGraph({
-  userId,
   memoryId,
   onNodeClick,
   graphUrl = "/api/graph",
 }: {
-  userId: string;
   memoryId?: string | null;
   onNodeClick?: (n: NodeT) => void;
   graphUrl?: string;
@@ -98,7 +96,8 @@ export default function Neo4jGraph({
     return () => { ro.disconnect(); if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current); };
   }, []);
 
-  // Fetch graph
+  // Fetch graph — depends on graphUrl so switching patients refetches the
+  // right endpoint instead of replaying the first one from a stale closure.
   const fetchGraph = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setFullGraph({ nodes: [], links: [] });
@@ -118,13 +117,13 @@ export default function Neo4jGraph({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [graphUrl, GRAPH_CACHE_KEY]);
 
   useEffect(() => {
     const ctrl = new AbortController();
     fetchGraph(ctrl.signal);
     return () => ctrl.abort();
-  }, [fetchGraph, graphUrl]);
+  }, [fetchGraph]);
 
   // Filter visible nodes by memoryId if provided
   const visibleGraph = useMemo(() => {
@@ -221,6 +220,19 @@ export default function Neo4jGraph({
     try { fgRef.current?.centerAt(node.x, node.y, 400); } catch {}
   }, [onNodeClick]);
 
+  // Ref callback: capture the instance and tune the simulation forces.
+  // (linkDistance/chargeStrength are not ForceGraph2D props — force config
+  // must go through d3Force, and the key-remount means we redo it per mount.)
+  const bindGraph = useCallback((fg: any) => {
+    fgRef.current = fg;
+    if (!fg) return;
+    try {
+      fg.d3Force("link")?.distance(200);
+      fg.d3Force("charge")?.strength(-1200);
+      fg.d3Force("center")?.strength(0.03);
+    } catch {}
+  }, []);
+
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     setTooltipPos({ x: e.clientX, y: e.clientY });
   }, []);
@@ -256,7 +268,7 @@ export default function Neo4jGraph({
         // @ts-expect-error react-force-graph-2d types
         <ForceGraph2D
           key={graphKey}
-          ref={fgRef}
+          ref={bindGraph}
           graphData={visibleGraph}
           width={dims.width}
           height={dims.height}
@@ -276,9 +288,6 @@ export default function Neo4jGraph({
           linkDirectionalArrowLength={0}
           d3AlphaDecay={0.012}
           d3VelocityDecay={0.3}
-          linkDistance={200}
-          chargeStrength={-1200}
-          centerStrength={0.03}
           onEngineStop={centerGraph}
         />
       )}

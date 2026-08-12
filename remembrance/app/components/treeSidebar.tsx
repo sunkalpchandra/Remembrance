@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { MemoriesRepo, Memory, Topic } from "../lib/types";
 import type { AppUser } from "./usercontext";
+import { isUuid } from "../lib/validate";
 import {
   BiChevronRight,
   BiFolder,
@@ -168,8 +169,7 @@ export default function TreeSidebar({
     };
     const idsToDelete = collectIds(node);
     idsToDelete.forEach((id) => {
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (uuidRegex.test(id)) {
+      if (isUuid(id)) {
         fetch(`/api/memories/${id}`, { method: "DELETE" }).catch(() => {});
       }
     });

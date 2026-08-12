@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start -p $PORT",
     "lint": "next lint",
+    "typecheck": "tsc --noEmit",
     "server": "bun backend/index.ts",
     "postinstall": "fumadocs-mdx"
   },

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import UserContextProvider from "./components/usercontext";
+import { TEXT_SCALE_BOOT_SCRIPT } from "./lib/comfort";
 
 export const metadata: Metadata = {
   title: "Remembrance",
@@ -15,6 +16,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Apply saved comfort text scale before first paint */}
+        <script dangerouslySetInnerHTML={{ __html: TEXT_SCALE_BOOT_SCRIPT }} />
+      </head>
       <body
         style={{
           display: "flex",

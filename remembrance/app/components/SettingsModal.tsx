@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   UserPlus,
   Settings,
@@ -21,6 +21,12 @@ import {
 } from "../settings/actions";
 import { useRouter, usePathname } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
+import {
+  TEXT_SCALES,
+  type TextScale,
+  applyTextScale,
+  getTextScale,
+} from "../lib/comfort";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -49,8 +55,18 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     ReturnType<typeof getPrivacyInfo>
   > | null>(null);
   const [privacyLoading, setPrivacyLoading] = useState(false);
+  const [textScale, setTextScale] = useState<TextScale>("default");
+
+  useEffect(() => {
+    setTextScale(getTextScale());
+  }, []);
 
   if (!isOpen) return null;
+
+  const handleTextScale = (scale: TextScale) => {
+    setTextScale(scale);
+    applyTextScale(scale);
+  };
 
   const handleOpenPrivacy = async () => {
     setShowPrivacyModal(true);
@@ -385,10 +401,27 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   </div>
 
                   <div className="flex items-center justify-between py-4 border-b border-gray-200">
-                    <div className="text-sm font-medium">Notifications</div>
-                    <button className="text-sm font-medium bg-white border border-gray-200 hover:bg-gray-50 text-gray-900 px-4 py-1.5 rounded-lg transition-colors">
-                      Configure
-                    </button>
+                    <div>
+                      <div className="text-sm font-medium">Text size</div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Larger text across the whole app
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                      {TEXT_SCALES.map((s) => (
+                        <button
+                          key={s.id}
+                          onClick={() => handleTextScale(s.id)}
+                          className={`text-sm px-3 py-1 rounded-md transition-colors ${
+                            textScale === s.id
+                              ? "bg-white text-gray-900 shadow-sm font-medium"
+                              : "text-gray-500 hover:text-gray-900"
+                          }`}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between py-4 border-b border-gray-200">

@@ -1,11 +1,8 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { useContext, useEffect, useRef, useState } from "react";
 import TreeSidebar from "../components/treeSidebar";
 import { Command, MemoriesRepo, Memory, Topic } from "../lib/types";
-import { poppins } from "../lib/fonts";
 import { All_Commands } from "../lib/commands";
 import Neo4jGraph from "../components/neo4j";
 import { UserContext } from "../components/usercontext";
@@ -17,12 +14,6 @@ const initialRepo: MemoriesRepo = {
     children: [],
   },
 };
-
-function decodeHTMLEntities(str: string) {
-  const txt = document.createElement("textarea");
-  txt.innerHTML = str;
-  return txt.value;
-}
 
 const commands: Command[] = All_Commands.map((v) => new v());
 
@@ -59,7 +50,7 @@ export default function Page() {
   const treeResizeRef = useRef<HTMLDivElement | null>(null);
   const notionResizeRef = useRef<HTMLDivElement | null>(null);
 
-  const saveToFirestore = async (updatedRepo: MemoriesRepo) => {
+  const saveRepoLocally = async (updatedRepo: MemoriesRepo) => {
     if (!user || typeof window === "undefined") return;
     try {
       window.localStorage.setItem(
@@ -147,7 +138,7 @@ export default function Page() {
     const newRepo = { ...repo };
     updateInChildren(newRepo.memories.children);
     setRepo(newRepo);
-    saveToFirestore(newRepo);
+    saveRepoLocally(newRepo);
 
     // Sync to DB so the graph includes repo-created memories
     if (!("children" in newValue)) {
@@ -157,26 +148,22 @@ export default function Page() {
 
   const handleAddMemory = () => {
     const newRepo = { ...repo };
-    let nameAddition = 0;
-    let check =
+    const siblings =
       current && "children" in current
         ? current.children
         : newRepo.memories.children;
-    check = check.filter((e) => {
-      return e.name.match(/Untitled [1-9]+/) || e.name.trim() == "Untitled";
-    });
-    //if lag gets bad this can be rewritten to use a sort and be much more time efficent
-    for (let i = 0; i < check.length; i++) {
-      let value = `Untitled ${nameAddition == 0 ? "" : nameAddition + 1}`;
-      if (check[i].name == value) {
-        nameAddition++;
-        i = 0;
-      }
-    }
+    // Pick the lowest free "Untitled"/"Untitled N" name among siblings
+    const taken = new Set(
+      siblings
+        .map((e) => e.name.trim())
+        .filter((n) => n === "Untitled" || /^Untitled \d+$/.test(n)),
+    );
+    let name = "Untitled";
+    for (let n = 2; taken.has(name); n++) name = `Untitled ${n}`;
     const randomId = new Uint8Array(32);
     crypto.getRandomValues(randomId);
     const newMemory: Memory = {
-      name: `Untitled ${nameAddition == 0 ? "" : nameAddition + 1}`,
+      name,
       content: " ",
       topics: [],
       summary: "",
@@ -190,12 +177,12 @@ export default function Page() {
     }
     setRepo(newRepo);
     setCurrent(newMemory);
-    saveToFirestore(newRepo);
+    saveRepoLocally(newRepo);
     syncMemoryToDB(newMemory).then((dbId) => {
       if (!dbId) return;
       // Store the real DB UUID so future edits update rather than re-insert
       newMemory.id = dbId;
-      saveToFirestore({ ...newRepo });
+      saveRepoLocally({ ...newRepo });
     });
   };
 
@@ -350,10 +337,6 @@ export default function Page() {
     })();
   }, [user]);
 
-  useEffect(() => {
-    import("aframe");
-  }, []);
-
   if (!user) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -361,30 +344,6 @@ export default function Page() {
       </div>
     );
   }
-
-  const createEditorContent = (current: Memory | Topic | any) => {
-    if (!current) return { type: "doc", content: [] };
-
-    return {
-      type: "doc",
-      content: [
-        {
-          type: "heading",
-          attrs: { level: 1 },
-          content: [{ type: "text", text: current.name }],
-        },
-        ...(!("children" in current)
-          ? [
-              {
-                type: "paragraph",
-                content: [{ type: "text", text: (current as Memory).summary }],
-              },
-            ]
-          : []),
-        ...(current.content?.content || []),
-      ],
-    };
-  };
 
   return (
     <div className="flex w-screen h-screen flex-row items-stretch text-black bg-white overflow-hidden">
@@ -497,10 +456,6 @@ export default function Page() {
                     ) {
                       e.stopPropagation();
                       e.preventDefault();
-                      let selectedCommand = commands[commandIndex];
-                      let add = ("/" + selectedCommand.name).substring(
-                        command.length,
-                      );
                       setCommand("");
                     }
                   }}

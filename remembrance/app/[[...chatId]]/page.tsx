@@ -29,6 +29,7 @@ import {
 import { useTypewriter } from "@/app/hooks/useTypewriter";
 import { useProfile } from "@/app/hooks/useProfile";
 import { IdentityPanel } from "@/app/components/identity-panel";
+import { ProactivePrompts } from "@/app/components/proactive-prompts";
 import { useDropzone } from "react-dropzone";
 
 interface FileData {
@@ -1015,6 +1016,16 @@ export default function Home() {
                   </Button>
                 </div>
               </form>
+              <ProactivePrompts
+                onSelect={(p) => {
+                  if (isUploading) return;
+                  setLandingTransitioning(true);
+                  handleSendMessage(p).catch((error) => {
+                    console.error("Error sending prompt:", error);
+                    setLandingTransitioning(false);
+                  });
+                }}
+              />
             </div>
           ) : !isDragAccept ? (
             <div className="w-full h-full flex flex-col items-center overflow-y-scroll relative max-h-[80vh] mt-5 gap-9">

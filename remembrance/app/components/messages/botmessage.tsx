@@ -1,44 +1,40 @@
 import { ConversationMessage } from "@/app/lib/types";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import MemoryWidget, { MemoryWidgetProps } from "../memorywidget";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import { Check, Copy } from "lucide-react";
 import "katex/dist/katex.min.css";
 
 interface BotProps {
   message: ConversationMessage;
-  time: number;
   botName: string;
   suggestions: MemoryWidgetProps[];
 }
 
 export function BotMessage(props: BotProps) {
-  const progressbar = useRef(null as any as HTMLDivElement);
-  const start = useRef(new Date());
   const [showThoughts, setShowThoughts] = useState(false);
+  const [copied, setCopied] = useState(false);
   const thinkingText = (props.message as any).thinkingText || "";
 
-  useEffect(() => {
-    if (progressbar.current == null) return;
-    start.current = new Date();
-    let int = setInterval(() => {
-      let progress =
-        ((new Date().getTime() - start.current.getTime()) /
-          ((props.time + 1) * 1000)) *
-        100;
-      progressbar.current.style.width = progress + "%";
-      if (progress > 100) clearTimeout(int);
-    }, 60);
-  }, []);
-  useEffect(() => {
-    const el = progressbar.current;
-    if (!el) return;
-    el.style.opacity = "1";
-  }, []);
+  const isFinished =
+    props.message.streamState === "done" ||
+    (props.message.streamState === undefined &&
+      !!props.message.text &&
+      props.message.text.trim() !== "");
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(props.message.text || "");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  };
+
   return (
-    <div className="w-[80%] flex flex-col gap-2 text-gray-800 animate-fade-in">
+    <div className="group w-[80%] flex flex-col gap-2 text-gray-800 animate-fade-in">
       {thinkingText && thinkingText.trim().length > 0 && (
         <div className="mb-2 mt-1 rounded-xl border border-gray-200 bg-gray-50">
           <button
@@ -84,6 +80,29 @@ export function BotMessage(props: BotProps) {
           >
             {props.message.text}
           </ReactMarkdown>
+        </div>
+      )}
+
+      {isFinished && props.message.text && props.message.text.trim() !== "" && (
+        <div className="flex items-center gap-1 -mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            aria-label="Copy response"
+          >
+            {copied ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-green-600" />
+                <span className="text-green-600">Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                Copy
+              </>
+            )}
+          </button>
         </div>
       )}
 

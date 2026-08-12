@@ -1043,7 +1043,6 @@ export default function Home() {
                     return (
                       <BotMessage
                         message={e}
-                        time={40}
                         botName={"remembrance"}
                         key={stableKey}
                         suggestions={

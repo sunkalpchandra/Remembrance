@@ -12,6 +12,23 @@ A longitudinal cognitive care platform for Alzheimer's that transforms everyday 
 
 <img width="10972" height="3604" alt="Remembrance screens" src="https://github.com/user-attachments/assets/74d167ff-61ef-4cb0-b2c4-4743bceb377a" />
 
+## Features
+
+- **Therapeutic chat** with streaming replies, reasoning traces, model
+  picker, file attachments, and voice input — over websockets or a
+  fully serverless SSE route
+- **Living memory system**: the model saves and retrieves memories via
+  tools; Postgres always, Mem0 semantic search when configured
+- **Memory graph** with typed, emoji-coded, AI-labeled nodes and
+  entity-chained relationships
+- **Memory repository**: folder tree + Notion-style editor + search
+- **Printable Memory Book** grouped by month (print → PDF export)
+- **Caregiver platform**: patient accounts, notes that feed patient
+  memory, week-over-week activity analytics, per-patient graphs, HIPAA
+  acknowledgment flow
+- **Personalized conversation starters**, in-app notifications, comfort
+  text sizing, ⌘K new chat, PWA install, public docs at `/docs`
+
 ## Stack
 
 **Frontend** (`remembrance/`)

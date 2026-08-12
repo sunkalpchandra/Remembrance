@@ -4,8 +4,6 @@ import type React from "react";
 
 import { useContext, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import type { SideBarChoiceProps } from "./sidebarchoice";
-import type { SideBarBaseProps } from "./sidebarchoicebase";
 import { UserContext } from "@/app/components/usercontext";
 import { useRouter } from "next/navigation";
 import { useParams } from "next/navigation";
@@ -25,28 +23,6 @@ import { useAuth } from "@clerk/nextjs";
 interface SidebarProps {
   selected: number;
 }
-
-const SideBarOptions = [
-  {
-    text: "New chat",
-    iconPath: "/chat.svg",
-    link: "/",
-  },
-  {
-    text: "Memory-Graph",
-    iconPath: "/repo.svg",
-    link: "/repository",
-    tag: "beta",
-    tagcolor: "#000000",
-  },
-  {
-    text: "Dashboard",
-    iconPath: "/family.svg",
-    link: "/dashboard",
-    tag: "beta",
-    tagcolor: "#000000",
-  },
-] as SideBarChoiceProps[];
 
 const CHATS_CACHE_KEY = (uid: string) => `chats:${uid}`;
 
@@ -315,17 +291,6 @@ function SideBarChatList({ userId }: { userId: string | any }) {
     </div>
   );
 }
-
-const BaseOptions = [
-  {
-    text: "Open Source",
-    iconURL: "/github.svg",
-  },
-  {
-    text: "Support",
-    iconURL: "/question.svg",
-  },
-] as SideBarBaseProps[];
 
 export default function SideBar(props: SidebarProps) {
   const router = useRouter();

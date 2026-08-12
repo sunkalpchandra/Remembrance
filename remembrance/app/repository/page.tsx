@@ -43,7 +43,8 @@ export default function Page() {
     };
     const fresh = findById(repo.memories.children);
     if (fresh && fresh !== current) setCurrent(fresh);
-  }, [repo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repo, current]);
   const [commandIndex, setCommandIndex] = useState(0);
 
   const mainContainerRef = useRef<HTMLDivElement | null>(null);

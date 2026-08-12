@@ -226,21 +226,21 @@ export default function Home() {
     };
   }, [dropDown]);
 
-  // Automatically syncing to backend
-  useEffect(() => {
-    // Relying on server actions for discrete updates instead of continuous bulk saving
-  }, [conversation, conversationId, user]);
+  // Transport selection: a configured NEXT_PUBLIC_BACKEND_URL means the
+  // realtime socket backend; otherwise chat streams through /api/chat SSE,
+  // which needs no separate backend process (e.g. on Vercel).
+  const socketBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 
   // Initialize socket connection on mount so the first message doesn't pay
   // the connection handshake cost.
   useEffect(() => {
+    if (!socketBackendUrl) return;
     const initSocket = async () => {
       try {
         const clerkToken = await getToken();
         if (!clerkToken) return;
 
-        const backendUrl =
-          process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
+        const backendUrl = socketBackendUrl;
 
         if (!(window as any).chatSocket) {
           const socket = io(backendUrl, {
@@ -364,7 +364,10 @@ export default function Home() {
     const placeholder = {
       sentByUser: false,
       text: " ",
-      status: currentSocket?.connected ? undefined : "Connecting...",
+      status:
+        !socketBackendUrl || currentSocket?.connected
+          ? undefined
+          : "Connecting...",
       request_id: requestId,
       streamState: "streaming" as const,
       thinkingText: "",
@@ -377,10 +380,161 @@ export default function Home() {
       return next;
     });
 
-    try {
-      const backendUrl =
-        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
+    // ── Shared stream handlers (used by both transports) ──────────────────
+    let accumulatedThinking = "";
+    let accumulatedAnswer = "";
 
+    const patchLast = (
+      patch: Partial<Conversation["messages"][number]>,
+      extra?: Partial<Conversation>,
+    ) => {
+      SetConversation((prev) => {
+        if (!prev) return prev;
+        const msgs = [...prev.messages];
+        const current = msgs[msgs.length - 1] as any;
+        if (current?.request_id && current.request_id !== requestId)
+          return prev;
+        msgs[msgs.length - 1] = {
+          ...current,
+          request_id: requestId,
+          sentByUser: false,
+          ...patch,
+        };
+        return { ...prev, ...(extra || {}), messages: msgs };
+      });
+    };
+
+    const applyThinking = (text: string) => {
+      accumulatedThinking += text;
+      patchLast({
+        streamState: "streaming",
+        text: accumulatedAnswer,
+        thinkingText: accumulatedThinking,
+      });
+    };
+
+    const applyAnswer = (text: string) => {
+      accumulatedAnswer += text;
+      patchLast({
+        streamState: "streaming",
+        text: accumulatedAnswer,
+        thinkingText: accumulatedThinking,
+      });
+    };
+
+    const applyDone = async () => {
+      const finalText = accumulatedAnswer || "";
+      patchLast({
+        streamState: "done",
+        // Keep whatever the placeholder holds when the stream produced no text
+        ...(finalText ? { text: finalText } : {}),
+        thinkingText: accumulatedThinking,
+        status: "Done",
+      });
+      isGeneratingRef.current = false;
+      if (conversationId && finalText) {
+        await saveMessage(conversationId, finalText, false);
+      }
+    };
+
+    const applyTitle = (newTitle?: string) => {
+      if (!newTitle || !conversationId) return;
+      renameConversation(conversationId, newTitle).catch(() => {});
+      SetConversation((prev) => {
+        if (!prev) return prev;
+        const updated = { ...prev, name: newTitle };
+        writeConvCache(conversationId, updated);
+        return updated;
+      });
+      window.dispatchEvent(
+        new CustomEvent("conversation-renamed", {
+          detail: { id: conversationId, name: newTitle },
+        }),
+      );
+    };
+
+    const applyError = (detail?: string) => {
+      patchLast({
+        streamState: "error",
+        text: `Sorry, the model is busy right now. Please try again in a moment.${detail ? ` (${detail})` : ""}`,
+      });
+      isGeneratingRef.current = false;
+    };
+
+    // ── Transport: serverless SSE via /api/chat ───────────────────────────
+    const streamViaApi = async (queryPayload: any) => {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(queryPayload),
+      });
+      if (!res.ok || !res.body) {
+        const err = await res.json().catch(() => ({}) as any);
+        throw new Error(err?.error || `Chat request failed (${res.status})`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let sawDone = false;
+
+      const handleEvent = async (event: string, payload: any) => {
+        if (payload?.request_id && payload.request_id !== requestId) return;
+        switch (event) {
+          case "thinking_chunk":
+            applyThinking(payload.text || "");
+            break;
+          case "answer_chunk":
+            applyAnswer(payload.text || "");
+            break;
+          case "done":
+            sawDone = true;
+            await applyDone();
+            break;
+          case "title":
+            applyTitle(payload.title);
+            break;
+          case "error":
+            sawDone = true;
+            applyError(payload.message || payload.error);
+            break;
+        }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let sep;
+        while ((sep = buffer.indexOf("\n\n")) !== -1) {
+          const rawEvent = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          let event = "message";
+          let dataStr = "";
+          for (const line of rawEvent.split("\n")) {
+            if (line.startsWith("event: ")) event = line.slice(7).trim();
+            else if (line.startsWith("data: ")) dataStr += line.slice(6);
+          }
+          if (!dataStr) continue;
+          let payload: any;
+          try {
+            payload = JSON.parse(dataStr);
+          } catch {
+            continue;
+          }
+          await handleEvent(event, payload);
+        }
+      }
+
+      // Stream closed without a terminal event — finalize what we have
+      if (!sawDone) {
+        if (accumulatedAnswer) await applyDone();
+        else applyError("connection closed early");
+      }
+    };
+
+    // ── Transport: realtime socket backend ────────────────────────────────
+    const streamViaSocket = async (queryPayload: any, backendUrl: string) => {
       let socket = (window as any).chatSocket;
 
       if (!socket || !socket.connected) {
@@ -396,35 +550,23 @@ export default function Home() {
           throw new Error("Missing Clerk session token");
         }
 
-        console.log("[Socket] Connecting to backend at:", backendUrl);
-
         if (!socket) {
-          console.log(
-            "[Socket] Creating new socket connection with auth token",
-          );
           socket = io(backendUrl, {
             transports: ["websocket"],
-            auth: {
-              token: clerkToken,
-            },
+            auth: { token: clerkToken },
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionAttempts: 5,
           });
           (window as any).chatSocket = socket;
         } else {
-          console.log("[Socket] Reusing existing socket connection");
-          socket.auth = {
-            token: clerkToken,
-          };
-          console.log("[Socket] Reconnecting socket");
+          socket.auth = { token: clerkToken };
           socket.connect();
         }
       }
 
       // Wait for socket to be ready
       if (!socket.connected) {
-        console.log("[Socket] Waiting for socket to connect...");
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => {
             reject(new Error("Socket connection timeout"));
@@ -432,18 +574,14 @@ export default function Home() {
 
           socket.once("connect", () => {
             clearTimeout(timeout);
-            console.log("[Socket] Socket connected successfully");
             resolve();
           });
 
           socket.once("connect_error", (err: any) => {
             clearTimeout(timeout);
-            console.error("[Socket] Connection error:", err);
             reject(err);
           });
         });
-      } else {
-        console.log("[Socket] Socket already connected");
       }
 
       // Clean up previous listeners
@@ -456,16 +594,63 @@ export default function Home() {
       socket.off("error");
       socket.off("connect_error");
 
-      let accumulatedThinking = "";
-      let accumulatedAnswer = "";
-      let finalMemories: string[] = [];
       let didReceiveResponse = false;
 
+      const guard =
+        (fn: (payload: any) => void) =>
+        (payload: any) => {
+          if (payload?.request_id && payload.request_id !== requestId) return;
+          didReceiveResponse = true;
+          fn(payload);
+        };
+
+      socket.on("status", guard(() => {}));
+      socket.on(
+        "thinking_chunk",
+        guard((p: any) => applyThinking(p.text || "")),
+      );
+      socket.on(
+        "answer_chunk",
+        guard((p: any) => applyAnswer(p.text || "")),
+      );
+      socket.on(
+        "done",
+        guard(() => {
+          applyDone();
+        }),
+      );
+      socket.on("title", (payload: any) => {
+        if (payload?.request_id && payload.request_id !== requestId) return;
+        applyTitle(payload?.title);
+      });
+      socket.on(
+        "error",
+        guard((p: any) => applyError(p.message || p.error)),
+      );
+      socket.on("connect_error", (error: any) => {
+        console.error("Socket error", error);
+        applyError("connection error");
+      });
+
+      const emitQuery = () => {
+        socket.emit("query_ws", queryPayload);
+      };
+
+      emitQuery();
+
+      // Retry once if the first emit is lost during initial handshake
+      setTimeout(() => {
+        if (!didReceiveResponse) {
+          emitQuery();
+        }
+      }, 1200);
+    };
+
+    try {
       // Convert selected files to base64 for transmission
       let filesData: FileData[] = [];
       if (selectedFiles.length) {
         filesData = await convertFilesToBase64(selectedFiles);
-        console.log(`[Socket] Prepared ${filesData.length} file(s) for transmission`);
       }
 
       const queryPayload = {
@@ -481,161 +666,11 @@ export default function Home() {
         files: filesData,
       };
 
-      // Set up ALL listeners BEFORE emitting query
-      socket.on("status", (payload: any) => {
-        if (payload?.request_id && payload.request_id !== requestId) return;
-        didReceiveResponse = true;
-        // Don't update status field - it's only for connection messages
-        // Backend status updates (Thinking, Synthesizing, etc) should not display
-      });
-
-      socket.on("thinking_chunk", (payload: any) => {
-        if (payload?.request_id && payload.request_id !== requestId) return;
-        didReceiveResponse = true;
-        accumulatedThinking += payload.text || "";
-        SetConversation((prev) => {
-          if (!prev) return prev;
-          const msgs = [...prev.messages];
-          const current = msgs[msgs.length - 1] as any;
-          if (current?.request_id && current.request_id !== requestId)
-            return prev;
-          msgs[msgs.length - 1] = {
-            ...current,
-            request_id: requestId,
-            streamState: "streaming",
-            sentByUser: false,
-            text: accumulatedAnswer,
-            thinkingText: accumulatedThinking,
-          };
-          return { ...prev, messages: msgs };
-        });
-      });
-
-      socket.on("answer_chunk", (payload: any) => {
-        if (payload?.request_id && payload.request_id !== requestId) return;
-        didReceiveResponse = true;
-        accumulatedAnswer += payload.text || "";
-        SetConversation((prev) => {
-          if (!prev) return prev;
-          const msgs = [...prev.messages];
-          const current = msgs[msgs.length - 1] as any;
-          if (current?.request_id && current.request_id !== requestId)
-            return prev;
-          msgs[msgs.length - 1] = {
-            ...current,
-            request_id: requestId,
-            streamState: "streaming",
-            sentByUser: false,
-            text: accumulatedAnswer,
-            thinkingText: accumulatedThinking,
-          };
-          return { ...prev, messages: msgs };
-        });
-      });
-
-      socket.on("done", async (payload: any) => {
-        if (payload?.request_id && payload.request_id !== requestId) return;
-        didReceiveResponse = true;
-        finalMemories = payload.memories || [];
-        const latestMemories = finalMemories.map((memory: string) => {
-          const firstSentence = memory.split(".")[0];
-          return {
-            title:
-              firstSentence.slice(0, 40) +
-              (firstSentence.length > 40 ? "..." : ""),
-            memoryText: memory,
-          };
-        });
-
-        const finalText = accumulatedAnswer || "";
-
-        SetConversation((prev) => {
-          if (!prev) return prev;
-          const msgs = [...prev.messages];
-          const current = msgs[msgs.length - 1] as any;
-          if (current?.request_id && current.request_id !== requestId)
-            return prev;
-          msgs[msgs.length - 1] = {
-            ...current,
-            request_id: requestId,
-            streamState: "done",
-            sentByUser: false,
-            text: finalText || current.text || "",
-            thinkingText: accumulatedThinking,
-            status: "Done",
-          };
-          return { ...prev, latestMemories, messages: msgs };
-        });
-        isGeneratingRef.current = false;
-
-        if (conversationId && finalText) {
-          await saveMessage(conversationId, finalText, false);
-        }
-      });
-
-      socket.on("title", (payload: any) => {
-        if (payload?.request_id && payload.request_id !== requestId) return;
-        const newTitle: string = payload?.title;
-        if (!newTitle || !conversationId) return;
-        renameConversation(conversationId, newTitle).catch(() => {});
-        SetConversation((prev) => {
-          if (!prev) return prev;
-          const updated = { ...prev, name: newTitle };
-          writeConvCache(conversationId, updated);
-          return updated;
-        });
-        window.dispatchEvent(new CustomEvent("conversation-renamed", { detail: { id: conversationId, name: newTitle } }));
-      });
-
-      socket.on("error", (payload: any) => {
-        if (payload?.request_id && payload.request_id !== requestId) return;
-        didReceiveResponse = true;
-        const errText = `Sorry, the model is busy right now. Please try again in a moment. (${payload.message || payload.error})`;
-        SetConversation((prev) => {
-          if (!prev) return prev;
-          const msgs = [...prev.messages];
-          const current = msgs[msgs.length - 1] as any;
-          if (current?.request_id && current.request_id !== requestId)
-            return prev;
-          msgs[msgs.length - 1] = {
-            ...current,
-            request_id: requestId,
-            streamState: "error",
-            sentByUser: false,
-            text: errText,
-          };
-          return { ...prev, messages: msgs };
-        });
-        isGeneratingRef.current = false;
-      });
-
-      socket.on("connect_error", (error: any) => {
-        console.error("Socket error", error);
-        SetConversation((prev) => {
-          if (!prev) return prev;
-          const msgs = [...prev.messages];
-          msgs[msgs.length - 1] = {
-            sentByUser: false,
-            text: "Connection error occurred.",
-          };
-          return { ...prev, messages: msgs };
-        });
-        isGeneratingRef.current = false;
-      });
-
-      const emitQuery = () => {
-        socket.emit("query_ws", queryPayload);
-      };
-
-      // Bind listeners first, then emit to avoid first-message race conditions
-      emitQuery();
-
-      // Retry once if the first emit is lost during initial handshake
-      setTimeout(() => {
-        if (!didReceiveResponse) {
-          emitQuery();
-        }
-      }, 1200);
+      if (socketBackendUrl) {
+        await streamViaSocket(queryPayload, socketBackendUrl);
+      } else {
+        await streamViaApi(queryPayload);
+      }
     } catch (err) {
       console.error("Stream error:", err);
       SetConversation((prev) => {

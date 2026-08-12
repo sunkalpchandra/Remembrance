@@ -1,13 +1,22 @@
 import neo4j, { Driver } from "neo4j-driver";
 
-if (!process.env.NEO4J_URL) {
-  console.error("[Neo4j] ERROR: NEO4J_URL not set");
-}
+// Lazy driver: Neo4j is optional, and building a driver from an unset
+// NEO4J_URL at import time would crash the whole backend process.
+let _driver: Driver | null = null;
 
-export const neo4jDriver: Driver = neo4j.driver(
-  process.env.NEO4J_URL!,
-  neo4j.auth.basic(process.env.NEO4J_USERNAME!, process.env.NEO4J_PASSWORD!),
-);
+export function getNeo4jDriver(): Driver | null {
+  if (!process.env.NEO4J_URL) return null;
+  if (!_driver) {
+    _driver = neo4j.driver(
+      process.env.NEO4J_URL,
+      neo4j.auth.basic(
+        process.env.NEO4J_USERNAME || "neo4j",
+        process.env.NEO4J_PASSWORD || "",
+      ),
+    );
+  }
+  return _driver;
+}
 
 export const NEO4J_DB = process.env.NEO4J_DATABASE || "neo4j";
 
@@ -17,7 +26,9 @@ export async function upsertMemoryNode(
   content: string,
   name?: string,
 ) {
-  const session = neo4jDriver.session({ database: NEO4J_DB });
+  const driver = getNeo4jDriver();
+  if (!driver) return;
+  const session = driver.session({ database: NEO4J_DB });
   try {
     await session.run(
       `MERGE (u:User {userId: $userId})
@@ -42,7 +53,9 @@ export async function linkTopic(
   memoryId: string,
   topicName: string,
 ) {
-  const session = neo4jDriver.session({ database: NEO4J_DB });
+  const driver = getNeo4jDriver();
+  if (!driver) return;
+  const session = driver.session({ database: NEO4J_DB });
   try {
     await session.run(
       `MERGE (u:User {userId: $userId})

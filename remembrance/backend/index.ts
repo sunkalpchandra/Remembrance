@@ -9,7 +9,7 @@ import { drizzle } from 'drizzle-orm/neon-serverless';
 import { Pool } from '@neondatabase/serverless';
 import { eq } from 'drizzle-orm';
 import { memories } from '../db/schema';
-import { neo4jDriver, NEO4J_DB, upsertMemoryNode } from './neo4j';
+import { getNeo4jDriver, NEO4J_DB, upsertMemoryNode } from './neo4j';
 import { initSockets } from './sockets';
 
 dotenv.config();
@@ -79,8 +79,8 @@ router.get("/user/:userId/graph", async (ctx) => {
   const { userId } = ctx.params;
 
   // Fall back to DB-only graph if Neo4j is unavailable
-  let neo4jAvailable = true;
-  const session = neo4jDriver.session({ database: NEO4J_DB });
+  const driver = getNeo4jDriver();
+  let neo4jAvailable = driver !== null;
 
   const nodes: any[] = [];
   const links: any[] = [];
@@ -90,7 +90,9 @@ router.get("/user/:userId/graph", async (ctx) => {
   nodes.push({ id: userNodeId, label: "You", type: "user" });
   nodeIds.add(userNodeId);
 
+  const session = driver?.session({ database: NEO4J_DB });
   try {
+    if (!session) throw new Error("Neo4j not configured");
     const result = await session.run(
       `MATCH (u:User {userId: $userId})
        OPTIONAL MATCH (u)-[:HAS_MEMORY]->(m:Memory)
@@ -138,7 +140,7 @@ router.get("/user/:userId/graph", async (ctx) => {
     console.warn("[Neo4j] Unavailable, falling back to DB:", error?.code || error?.message);
     neo4jAvailable = false;
   } finally {
-    await session.close();
+    await session?.close();
   }
 
   // If Neo4j failed, build the graph from DB memories so the page still works

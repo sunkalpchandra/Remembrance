@@ -51,9 +51,9 @@ export interface Memory {
 export interface Command {
   name: string;
   summary: string;
-  params: CommandParamater[];
+  params: CommandParameter[];
   run(params: String[]): String;
 }
-export interface CommandParamater {
+export interface CommandParameter {
   name: string;
 }

@@ -1,4 +1,4 @@
-import { Command, CommandParamater } from "./types";
+import { Command, CommandParameter } from "./types";
 
 
 

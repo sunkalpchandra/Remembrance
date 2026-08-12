@@ -2,98 +2,80 @@
 
 ![Next.js](https://img.shields.io/badge/Next.js-15-black)
 ![React](https://img.shields.io/badge/React-19-61DAFB)
-![Backend](https://img.shields.io/badge/Backend-Flask-000000)
-![Agent](https://img.shields.io/badge/Agent-Google%20ADK-4285F4)
+![Backend](https://img.shields.io/badge/Backend-Koa%20%2B%20Socket.IO-33333D)
 ![Memory](https://img.shields.io/badge/Memory-mem0-6E56CF)
 ![Graph](https://img.shields.io/badge/Graph-Neo4j-008CC1)
+![DB](https://img.shields.io/badge/DB-Neon%20Postgres-00E599)
 ![Auth](https://img.shields.io/badge/Auth-Clerk-6C47FF)
 
-A longitudinal cognitive care platform for Alzheimer’s that transforms everyday conversations into a continuously evolving personal memory system. The product uses natural, therapeutic dialogue to help patients recall and express memories, while an underlying AI extracts and organizes people, places, events, relationships, and emotional context into a persistent knowledge graph that models human associative memory. On top of this memory infrastructure, the system delivers personalized reminiscence therapy at scale, which proactively initiates context-aware conversations, reinforces identity anchors and stabilizes emotional state.
+A longitudinal cognitive care platform for Alzheimer's that transforms everyday conversations into a continuously evolving personal memory system. The product uses natural, therapeutic dialogue to help patients recall and express memories, while an underlying AI extracts and organizes people, places, events, relationships, and emotional context into a persistent knowledge graph that models human associative memory. On top of this memory infrastructure, the system delivers personalized reminiscence therapy at scale, proactively initiates context-aware conversations, reinforces identity anchors, and stabilizes emotional state.
 
-<img width="10972" height="3604" alt="Group 69" src="https://github.com/user-attachments/assets/74d167ff-61ef-4cb0-b2c4-4743bceb377a" />
+<img width="10972" height="3604" alt="Remembrance screens" src="https://github.com/user-attachments/assets/74d167ff-61ef-4cb0-b2c4-4743bceb377a" />
 
 ## Stack
 
 **Frontend** (`remembrance/`)
-- Next.js 15 (App Router, Turbopack), React 19, TypeScript
-- Clerk for auth (whole app gated by `middleware.ts`)
-- Tailwind v4, Fumadocs for `/docs`
-- `react-force-graph-2d` for the memory graph viewer
+- Next.js 15 (App Router, Turbopack), React 19, TypeScript, Tailwind v4
+- Clerk auth — the whole app is gated by `middleware.ts` (onboarding → role routing → HIPAA for caregivers)
+- Neon Postgres + Drizzle ORM (conversations, messages, memories, topics, caregiver notes, notifications, analytics events)
+- `react-force-graph-2d` memory graph with AI-generated node labels
+- Novel (tiptap) block editor for the memory repository
 - Picovoice Leopard for on-device speech-to-text
 
-**Backend** (`remembrance/backend/mem0/`)
-- Flask + gunicorn
-- Google ADK (`gemini-2.5-flash`) as the agent runtime
-- [mem0ai](https://github.com/mem0ai/mem0) for per-user long-term memory
-- Neo4j as the graph store (optional — falls back to vector-only memory if unset)
+**Realtime backend** (`remembrance/backend/`)
+- Koa + Socket.IO (TypeScript), run with `bun` or `tsx`
+- Streams chat over websockets with Clerk token verification
+- OpenAI-compatible inference providers (DigitalOcean Gradient + Hack Club proxy), model picker in the UI
+- Tool loop: `save_user_info` / `retrieve_user_info` backed by [mem0](https://github.com/mem0ai/mem0) + Postgres (mem0 and Neo4j are optional — everything degrades to Postgres)
 
 ## Layout
 
 ```
 remembrance/
 ├── app/                      # Next.js App Router
-│   ├── page.tsx              # Landing + chat
-│   ├── chat/[id]/            # Per-conversation view
-│   ├── repository/           # Memory + photo repository
-│   ├── settings/, sign-in/, sign-up/
-│   ├── components/
-│   │   ├── neo4j.tsx         # Force-graph visualisation
-│   │   ├── identity-panel.tsx
-│   │   ├── proactive-prompts.tsx
-│   │   └── ...
-│   └── api/search/           # Frontend API route
-├── backend/
-│   ├── mem0/adk_memo.py      # Flask app + ADK agent + Mem0 wiring
-│   └── lib/db.ts             # Client-side conversation persistence
-├── content/docs/             # Fumadocs MDX
-└── middleware.ts             # Clerk route protection
+│   ├── [[...chatId]]/        # Landing + chat (optional catch-all)
+│   ├── repository/           # Memory repository: tree + editor + graph
+│   ├── dashboard/            # Caregiver dashboard (patients, activity, memories)
+│   ├── onboarding/, hipaa/   # Role selection and caregiver HIPAA flow
+│   ├── components/           # Sidebar, messages, graph, settings modal, …
+│   └── api/                  # conversations, memories, graph, notifications,
+│                             # search, Clerk webhooks
+├── backend/                  # Koa + Socket.IO realtime backend
+│   ├── index.ts              # HTTP routes (graph, uploads, health)
+│   ├── sockets.ts            # Chat streaming + memory tool loop
+│   ├── models.ts             # Inference provider registry
+│   └── neo4j.ts              # Optional graph store
+├── db/schema.ts              # Drizzle schema
+├── middleware.ts             # Clerk route protection + role routing
+└── deploy.sh                 # Self-hosted deploy (nginx + pm2 + certbot)
 render.yaml                   # Render deploy config (frontend + backend)
 ```
 
-## Backend endpoints
-
-Defined in [remembrance/backend/mem0/adk_memo.py](remembrance/backend/mem0/adk_memo.py):
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| `POST` | `/query` | One-shot agent reply |
-| `POST` | `/query/stream` | SSE streaming reply |
-| `GET`  | `/proactive/<user_id>` | Proactive prompt suggestions |
-| `GET`  | `/graph/<user_id>` | User's memory graph |
-| `POST` | `/upload` | Upload a file (photo / doc) |
-| `GET`  | `/uploads/<user_id>/<filename>` | Serve uploaded file |
-| `GET`  | `/user/<user_id>/memories` | List stored memories |
-| `POST` | `/user/<user_id>/populate_graph` | Backfill graph from memories |
-| `GET`  | `/user/<user_id>/graph` | Graph nodes/edges for viewer |
-| `POST` | `/api/ai/generate` | Misc generation endpoint |
-| `GET`  | `/health` | Health check |
-
-The frontend rewrites `/user/*` and `/test_neo4j/*` to the backend (see [remembrance/next.config.ts](remembrance/next.config.ts)), so no CORS dance in production.
-
 ## Local development
 
-Requirements: Node 20+, Python 3.11, [Bun](https://bun.sh) (lockfile is `bun.lock`, but `npm` works too).
+Requirements: Node 20+ (or [Bun](https://bun.sh) for the backend).
 
-**Backend**
-```bash
-cd remembrance/backend/mem0
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-# create .env with the keys below
-python wsgi.py            # or: gunicorn wsgi:app -b 0.0.0.0:5000
-```
-
-**Frontend**
 ```bash
 cd remembrance
-bun install               # or npm install
-bun run dev               # next dev --turbopack on :3000
+cp .env.example .env          # fill in keys (see below)
+npm install
+
+npm run dev                   # frontend on :3000
+npm run server                # backend on :5001 (bun)
+npm run server:node           # …or without bun (tsx)
 ```
+
+Minimum env to sign in and chat: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`,
+`CLERK_SECRET_KEY`, `DATABASE_URL`, and one inference key
+(`DIGITALOCEAN_KEY` or `HACKCLUB_KEY`). `MEM0_API_KEY`, Neo4j, and
+Picovoice are optional — features degrade gracefully without them.
 
 ## Deployment
 
-[render.yaml](render.yaml) defines two Render services:
-- `remembrance-backend` — Python, gunicorn, root `remembrance/backend/mem0`
-- `remembrance-frontend` — Node, `npm run build && npm run start`, root `remembrance`
-
-Set the env vars marked `sync: false` in the Render dashboard.
+- **Vercel** — deploy the `remembrance/` directory as a Next.js app; see
+  [`remembrance/DEPLOY.md`](remembrance/DEPLOY.md) for the exact steps and
+  required env vars.
+- **Render** — [`render.yaml`](render.yaml) defines both services
+  (frontend + websocket backend).
+- **Self-hosted** — [`remembrance/deploy.sh`](remembrance/deploy.sh)
+  provisions nginx, pm2, and certbot on a VPS.

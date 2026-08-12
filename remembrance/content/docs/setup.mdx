@@ -52,6 +52,12 @@ That's everything for the serverless setup — chat streams through
 When using a generic OpenAI-compatible provider, `OPENAI_BASE_URL` and
 `OPENAI_MODEL` select the endpoint and model.
 
+## Deploying
+
+The app deploys to Vercel as-is (root directory `remembrance/`); chat
+uses the serverless SSE route there. See `DEPLOY.md` in the repository
+for the step-by-step, including the Clerk webhook and database push.
+
 ## Optional: realtime backend
 
 ```bash

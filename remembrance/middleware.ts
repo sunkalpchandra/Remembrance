@@ -9,6 +9,9 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
+  "/docs(.*)",
+  "/api/search(.*)",
+  "/welcome(.*)",
 ]);
 
 const isOnboardingRoute = createRouteMatcher(["/onboarding(.*)"]);
@@ -19,11 +22,19 @@ export default clerkMiddleware(async (auth, req) => {
 
   // If the user is accessing a public route, let them through
   if (isPublicRoute(req)) {
+    // Signed-in users don't need the marketing page
+    if (userId && req.nextUrl.pathname.startsWith("/welcome")) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
     return NextResponse.next();
   }
 
-  // If the user is not signed in and trying to access a protected route, redirect to sign-in
+  // Signed-out visitors landing on the root get the marketing page;
+  // deep links to protected routes still go through sign-in.
   if (!userId) {
+    if (req.nextUrl.pathname === "/") {
+      return NextResponse.redirect(new URL("/welcome", req.url));
+    }
     await auth.protect();
     return;
   }

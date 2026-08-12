@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { memories, patients } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { labelCache } from "@/app/lib/label-cache";
+import { resolveUtilityModel } from "@/lib/ai/models";
 
 // ── Classification ────────────────────────────────────────────────────────────
 type MemoryType = "family" | "event" | "health" | "place" | "work" | "emotion" | "social" | "memory";
@@ -34,28 +35,28 @@ async function batchSummarize(items: { id: string; text: string }[]): Promise<vo
   const uncached = items.filter(i => !labelCache.has(i.id));
   if (uncached.length === 0) return;
 
+  const utility = resolveUtilityModel();
+  if (!utility) {
+    uncached.forEach(item => labelCache.set(item.id, item.text.substring(0, 22)));
+    return;
+  }
+
   try {
     const numbered = uncached.map((item, i) => `${i + 1}. ${item.text.replace(/\n/g, " ").substring(0, 200)}`).join("\n");
-    const res = await fetch("https://ai.hackclub.com/proxy/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.HACKCLUB_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+    const completion = await utility.provider.chat.completions.create(
+      {
+        model: utility.modelID,
         messages: [{
           role: "user",
           content: `For each memory below, write a SHORT evocative title — like "San Francisco, 1995" or "Mom's Surgery" or "First Day at Google". Use real names, places, years, or events from the text. No filler words. 2-4 words max. Return ONLY a valid JSON array of strings in order, nothing else.\n\n${numbered}`,
         }],
         max_tokens: 400,
         temperature: 0.2,
-      }),
-    });
+      },
+      { timeout: 8000 },
+    );
 
-    if (!res.ok) throw new Error(`LLM ${res.status}`);
-    const data = await res.json();
-    const raw: string = data.choices?.[0]?.message?.content ?? "[]";
+    const raw: string = completion.choices?.[0]?.message?.content ?? "[]";
     // Extract JSON array from response (model sometimes adds markdown)
     const match = raw.match(/\[[\s\S]*\]/);
     const labels: string[] = match ? JSON.parse(match[0]) : [];
@@ -99,10 +100,15 @@ export async function GET(req: Request) {
     .where(eq(memories.userId, targetUserId))
     .orderBy(desc(memories.createdAt));
 
-  // Fire LLM labelling in background — don't block the response
+  // Give the labeller a short window so the first load usually paints
+  // real titles; past the deadline we respond with truncations and the
+  // finished labels land in the cache for the next fetch.
   const uncached = rows.filter(m => !labelCache.has(m.id));
   if (uncached.length > 0) {
-    batchSummarize(uncached.map(m => ({ id: m.id, text: m.name ?? m.summary ?? "" }))).catch(() => {});
+    const labelJob = batchSummarize(
+      uncached.map(m => ({ id: m.id, text: m.name ?? m.summary ?? "" })),
+    ).catch(() => {});
+    await Promise.race([labelJob, new Promise(r => setTimeout(r, 2500))]);
   }
 
   const nodes: any[] = [];

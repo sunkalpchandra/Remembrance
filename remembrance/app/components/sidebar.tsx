@@ -17,6 +17,7 @@ import {
 } from "react-icons/bi";
 import { UserProfile } from "./userprofile";
 import SettingsModal from "./SettingsModal";
+import NotificationsBell from "./notifications";
 import { TfiLayersAlt } from "react-icons/tfi";
 import { useAuth } from "@clerk/nextjs";
 
@@ -362,6 +363,7 @@ export default function SideBar(props: SidebarProps) {
                 </span>
               </div>
             )}
+            {!collapsed && <NotificationsBell />}
             <button
               onClick={toggleCollapsed}
               className={`hover:bg-gray-200 rounded-md transition-colors duration-75 ${collapsed ? "p-2" : "p-1.5"}`}

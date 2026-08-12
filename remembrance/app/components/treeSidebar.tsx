@@ -11,6 +11,7 @@ import {
   BiPencil,
   BiTrash,
   BiCheck,
+  BiBook,
   BiBookmarkPlus,
   BiMessageAdd,
   BiArrowBack,
@@ -507,6 +508,14 @@ export default function TreeSidebar({
               <span className="text-sm font-medium">Add Category</span>
             </button>
           )}
+
+          <button
+            onClick={() => router.push("/memory-book")}
+            className="flex items-center w-full gap-3 px-2 py-1.5 text-gray-700 hover:bg-gray-100 rounded-md transition-colors duration-75"
+          >
+            <BiBook className="w-4 h-4 flex-shrink-0" />
+            <span className="text-sm font-medium">Memory Book</span>
+          </button>
         </div>
 
         {/* Tree */}

@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "server": "bun backend/index.ts",
     "postinstall": "fumadocs-mdx",
-    "server:node": "tsx backend/index.ts"
+    "server:node": "tsx backend/index.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@clerk/backend": "^3.2.13",
@@ -40,7 +41,7 @@
     "lucide-react": "^0.525.0",
     "mem0ai": "^3.0.0",
     "neo4j-driver": "^6.0.1",
-    "next": "15.3.3",
+    "next": "^15.5.23",
     "novel": "^1.0.2",
     "openai": "^7.4.0",
     "react": "^19.1.0",
@@ -67,6 +68,7 @@
     "drizzle-kit": "^0.31.10",
     "tailwindcss": "^4.1.11",
     "tw-animate-css": "^1.3.5",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10"
   }
 }

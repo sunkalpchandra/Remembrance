@@ -1,17 +1,31 @@
 services:
   - type: web
     name: remembrance-backend
-    runtime: python
+    runtime: node
     plan: free
-    rootDir: remembrance/backend/mem0
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    rootDir: remembrance
+    buildCommand: npm install
+    startCommand: npm run server:node
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
-      - key: GOOGLE_API_KEY
+      - key: NODE_VERSION
+        value: 20.11.1
+      - key: DATABASE_URL
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: DIGITALOCEAN_KEY
+        sync: false
+      - key: HACKCLUB_KEY
         sync: false
       - key: MEM0_API_KEY
+        sync: false
+      - key: NEO4J_URL
+        sync: false
+      - key: NEO4J_USERNAME
+        sync: false
+      - key: NEO4J_PASSWORD
+        sync: false
+      - key: NEO4J_DATABASE
         sync: false
 
   - type: web
@@ -25,4 +39,16 @@ services:
       - key: NODE_VERSION
         value: 20.11.1
       - key: NEXT_PUBLIC_BACKEND_URL
+        sync: false
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_WEBHOOK_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: MEM0_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_PICOVOICE_ACCESS_KEY
         sync: false

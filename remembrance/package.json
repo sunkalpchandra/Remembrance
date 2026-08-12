@@ -9,7 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "server": "bun backend/index.ts",
-    "postinstall": "fumadocs-mdx"
+    "postinstall": "fumadocs-mdx",
+    "server:node": "tsx backend/index.ts"
   },
   "dependencies": {
     "@clerk/backend": "^3.2.13",
@@ -54,6 +55,7 @@
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.3.1",
+    "tsx": "^4.23.12",
     "uuid": "^14.0.1"
   },
   "devDependencies": {

@@ -4,7 +4,7 @@ import { models, hackClubProvider } from "./models";
 import { SYSTEM_PROMPT } from "./prompt";
 import OpenAI from "openai";
 import { verifyToken, createClerkClient } from "@clerk/backend";
-import MemoryClient from "mem0ai";
+import { getMem0 } from "../lib/mem0";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import { Pool } from "@neondatabase/serverless";
 import { eq, desc } from "drizzle-orm";
@@ -22,7 +22,6 @@ if (!process.env.DATABASE_URL) {
 }
 
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
-const mem0 = new MemoryClient({ apiKey: process.env.MEM0_API_KEY! });
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
 const db = drizzle({ client: pool });
@@ -272,14 +271,17 @@ export function initSockets(server: HttpServer) {
               }
 
               // 2. Save to Mem0 with infer:false so the raw memory is stored (no LLM extraction filter)
-              try {
-                const addResult = await mem0.add(
-                  [{ role: "user", content: infoText }],
-                  { userId: effectiveUserId, infer: false }
-                );
-                console.log(`[Mem0] add result:`, JSON.stringify(addResult, null, 2));
-              } catch (e: any) {
-                console.error("[Mem0] add FAILED:", e?.message || e, e?.stack);
+              const mem0 = getMem0();
+              if (mem0) {
+                try {
+                  const addResult = await mem0.add(
+                    [{ role: "user", content: infoText }],
+                    { userId: effectiveUserId, infer: false }
+                  );
+                  console.log(`[Mem0] add result:`, JSON.stringify(addResult, null, 2));
+                } catch (e: any) {
+                  console.error("[Mem0] add FAILED:", e?.message || e, e?.stack);
+                }
               }
 
               // 3. Persist to DB memories table
@@ -337,11 +339,13 @@ export function initSockets(server: HttpServer) {
             } else if (functionName === "retrieve_user_info") {
               socket.emit("status", { status: "Searching memories...", request_id });
               try {
-                const searchResult = await mem0.search(
-                  "personal information, memories, preferences, family, places, identity",
-                  { filters: { user_id: effectiveUserId }, topK: 50 }
-                );
-                console.log(`[Mem0] search result for ${effectiveUserId}:`, JSON.stringify(searchResult, null, 2));
+                const mem0 = getMem0();
+                const searchResult = mem0
+                  ? await mem0.search(
+                      "personal information, memories, preferences, family, places, identity",
+                      { filters: { user_id: effectiveUserId }, topK: 50 }
+                    )
+                  : null;
                 const userMems = searchResult?.results || [];
 
                 // Fallback: if search returns nothing, pull from DB memories table
@@ -441,10 +445,13 @@ export function initSockets(server: HttpServer) {
 
         let memoryContext = "No previous memories.";
         try {
-          const searchResult = await mem0.search(
-            "personal information, memories, preferences, family, places",
-            { filters: { user_id: effectiveUserId }, topK: 50 }
-          );
+          const mem0 = getMem0();
+          const searchResult = mem0
+            ? await mem0.search(
+                "personal information, memories, preferences, family, places",
+                { filters: { user_id: effectiveUserId }, topK: 50 }
+              )
+            : null;
           const userMems = searchResult?.results || [];
           if (userMems.length > 0) {
             const memLines = userMems.map((m: any) => m.memory || "").filter(Boolean);

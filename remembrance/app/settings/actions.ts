@@ -4,11 +4,11 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { db } from "../../db";
 import { users, conversations, memories, patients } from "../../db/schema";
 import { eq, count } from "drizzle-orm";
-import MemoryClient from "mem0ai";
-
-const mem0 = new MemoryClient({ apiKey: process.env.MEM0_API_KEY! });
+import { getMem0 } from "@/lib/mem0";
 
 async function deleteMem0ForUser(userId: string) {
+  const mem0 = getMem0();
+  if (!mem0) return;
   try {
     await mem0.deleteAll({ userId });
   } catch (e) {

@@ -5,11 +5,11 @@ import { db } from "@/db";
 import { patients, users, caregiverNotes, notifications, caregiverEvents, memories } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import MemoryClient from "mem0ai";
-
-const mem0 = new MemoryClient({ apiKey: process.env.MEM0_API_KEY! });
+import { getMem0 } from "@/lib/mem0";
 
 async function deleteMem0ForUser(userId: string) {
+  const mem0 = getMem0();
+  if (!mem0) return;
   try {
     await mem0.deleteAll({ userId });
   } catch (e) {
@@ -120,14 +120,17 @@ export async function createNote(patientId: string, title: string, content: stri
     const memText = title
       ? `Caregiver note — ${title}: ${content.trim()}`
       : `Caregiver note: ${content.trim()}`;
-    try {
-      const addResult = await mem0.add(
-        [{ role: "user", content: memText }],
-        { userId: patientId, infer: false }
-      );
-      console.log(`[CaregiverNote→Mem0] add result for ${patientId}:`, JSON.stringify(addResult));
-    } catch (e: any) {
-      console.error("[CaregiverNote→Mem0] add failed:", e?.message || e);
+    const mem0 = getMem0();
+    if (mem0) {
+      try {
+        const addResult = await mem0.add(
+          [{ role: "user", content: memText }],
+          { userId: patientId, infer: false }
+        );
+        console.log(`[CaregiverNote→Mem0] add result for ${patientId}:`, JSON.stringify(addResult));
+      } catch (e: any) {
+        console.error("[CaregiverNote→Mem0] add failed:", e?.message || e);
+      }
     }
 
     // Notify the patient

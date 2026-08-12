@@ -5,7 +5,7 @@ import { conversations } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
 // GET /api/conversations - Fetch all conversations for the authenticated user
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const { userId } = await auth();
 

@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { conversations, messages } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { isUuid } from "@/app/lib/validate";
 
 export async function GET(
   _req: NextRequest,
@@ -12,8 +13,7 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(id)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+  if (!isUuid(id)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
   const [conv] = await db.select().from(conversations)
     .where(and(eq(conversations.id, id), eq(conversations.userId, userId))).limit(1);
@@ -53,6 +53,9 @@ export async function PATCH(
     }
 
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const body = await request.json();
     const { name } = body;
 
@@ -106,6 +109,9 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
 
     const deleted = await db
       .delete(conversations)

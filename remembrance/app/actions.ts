@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "../db";
 import { messages, conversations, patients, users, caregiverEvents } from "../db/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { isUuid } from "./lib/validate";
 
 /**
  * Creates a new conversation for the authenticated user.
@@ -12,10 +13,7 @@ export async function createConversation(name: string, id?: string) {
   try {
     const { userId } = await auth();
 
-    // Validate that id is a valid UUID to prevent DB type errors
-    const uuidRegex =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (id && !uuidRegex.test(id)) {
+    if (id && !isUuid(id)) {
       return { success: false, error: "Invalid conversation ID format" };
     }
 
@@ -96,10 +94,7 @@ export async function getConversationById(conversationId: string) {
       );
     }
 
-    // Validate that conversationId is a valid UUID to prevent DB type errors
-    const uuidRegex =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(conversationId)) {
+    if (!isUuid(conversationId)) {
       return { success: false, error: "Invalid conversation ID format" };
     }
 
@@ -162,6 +157,10 @@ export async function renameConversation(conversationId: string, name: string) {
       );
     }
 
+    if (!isUuid(conversationId)) {
+      return { success: false, error: "Invalid conversation ID format" };
+    }
+
     const updated = await db
       .update(conversations)
       .set({ name })
@@ -193,10 +192,7 @@ export async function deleteConversationAction(conversationId: string) {
       );
     }
 
-    // Validate that conversationId is a valid UUID to prevent DB type errors
-    const uuidRegex =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(conversationId)) {
+    if (!isUuid(conversationId)) {
       return { success: false, error: "Invalid conversation ID format" };
     }
 
@@ -228,10 +224,7 @@ export async function saveMessage(
   try {
     const { userId } = await auth();
 
-    // Validate that conversationId is a valid UUID to prevent DB type errors
-    const uuidRegex =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(conversationId)) {
+    if (!isUuid(conversationId)) {
       return { success: false, error: "Invalid conversation ID format" };
     }
 

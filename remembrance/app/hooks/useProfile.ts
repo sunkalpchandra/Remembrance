@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { getPatientProfile } from "@/app/actions";
 
 export type FamilyMember = { name: string; relation: string };
 
@@ -30,6 +31,33 @@ export function useProfile() {
 
   useEffect(() => {
     setProfile(read());
+
+    // Merge in the server-side profile (patients table) — this is where
+    // caregiver-entered name/family/places live, and without it the chat
+    // only ever saw this browser's localStorage.
+    getPatientProfile()
+      .then((res) => {
+        if (!res.success || !res.data) return;
+        const server: Profile = {
+          patientName: res.data.patientName ?? undefined,
+          age: res.data.age ?? undefined,
+          family: (res.data.family as FamilyMember[] | null) ?? undefined,
+          places: (res.data.places as string[] | null) ?? undefined,
+          notes: res.data.notes ?? undefined,
+        };
+        const defined = Object.fromEntries(
+          Object.entries(server).filter(([, v]) => v !== undefined),
+        );
+        if (Object.keys(defined).length === 0) return;
+        setProfile((prev) => {
+          const next = { ...prev, ...defined };
+          try {
+            localStorage.setItem(KEY, JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+      })
+      .catch(() => {});
   }, []);
 
   const update = (patch: Partial<Profile>) => {

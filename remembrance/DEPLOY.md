@@ -4,6 +4,14 @@ The frontend is a standard Next.js 15 app and deploys to Vercel as-is.
 Chat streams through the built-in `/api/chat` SSE route, so **no separate
 backend process is required** — the realtime socket backend is optional.
 
+> **Current state (2026-08-12):** the project is live as
+> `sunkalps-projects/remembrance` at
+> https://remembrance-sunkalps-projects.vercel.app with deployment
+> protection disabled. The build is green; every route returns 500
+> until the environment variables in step 2 are added (Clerk's
+> middleware needs its keys on every request). After adding them,
+> redeploy: `cd remembrance && npx vercel --prod`.
+
 ## 1. Create the Vercel project
 
 Either connect the GitHub repo in the Vercel dashboard, or use the CLI:
@@ -62,6 +70,14 @@ In the Clerk dashboard add a webhook endpoint pointing at
 `https://<your-domain>/api/webhooks/clerk` subscribed to
 `user.created`, `user.updated`, `user.deleted`, and put its signing
 secret in `CLERK_WEBHOOK_SECRET`.
+
+## Security note
+
+Early commits in this repository's history (June 2025) committed `.env`
+files. The repo is public, so treat every credential from that era —
+Clerk, database, Firebase, API keys — as exposed: rotate them in their
+dashboards and never reuse them. Current `.gitignore` rules keep all
+`.env*` files out of the repo.
 
 ## Optional: realtime socket backend
 

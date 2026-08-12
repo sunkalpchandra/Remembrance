@@ -6,7 +6,6 @@ import { useContext, useEffect, useRef, useState } from "react";
 import type { Conversation } from "@/app/lib/types";
 import { HumanMessage } from "@/app/components/messages/humanmessage";
 import { BotMessage } from "@/app/components/messages/botmessage";
-import axios from "axios";
 import { UserContext } from "@/app/components/usercontext";
 import { useParams, usePathname } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
@@ -31,7 +30,6 @@ import { useTypewriter } from "@/app/hooks/useTypewriter";
 import { useProfile } from "@/app/hooks/useProfile";
 import { IdentityPanel } from "@/app/components/identity-panel";
 import { useDropzone } from "react-dropzone";
-import { text } from "stream/consumers";
 
 interface FileData {
   name: string,
@@ -59,7 +57,6 @@ function writeConvCache(id: string, conv: Conversation) {
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
-  const frameLength = 512;
   const path = usePathname();
 
   const [dropDown, setDropDown] = useState(false);
@@ -234,10 +231,9 @@ export default function Home() {
     // Relying on server actions for discrete updates instead of continuous bulk saving
   }, [conversation, conversationId, user]);
 
-  // Initialize and monitor socket connection
+  // Initialize socket connection on mount so the first message doesn't pay
+  // the connection handshake cost.
   useEffect(() => {
-    let checkSocket: NodeJS.Timeout;
-
     const initSocket = async () => {
       try {
         const clerkToken = await getToken();
@@ -247,7 +243,6 @@ export default function Home() {
           process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
         if (!(window as any).chatSocket) {
-          console.log("[Socket] Initializing connection on mount");
           const socket = io(backendUrl, {
             transports: ["websocket"],
             auth: { token: clerkToken },
@@ -260,28 +255,12 @@ export default function Home() {
           (window as any).chatSocket.auth = { token: clerkToken };
           (window as any).chatSocket.connect();
         }
-
-        checkSocket = setInterval(() => {
-          const socket = (window as any).chatSocket;
-          if (socket) {
-            console.log(
-              "[Socket] Current status - Connected:",
-              socket.connected,
-              "ID:",
-              socket.id,
-            );
-          }
-        }, 5000);
       } catch (err) {
         console.error("[Socket] Failed to initialize on mount:", err);
       }
     };
 
     initSocket();
-
-    return () => {
-      if (checkSocket) clearInterval(checkSocket);
-    };
   }, [getToken]);
 
   async function sendHumanMessage(msg: string) {

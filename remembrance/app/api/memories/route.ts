@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { memories, topics, memoryTopics, patients, caregiverEvents } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc, inArray } from "drizzle-orm";
 
 import { invalidateLabel } from "@/app/lib/label-cache";
 
@@ -21,11 +21,15 @@ export async function POST(req: Request) {
   if (!name) return Response.json({ error: "name required" }, { status: 400 });
 
   if (id) {
-    // Update existing row if it belongs to this user
-    await db
+    // Update existing row only if it belongs to this user
+    const updated = await db
       .update(memories)
       .set({ name, summary: summary ?? null, content: content ?? {} })
-      .where(eq(memories.id, id));
+      .where(and(eq(memories.id, id), eq(memories.userId, userId)))
+      .returning({ id: memories.id });
+    if (updated.length === 0) {
+      return Response.json({ error: "Not found" }, { status: 404 });
+    }
     invalidateLabel(id);
     return Response.json({ id });
   }

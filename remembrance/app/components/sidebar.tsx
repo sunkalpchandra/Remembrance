@@ -21,10 +21,6 @@ import NotificationsBell from "./notifications";
 import { TfiLayersAlt } from "react-icons/tfi";
 import { useAuth } from "@clerk/nextjs";
 
-interface SidebarProps {
-  selected: number;
-}
-
 const CHATS_CACHE_KEY = (uid: string) => `chats:${uid}`;
 
 function DeleteChatModal({ name, onConfirm, onClose }: { name: string; onConfirm: () => void; onClose: () => void }) {
@@ -293,7 +289,7 @@ function SideBarChatList({ userId }: { userId: string | any }) {
   );
 }
 
-export default function SideBar(props: SidebarProps) {
+export default function SideBar() {
   const router = useRouter();
   const user = useContext(UserContext);
   const { getToken } = useAuth();

@@ -713,7 +713,7 @@ export default function Home() {
 
   return (
     <div className="w-screen h-[100dvh] flex flex-row bg-white relative overflow-hidden">
-      <SideBar selected={0}></SideBar>
+      <SideBar></SideBar>
       <div
         className="absolute top-4 right-6 z-50 animate-fade-in"
         ref={dropDownRef}

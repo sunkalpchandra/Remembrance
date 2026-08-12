@@ -2,24 +2,23 @@ import Link from "next/link";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="p-6 w-full items-center justify-center text-center flex flex-col max-w-md">
-        <h1 className="flex font-normal text-2xl mb-4">
-          This memory could not be found!
+    <div className="min-h-[100dvh] bg-gray-50 flex items-center justify-center p-6">
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-10 max-w-md w-full text-center">
+        <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
+          <span className="text-2xl">🔍</span>
+        </div>
+        <h1 className="text-xl font-semibold text-gray-900 mb-2">
+          This memory could not be found
         </h1>
-
-        {/* Half transparency */}
-        <p className="text-[17px] mb-4 opacity-50 w-[75%]">
-          Either this page doesn’t exist or you don’t have permission to access
-          it
+        <p className="text-sm text-gray-500 mb-8">
+          Either this page doesn't exist or you don't have permission to
+          access it.
         </p>
-        <div className="flex flex-col items-baseline w-full"></div>
-
         <Link
-          href={"/"}
-          className=" bg-zinc-950 text-white py-2 rounded-md hover:bg-zinc-800 transition-colors pl-10 pr-10"
+          href="/"
+          className="inline-block bg-gray-900 hover:bg-gray-800 text-white font-medium py-2.5 px-8 rounded-xl text-sm transition-colors"
         >
-          Back to Home
+          Back to home
         </Link>
       </div>
     </div>

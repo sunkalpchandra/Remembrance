@@ -50,6 +50,12 @@
 
 ### Infra
 
-- GitHub Actions CI (typecheck + build), `.env.example`, `DEPLOY.md`
-  for Vercel, shared `lib/ai` provider/tool modules used by both chat
-  transports.
+- GitHub Actions CI (typecheck + tests + build), `.env.example`,
+  `DEPLOY.md` for Vercel, shared `lib/ai` provider/tool modules used by
+  both chat transports.
+- Vitest suite covering UUID validation, relative-time bucketing, and
+  the AI provider fallback order.
+- Next.js upgraded 15.3.3 → 15.5.23 (Vercel refuses to deploy 15.3.3
+  as a known-vulnerable version).
+- Deployed to Vercel: `sunkalps-projects/remembrance` — live once the
+  environment variables in `remembrance/DEPLOY.md` are added.

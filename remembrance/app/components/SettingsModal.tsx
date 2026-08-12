@@ -8,7 +8,6 @@ import {
   Mail,
   X,
   User,
-  ChevronRight,
   Database,
   ShieldCheck,
   Users,
@@ -41,10 +40,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [isDeleting, startTransition] = useTransition();
   const [isDeletingConvos, startDeletingConvos] = useTransition();
   const [isDeletingMemories, startDeletingMemories] = useTransition();
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteStatus, setInviteStatus] = useState<
-    "idle" | "loading" | "success" | "error"
-  >("idle");
   const [activeTab, setActiveTab] = useState("general");
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [showDeleteArea, setShowDeleteArea] = useState(false);
@@ -75,23 +70,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const data = await getPrivacyInfo();
     setPrivacyData(data);
     setPrivacyLoading(false);
-  };
-
-  const handleInviteCaregiver = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inviteEmail) return;
-
-    setInviteStatus("loading");
-
-    try {
-      // In a full implementation, this would call a Server Action or API route
-      // to send an email or create an invite record in the database.
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      setInviteStatus("success");
-      setInviteEmail("");
-    } catch (error) {
-      setInviteStatus("error");
-    }
   };
 
   const handleLogout = async () => {
@@ -394,13 +372,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between py-4 border-b border-gray-200">
-                    <div className="text-sm font-medium">Appearance</div>
-                    <div className="flex items-center text-sm text-gray-500 cursor-pointer hover:text-gray-900 transition-colors">
-                      System <ChevronRight className="w-4 h-4 ml-1" />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between py-4 border-b border-gray-200">
                     <div>
                       <div className="text-sm font-medium">Text size</div>
                       <div className="text-xs text-gray-500 mt-1">
@@ -453,52 +424,29 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <div className="space-y-4">
                   <div className="py-2">
                     <p className="text-sm text-gray-500 mb-6">
-                      Invite a family member or doctor to securely access your
-                      profile, monitor your memories, and help manage your
-                      account.
+                      A caregiver can securely access your profile, monitor
+                      your memories, and help manage your account.
                     </p>
 
-                    <form
-                      onSubmit={handleInviteCaregiver}
-                      className="space-y-4"
-                    >
-                      <div>
-                        <div className="text-sm font-medium mb-2">
-                          Email address
-                        </div>
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                          <input
-                            placeholder="caregiver@example.com"
-                            value={inviteEmail}
-                            onChange={(e) => setInviteEmail(e.target.value)}
-                            className="w-full bg-white border border-gray-300 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm text-gray-900 placeholder:text-gray-400"
-                            required
-                          />
-                        </div>
+                    <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-gray-400" />
+                        <p className="text-sm font-medium text-gray-900">
+                          How caregiver access works today
+                        </p>
                       </div>
-                      <button
-                        type="submit"
-                        disabled={inviteStatus === "loading" || !inviteEmail}
-                        className="bg-gray-900 hover:bg-gray-800 text-white font-medium py-2 px-5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                      >
-                        {inviteStatus === "loading"
-                          ? "Sending..."
-                          : "Send Invite"}
-                      </button>
-
-                      {inviteStatus === "success" && (
-                        <p className="text-emerald-400 text-sm mt-2">
-                          Invite sent successfully! They will receive an email
-                          shortly.
-                        </p>
-                      )}
-                      {inviteStatus === "error" && (
-                        <p className="text-red-400 text-sm mt-2">
-                          Failed to send invite. Please try again.
-                        </p>
-                      )}
-                    </form>
+                      <p className="text-sm text-gray-600 leading-relaxed">
+                        Caregivers using Remembrance create and link patient
+                        accounts from their own dashboard. Ask your caregiver
+                        to sign up with a caregiver account and add you from
+                        <span className="font-medium"> Dashboard → Patients</span> —
+                        your conversations and memories stay private to the
+                        two of you.
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Email invites are on the roadmap.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

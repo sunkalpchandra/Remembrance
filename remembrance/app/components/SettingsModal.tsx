@@ -4,10 +4,8 @@ import { useState, useTransition } from "react";
 import {
   UserPlus,
   Settings,
-  Bell,
   Shield,
   Mail,
-  AlertTriangle,
   X,
   User,
   ChevronRight,

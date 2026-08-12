@@ -2,7 +2,7 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { db } from "../db";
-import { messages, conversations, patients, users, caregiverEvents } from "../db/schema";
+import { messages, conversations, patients, caregiverEvents } from "../db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { isUuid } from "./lib/validate";
 

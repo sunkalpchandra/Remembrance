@@ -11,7 +11,6 @@ import {
   BiPencil,
   BiTrash,
   BiCheck,
-  BiAlarmExclamation,
   BiBookmarkPlus,
   BiMessageAdd,
   BiArrowBack,
@@ -95,7 +94,6 @@ export default function TreeSidebar({
     node: Memory | Topic | null;
     action: "inside" | "after" | "before";
   }>({ node: null, action: "inside" });
-  const [isDragging, setIsDragging] = useState(false);
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     node: Memory | Topic | null;
@@ -277,7 +275,6 @@ export default function TreeSidebar({
   const resetDragState = () => {
     setDraggedNode(null);
     setDropTarget({ node: null, action: "inside" });
-    setIsDragging(false);
   };
 
   const handleDrop = () => {
@@ -354,7 +351,6 @@ export default function TreeSidebar({
           draggable
           onDragStart={(e) => {
             setDraggedNode(node);
-            setIsDragging(true);
             e.dataTransfer.effectAllowed = "move";
             e.dataTransfer.setData("text/plain", node.name);
           }}

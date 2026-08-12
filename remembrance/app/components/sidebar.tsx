@@ -323,6 +323,18 @@ export default function SideBar(props: SidebarProps) {
     setChatsExpanded(true);
   };
 
+  // Cmd/Ctrl+K starts a new chat from anywhere in the app shell
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        router.push("/");
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [router]);
+
   return (
     <>
       {collapsed && (
@@ -384,11 +396,14 @@ export default function SideBar(props: SidebarProps) {
               className={`flex items-center w-full text-gray-700 hover:bg-gray-100 rounded-md transition-colors duration-75 cursor-pointer ${
                 collapsed ? "justify-center p-2" : "gap-3 px-2 py-1.5"
               }`}
-              title={collapsed ? "New chat" : ""}
+              title={collapsed ? "New chat (⌘K)" : ""}
             >
               <BiPlus className="w-4 h-4 flex-shrink-0" />
               {!collapsed && (
-                <span className="text-sm font-medium">New chat</span>
+                <span className="text-sm font-medium flex-1 text-left">New chat</span>
+              )}
+              {!collapsed && (
+                <kbd className="text-[10px] text-gray-400 border border-gray-200 rounded px-1 py-0.5 bg-white">⌘K</kbd>
               )}
             </button>
 

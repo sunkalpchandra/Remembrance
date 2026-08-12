@@ -51,3 +51,4 @@ next-env.d.ts
 
 # fumadocs-mdx generated map (postinstall)
 /.source/
+.env*

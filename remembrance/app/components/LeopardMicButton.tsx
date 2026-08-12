@@ -53,6 +53,9 @@ export function LeopardMicButton({ onTranscript, size = "sm" }: Props) {
   const btnSize = size === "sm" ? "w-7 h-7" : "w-9 h-9";
   const iconSize = size === "sm" ? "w-3.5 h-3.5" : "w-4 h-4";
 
+  // No access key configured — don't render a mic that can't work
+  if (!accessKey) return null;
+
   return (
     <button
       type="button"

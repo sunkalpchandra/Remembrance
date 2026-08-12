@@ -27,7 +27,7 @@ const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
     setIsLoading(true);
     setError("");
     try {
-      const res = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/ai/generate`, {
+      const res = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001"}/api/ai/generate`, {
         query: prompt,
       });
 

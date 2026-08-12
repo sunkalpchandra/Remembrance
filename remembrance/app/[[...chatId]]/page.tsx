@@ -240,7 +240,7 @@ export default function Home() {
         if (!clerkToken) return;
 
         const backendUrl =
-          process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+          process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
 
         if (!(window as any).chatSocket) {
           const socket = io(backendUrl, {
@@ -379,7 +379,7 @@ export default function Home() {
 
     try {
       const backendUrl =
-        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
 
       let socket = (window as any).chatSocket;
 

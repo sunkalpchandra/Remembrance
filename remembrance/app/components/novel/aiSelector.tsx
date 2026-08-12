@@ -7,7 +7,6 @@ import { Command, CommandInput } from "./ui/command";
 import AISelectorCommands from "./aiSelectorCommands";
 import { ArrowUp, Sparkles } from "lucide-react";
 import Magic from "./ui/magic";
-import axios from "axios";
 interface AISelectorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -27,11 +26,16 @@ const AISelector = ({ open, onOpenChange }: AISelectorProps) => {
     setIsLoading(true);
     setError("");
     try {
-      const res = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001"}/api/ai/generate`, {
-        query: prompt,
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001"}/api/ai/generate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: prompt }),
+        },
+      );
 
-      const data = res.data;
+      const data = await res.json();
       if (data.status !== "success") {
         throw new Error(data.error || "Ai Request Failed");
       }

@@ -6,9 +6,15 @@ import {
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+// The app needs auth AND a database to function; with only part of the
+// set present, signing in would just crash post-auth. A localhost DB
+// URL on a deployed server counts as unconfigured too.
+const dbUrl = process.env.DATABASE_URL || "";
 const CLERK_CONFIGURED =
   !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
-  !!process.env.CLERK_SECRET_KEY;
+  !!process.env.CLERK_SECRET_KEY &&
+  dbUrl.length > 0 &&
+  (!process.env.VERCEL || !dbUrl.includes("localhost"));
 
 const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",

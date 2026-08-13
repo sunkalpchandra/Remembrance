@@ -4,6 +4,11 @@ import {
   clerkClient,
 } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+const CLERK_CONFIGURED =
+  !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
+  !!process.env.CLERK_SECRET_KEY;
 
 const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
@@ -17,7 +22,36 @@ const isPublicRoute = createRouteMatcher([
 const isOnboardingRoute = createRouteMatcher(["/onboarding(.*)"]);
 const isHipaaRoute = createRouteMatcher(["/hipaa(.*)"]);
 
-export default clerkMiddleware(async (auth, req) => {
+// Pages that render with no Clerk context at all
+const isClerkFreeRoute = createRouteMatcher([
+  "/welcome(.*)",
+  "/docs(.*)",
+  "/api/search(.*)",
+  "/sitemap.xml",
+  "/robots.txt",
+]);
+
+// Without its keys, every clerkMiddleware() invocation throws and the
+// entire site becomes a 500 wall. On an unconfigured deployment serve
+// the Clerk-free pages and point everything else at the setup guide.
+function unconfiguredMiddleware(req: NextRequest) {
+  if (isClerkFreeRoute(req)) return NextResponse.next();
+  if (req.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json(
+      {
+        error:
+          "Server not configured: missing Clerk environment variables. See DEPLOY.md.",
+      },
+      { status: 503 },
+    );
+  }
+  if (req.nextUrl.pathname === "/") {
+    return NextResponse.redirect(new URL("/welcome", req.url));
+  }
+  return NextResponse.redirect(new URL("/docs/setup", req.url));
+}
+
+const configuredMiddleware = clerkMiddleware(async (auth, req) => {
   const { userId, sessionClaims } = await auth();
 
   // If the user is accessing a public route, let them through
@@ -119,6 +153,8 @@ export default clerkMiddleware(async (auth, req) => {
 
   return NextResponse.next();
 });
+
+export default CLERK_CONFIGURED ? configuredMiddleware : unconfiguredMiddleware;
 
 export const config = {
   matcher: [
